@@ -10,10 +10,11 @@ import { CourseModule } from '../course.module';
 import { CourseSectionItemController } from './course-section-item.controller';
 import { CourseSectionItemService } from './course-section-item.service';
 import { Lecture } from './entities/lecture.entity';
+import { Quiz } from 'src/quiz/entities/quiz.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([CourseSection, CourseSectionItem, Lecture]),
+    TypeOrmModule.forFeature([CourseSection, CourseSectionItem, Lecture, Quiz]),
     forwardRef(() => CourseModule),
   ],
   controllers: [CourseSectionController, CourseSectionItemController],

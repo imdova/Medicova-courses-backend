@@ -9,6 +9,7 @@ import { CourseSection } from './entities/course-section.entity';
 import { CreateCourseSectionItemDto } from './dto/create-course-section-item.dto';
 import { UpdateCourseSectionItemDto } from './dto/update-course-section-item.dto';
 import { Lecture } from './entities/lecture.entity';
+import { Quiz } from 'src/quiz/entities/quiz.entity';
 
 @Injectable()
 export class CourseSectionItemService {
@@ -21,6 +22,9 @@ export class CourseSectionItemService {
 
     @InjectRepository(Lecture)
     private readonly lectureRepository: Repository<Lecture>,
+
+    @InjectRepository(Quiz)
+    private readonly quizRepository: Repository<Quiz>,
   ) {}
 
   async addItem(
@@ -33,12 +37,23 @@ export class CourseSectionItemService {
     if (!section) throw new NotFoundException('Section not found');
 
     let lecture: Lecture | null = null;
+    let quiz: Quiz | null = null;
 
     if (dto.curriculumType === CurriculumType.LECTURE && dto.lecture) {
-      lecture = this.lectureRepository.create({
-        ...dto.lecture,
-      });
+      lecture = this.lectureRepository.create({ ...dto.lecture });
       await this.lectureRepository.save(lecture);
+    }
+
+    if (dto.curriculumType === CurriculumType.QUIZ) {
+      if (!dto.quizId) {
+        throw new NotFoundException(
+          'Quiz ID is required for curriculumType QUIZ',
+        );
+      }
+      quiz = await this.quizRepository.findOne({
+        where: { id: dto.quizId, deleted_at: null },
+      });
+      if (!quiz) throw new NotFoundException('Quiz not found');
     }
 
     const item = this.itemRepository.create({
@@ -46,6 +61,7 @@ export class CourseSectionItemService {
       curriculumType: dto.curriculumType,
       order: dto.order,
       lecture: lecture || null,
+      quiz: quiz || null,
     });
 
     return this.itemRepository.save(item);
@@ -57,22 +73,29 @@ export class CourseSectionItemService {
   ): Promise<CourseSectionItem> {
     const item = await this.itemRepository.findOne({
       where: { id: itemId, deleted_at: null },
-      relations: ['lecture'],
+      relations: ['lecture', 'quiz'],
     });
     if (!item) throw new NotFoundException('Item not found');
 
-    // Update only top-level fields, excluding 'lecture'
-    const { lecture: lectureDto, ...itemData } = dto;
+    const { lecture: lectureDto, quizId, ...itemData } = dto;
     Object.assign(item, itemData);
 
-    // If it's a lecture and lecture data is provided, update it
+    // Lecture updates
     if (item.curriculumType === CurriculumType.LECTURE && lectureDto) {
       if (!item.lecture) {
         throw new NotFoundException('Lecture not found for this item');
       }
-
       Object.assign(item.lecture, lectureDto);
       await this.lectureRepository.save(item.lecture);
+    }
+
+    // Quiz reference swap
+    if (item.curriculumType === CurriculumType.QUIZ && quizId) {
+      const quiz = await this.quizRepository.findOne({
+        where: { id: quizId, deleted_at: null },
+      });
+      if (!quiz) throw new NotFoundException('Quiz not found');
+      item.quiz = quiz;
     }
 
     return this.itemRepository.save(item);
@@ -81,16 +104,19 @@ export class CourseSectionItemService {
   async removeItem(itemId: string): Promise<void> {
     const item = await this.itemRepository.findOne({
       where: { id: itemId, deleted_at: null },
-      relations: ['lecture'],
+      relations: ['lecture', 'quiz'],
     });
 
     if (!item) {
       throw new NotFoundException('Item not found');
     }
 
-    // If lecture exists, delete it from lectures table
     if (item.curriculumType === CurriculumType.LECTURE && item.lecture) {
       await this.lectureRepository.remove(item.lecture);
+    }
+
+    if (item.curriculumType === CurriculumType.QUIZ && item.quiz) {
+      await this.quizRepository.remove(item.quiz);
     }
 
     // Soft delete the section item

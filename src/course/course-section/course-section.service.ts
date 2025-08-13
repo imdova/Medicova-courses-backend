@@ -28,7 +28,7 @@ export class CourseSectionService {
       .createQueryBuilder('section')
       .leftJoinAndSelect('section.items', 'item')
       .leftJoinAndSelect('item.lecture', 'lecture')
-      //.leftJoinAndSelect('item.quiz', 'quiz')
+      .leftJoinAndSelect('item.quiz', 'quiz')
       .where('section.course_id = :courseId', { courseId })
       .andWhere('section.deleted_at IS NULL')
       .orderBy('section.order', 'ASC')

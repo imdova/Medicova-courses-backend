@@ -10,6 +10,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CurriculumType } from '../entities/course-section-item.entity';
 import { CreateLectureDto } from './create-lecture.dto';
 import { Type } from 'class-transformer';
+import { CreateQuizDto } from 'src/quiz/dto/create-quiz.dto';
 
 export class CreateCourseSectionItemDto {
   @ApiProperty({
@@ -20,20 +21,20 @@ export class CreateCourseSectionItemDto {
   curriculumType: CurriculumType;
 
   @ApiPropertyOptional({
-    description: 'ID of the lecture or quiz. Optional for new lectures.',
-    format: 'uuid',
-  })
-  @IsString()
-  @IsOptional()
-  curriculumId?: string;
-
-  @ApiPropertyOptional({
     description: 'Lecture data (only required if curriculumType is LECTURE)',
   })
   @IsOptional()
   @ValidateNested()
   @Type(() => CreateLectureDto)
   lecture?: CreateLectureDto;
+
+  @ApiPropertyOptional({
+    description: 'ID of the quiz',
+    format: 'uuid',
+  })
+  @IsString()
+  @IsOptional()
+  quizId?: string;
 
   @ApiProperty({
     description: 'Order of the item within the section',
