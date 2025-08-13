@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: medicova-courses-db
+    restart: always
+    environment:
+      POSTGRES_USER: medicova_courses_user
+      POSTGRES_PASSWORD: medicova_courses_pass
+      POSTGRES_DB: medicova_courses_db
+    ports:
+      - '5432:5432'
+    volumes:
+      - medicova_courses_data:/var/lib/postgresql/data
+
+volumes:
+  medicova_courses_data:

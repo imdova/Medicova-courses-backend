@@ -1,0 +1,141 @@
+import {
+  IsString,
+  IsOptional,
+  IsArray,
+  IsEnum,
+  IsBoolean,
+  IsDateString,
+  IsEmail,
+  IsUrl,
+  ValidateNested,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Gender, MaritalStatus } from '../entities/instructor-profile.entity';
+import { InstructorMetadataDto } from './instructor-metadata.dto';
+
+class LanguageDto {
+  @ApiProperty({ example: 'Arabic', description: 'Name of the language' })
+  @IsString()
+  language: string;
+
+  @ApiProperty({ example: 'Intermediate', description: 'Proficiency level' })
+  @IsString()
+  level: string;
+}
+
+export class CreateInstructorProfileDto {
+  @ApiProperty({ example: 'Mohamed', description: 'First name of the user' })
+  @IsString()
+  firstName: string;
+
+  @ApiProperty({ example: 'Sayed', description: 'Last name of the user' })
+  @IsString()
+  lastName: string;
+
+  @ApiPropertyOptional({
+    example: '+20100234567',
+    description: 'Phone number of the user',
+  })
+  @IsOptional()
+  @IsString()
+  phoneNumber?: string;
+
+  @ApiPropertyOptional({
+    example: true,
+    description: 'Indicates if phone number is a WhatsApp number',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isWhatsapp?: boolean;
+
+  @ApiPropertyOptional({
+    example: '1980-05-20',
+    description: 'Date of birth (YYYY-MM-DD)',
+  })
+  @IsOptional()
+  @IsDateString()
+  dateOfBirth?: Date;
+
+  @ApiPropertyOptional({
+    enum: Gender,
+    example: Gender.MALE,
+    description: 'Gender of the user',
+  })
+  @IsOptional()
+  @IsEnum(Gender)
+  gender?: Gender;
+
+  @ApiPropertyOptional({
+    example: 'Egyptian',
+    description: 'Nationality of the user',
+  })
+  @IsOptional()
+  @IsString()
+  nationality?: string;
+
+  @ApiPropertyOptional({
+    enum: MaritalStatus,
+    example: MaritalStatus.MARRIED,
+    description: 'Marital status of the user',
+  })
+  @IsOptional()
+  @IsEnum(MaritalStatus)
+  maritalStatus?: MaritalStatus;
+
+  @ApiPropertyOptional({
+    example: true,
+    description: 'Whether the user has a driving license',
+  })
+  @IsOptional()
+  @IsBoolean()
+  hasDrivingLicense?: boolean;
+
+  @ApiPropertyOptional({
+    example: '/uploads/resume.pdf',
+    description: 'Path to the uploaded resume file',
+  })
+  @IsOptional()
+  @IsString()
+  resumePath?: string;
+
+  @ApiPropertyOptional({
+    example: 'dr.mohamed@example.com',
+    description: 'Contact email of the user',
+  })
+  @IsOptional()
+  @IsEmail()
+  contactEmail?: string;
+
+  @ApiPropertyOptional({
+    example: 'https://linkedin.com/in/mohamedsayed',
+    description: 'LinkedIn profile URL',
+  })
+  @IsOptional()
+  @IsUrl()
+  linkedinUrl?: string;
+
+  @ApiPropertyOptional({
+    type: [LanguageDto],
+    description: 'List of languages and proficiency levels',
+    example: [
+      { language: 'Arabic', level: 'Intermediate' },
+      { language: 'English', level: 'Intermediate' },
+    ],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => LanguageDto)
+  languages?: LanguageDto[];
+
+  @ApiPropertyOptional({
+    type: InstructorMetadataDto,
+    description:
+      'Structured instructor metadata (experience, education, skills, etc.)',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => InstructorMetadataDto)
+  metadata?: InstructorMetadataDto;
+}
