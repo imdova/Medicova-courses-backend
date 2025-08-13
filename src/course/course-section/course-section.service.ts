@@ -29,6 +29,8 @@ export class CourseSectionService {
       .leftJoinAndSelect('section.items', 'item')
       .leftJoinAndSelect('item.lecture', 'lecture')
       .leftJoinAndSelect('item.quiz', 'quiz')
+      .leftJoinAndSelect('quiz.quizQuestions', 'quizQuestion')
+      .leftJoinAndSelect('quizQuestion.question', 'question')
       .where('section.course_id = :courseId', { courseId })
       .andWhere('section.deleted_at IS NULL')
       .orderBy('section.order', 'ASC')
