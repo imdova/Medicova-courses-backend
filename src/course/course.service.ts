@@ -83,6 +83,7 @@ export class CourseService {
   async findOne(id: string): Promise<Course> {
     const course = await this.courseRepository.findOne({
       where: { id, deleted_at: null },
+      relations: ['pricings'],
     });
     if (!course) throw new NotFoundException('Course not found');
     return course;
@@ -92,10 +93,7 @@ export class CourseService {
     id: string,
     updateData: Partial<CreateCourseDto>,
   ): Promise<Course> {
-    const course = await this.courseRepository.findOne({
-      where: { id, deleted_at: null },
-      relations: ['pricings'],
-    });
+    const course = await this.findOne(id);
 
     const { tags, pricings, ...rest } = updateData;
 
@@ -148,6 +146,7 @@ export class CourseService {
   async softDelete(id: string): Promise<void> {
     const course = await this.findOne(id);
     course.deleted_at = new Date();
+    course.pricings.forEach((p) => (p.deleted_at = new Date()));
     await this.courseRepository.save(course);
   }
 
