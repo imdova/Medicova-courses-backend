@@ -24,6 +24,9 @@ import { QuizQuestion } from './quiz/entities/quiz-question.entity';
 import { Question } from './quiz/entities/question.entity';
 import { Quiz } from './quiz/entities/quiz.entity';
 import { BundleModule } from './bundle/bundle.module';
+import { Bundle } from './bundle/entities/bundle.entity';
+import { BundlePricing } from './bundle/entities/bundle-pricing.entity';
+import { CourseBundle } from './bundle/entities/course-bundle.entity';
 
 @Module({
   imports: [
@@ -48,6 +51,9 @@ import { BundleModule } from './bundle/bundle.module';
         QuizQuestion,
         Question,
         Quiz,
+        Bundle,
+        BundlePricing,
+        CourseBundle,
       ],
       synchronize: true,
     }),
