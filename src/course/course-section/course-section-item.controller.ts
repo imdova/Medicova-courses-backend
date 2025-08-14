@@ -47,6 +47,19 @@ export class CourseSectionItemController {
     return this.service.addItem(sectionId, dto);
   }
 
+  @Post('bulk')
+  @ApiOperation({
+    summary: 'Add multiple items (lectures or quizzes) to a section',
+  })
+  @ApiBody({ type: [CreateCourseSectionItemDto] })
+  bulkAddItems(
+    @Param('sectionId', ParseUUIDPipe) sectionId: string,
+    @Body() dto: CreateCourseSectionItemDto[],
+  ) {
+    const itemsArray = Array.isArray(dto) ? dto : [dto];
+    return this.service.bulkAddItems(sectionId, itemsArray);
+  }
+
   @Patch(':itemId')
   @ApiOperation({ summary: 'Update a section item (order, etc.)' })
   @ApiParam({ name: 'itemId', description: 'UUID of the section item' })

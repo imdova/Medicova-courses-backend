@@ -10,7 +10,6 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CurriculumType } from '../entities/course-section-item.entity';
 import { CreateLectureDto } from './create-lecture.dto';
 import { Type } from 'class-transformer';
-import { CreateQuizDto } from 'src/quiz/dto/create-quiz.dto';
 
 export class CreateCourseSectionItemDto {
   @ApiProperty({

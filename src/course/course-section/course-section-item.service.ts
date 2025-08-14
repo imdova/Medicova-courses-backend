@@ -123,4 +123,69 @@ export class CourseSectionItemService {
     item.deleted_at = new Date();
     await this.itemRepository.save(item); // This keeps the row, FK won't block
   }
+
+  async bulkAddItems(
+    sectionId: string,
+    items: CreateCourseSectionItemDto[],
+  ): Promise<CourseSectionItem[]> {
+    const section = await this.sectionRepository.findOne({
+      where: { id: sectionId, deleted_at: null },
+    });
+    if (!section) throw new NotFoundException('Section not found');
+
+    const lecturesToSave: Lecture[] = [];
+    const itemsToSave: CourseSectionItem[] = [];
+    const lectureIndexMap: Map<number, number> = new Map(); // map dto index to lecture index
+
+    // Step 1: Prepare all lectures and items
+    for (let i = 0; i < items.length; i++) {
+      const dto = items[i];
+      let lecture: Lecture | null = null;
+      let quiz: Quiz | null = null;
+
+      if (dto.curriculumType === CurriculumType.LECTURE && dto.lecture) {
+        lecture = this.lectureRepository.create({ ...dto.lecture });
+        lectureIndexMap.set(i, lecturesToSave.length); // remember mapping
+        lecturesToSave.push(lecture);
+      }
+
+      if (dto.curriculumType === CurriculumType.QUIZ) {
+        if (!dto.quizId) {
+          throw new NotFoundException(
+            'Quiz ID is required for curriculumType QUIZ',
+          );
+        }
+        quiz = await this.quizRepository.findOne({
+          where: { id: dto.quizId, deleted_at: null },
+        });
+        if (!quiz) throw new NotFoundException('Quiz not found');
+      }
+
+      const item = this.itemRepository.create({
+        section,
+        curriculumType: dto.curriculumType,
+        order: dto.order,
+        lecture: lecture || null, // temporarily attach, will be updated after save
+        quiz,
+      });
+
+      itemsToSave.push(item);
+    }
+
+    // Step 2: Bulk save lectures first
+    let savedLectures: Lecture[] = [];
+    if (lecturesToSave.length > 0) {
+      savedLectures = await this.lectureRepository.save(lecturesToSave);
+    }
+
+    // Step 3: Assign saved lectures back to items
+    for (const [dtoIndex, lectureIndex] of lectureIndexMap.entries()) {
+      itemsToSave[dtoIndex].lecture = savedLectures[lectureIndex];
+    }
+
+    // Step 4: Bulk save section items
+    const savedItems = await this.itemRepository.save(itemsToSave);
+
+    return savedItems;
+  }
 }
