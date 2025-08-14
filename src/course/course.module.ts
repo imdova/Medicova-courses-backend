@@ -8,10 +8,11 @@ import { JwtService } from '@nestjs/jwt';
 import { CoursePricingModule } from './course-pricing/course-pricing.module';
 import { CourseTag } from './entities/course-tags.entity';
 import { CourseSectionModule } from './course-section/course-section.module';
+import { CoursePricing } from './course-pricing/entities/course-pricing.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Course, CourseTag]),
+    TypeOrmModule.forFeature([Course, CourseTag, CoursePricing]),
     CoursePricingModule,
     CourseSectionModule,
   ],
