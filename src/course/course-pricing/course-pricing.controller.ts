@@ -12,7 +12,6 @@ import {
 } from '@nestjs/common';
 import { CoursePricingService } from './course-pricing.service';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
-import { CoursePricing } from './entities/course-pricing.entity';
 import { CreateCoursePricingDto } from './dto/create-course-pricing.dto';
 import { UpdateCoursePricingDto } from './dto/update-course-pricing.dto';
 import { RolesGuard } from 'src/auth/roles.guard';
@@ -49,7 +48,7 @@ export class CoursePricingController {
 
   @Patch(':pricingId')
   @ApiOperation({ summary: 'Update course pricing' })
-  @ApiBody({ type: CreateCoursePricingDto }) 
+  @ApiBody({ type: CreateCoursePricingDto })
   @ApiResponse({ status: 200, type: CreateCoursePricingDto })
   updatePricing(
     @Param('pricingId') pricingId: string,

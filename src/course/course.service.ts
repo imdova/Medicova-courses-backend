@@ -11,6 +11,7 @@ import {
 } from 'nestjs-paginate';
 import { QueryConfig } from 'src/common/utils/query-options';
 import { CourseTag } from './entities/course-tags.entity';
+import { CoursePricing } from './course-pricing/entities/course-pricing.entity';
 
 export const COURSE_PAGINATION_CONFIG: QueryConfig<Course> = {
   sortableColumns: ['created_at', 'name', 'category', 'status'],
@@ -32,13 +33,15 @@ export class CourseService {
     private readonly courseRepository: Repository<Course>,
     @InjectRepository(CourseTag)
     private readonly courseTagRepository: Repository<CourseTag>,
+    @InjectRepository(CoursePricing)
+    private readonly coursePricingRepository: Repository<CoursePricing>,
   ) {}
 
   async create(
     createCourseDto: CreateCourseDto,
     userId: string,
   ): Promise<Course> {
-    const { tags = [], ...courseData } = createCourseDto;
+    const { tags = [], pricings = [], ...courseData } = createCourseDto;
 
     if (tags.length > 0) {
       // Step 1: Fetch existing tags in one query
@@ -64,6 +67,7 @@ export class CourseService {
       ...courseData,
       createdBy: createCourseDto.createdBy ?? userId,
       tags,
+      pricings,
     });
 
     return this.courseRepository.save(course);
@@ -79,6 +83,7 @@ export class CourseService {
   async findOne(id: string): Promise<Course> {
     const course = await this.courseRepository.findOne({
       where: { id, deleted_at: null },
+      relations: ['pricings'],
     });
     if (!course) throw new NotFoundException('Course not found');
     return course;
@@ -90,7 +95,7 @@ export class CourseService {
   ): Promise<Course> {
     const course = await this.findOne(id);
 
-    const { tags, ...rest } = updateData;
+    const { tags, pricings, ...rest } = updateData;
 
     // Handle tags if provided
     if (tags) {
@@ -115,6 +120,23 @@ export class CourseService {
       course.tags = tags;
     }
 
+    // --- Handle pricings based on currencyType ---
+    if (pricings) {
+      const existingMap = new Map(
+        course.pricings.map((p) => [p.currencyCode, p]),
+      );
+
+      for (const p of pricings) {
+        const existing = existingMap.get(p.currencyCode);
+        if (existing) {
+          Object.assign(existing, p);
+        } else {
+          const newPricing = this.coursePricingRepository.create(p);
+          course.pricings.push(newPricing); // attach to course
+        }
+      }
+    }
+
     // Update other fields
     Object.assign(course, rest);
 
@@ -124,6 +146,7 @@ export class CourseService {
   async softDelete(id: string): Promise<void> {
     const course = await this.findOne(id);
     course.deleted_at = new Date();
+    course.pricings.forEach((p) => (p.deleted_at = new Date()));
     await this.courseRepository.save(course);
   }
 

@@ -20,20 +20,20 @@ export class CreateCourseSectionItemDto {
   curriculumType: CurriculumType;
 
   @ApiPropertyOptional({
-    description: 'ID of the lecture or quiz. Optional for new lectures.',
-    format: 'uuid',
-  })
-  @IsString()
-  @IsOptional()
-  curriculumId?: string;
-
-  @ApiPropertyOptional({
     description: 'Lecture data (only required if curriculumType is LECTURE)',
   })
   @IsOptional()
   @ValidateNested()
   @Type(() => CreateLectureDto)
   lecture?: CreateLectureDto;
+
+  @ApiPropertyOptional({
+    description: 'ID of the quiz',
+    format: 'uuid',
+  })
+  @IsString()
+  @IsOptional()
+  quizId?: string;
 
   @ApiProperty({
     description: 'Order of the item within the section',

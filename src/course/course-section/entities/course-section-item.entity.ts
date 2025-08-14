@@ -3,6 +3,7 @@ import { CourseSection } from './course-section.entity';
 import { Lecture } from './lecture.entity';
 import { BasicEntity } from 'src/common/entities/basic.entity';
 import { ApiProperty } from '@nestjs/swagger';
+import { Quiz } from 'src/quiz/entities/quiz.entity';
 
 export enum CurriculumType {
   LECTURE = 'lecture',
@@ -29,6 +30,10 @@ export class CourseSectionItem extends BasicEntity {
   order: number;
 
   @ManyToOne(() => Lecture, { nullable: true, onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'curriculum_id' })
+  @JoinColumn({ name: 'lecture_id' })
   lecture?: Lecture;
+
+  @ManyToOne(() => Quiz, { nullable: true, onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'quiz_id' })
+  quiz?: Quiz;
 }

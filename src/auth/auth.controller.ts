@@ -28,7 +28,10 @@ export class AuthController {
   @Post('login')
   @ApiOperation({ summary: 'User login with email and password' })
   @ApiBody({ type: CreateAuthDto })
-  @ApiResponse({ status: 201, description: 'Login successful, returns JWT tokens' })
+  @ApiResponse({
+    status: 201,
+    description: 'Login successful, returns JWT tokens',
+  })
   @ApiResponse({ status: 400, description: 'Email must be provided' })
   @ApiUnauthorizedResponse({ description: 'Invalid credentials' })
   async login(@Body() body: CreateAuthDto) {
