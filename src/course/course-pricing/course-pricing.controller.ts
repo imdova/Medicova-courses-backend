@@ -49,7 +49,7 @@ export class CoursePricingController {
 
   @Patch(':pricingId')
   @ApiOperation({ summary: 'Update course pricing' })
-  @ApiBody({ type: CreateCoursePricingDto }) 
+  @ApiBody({ type: CreateCoursePricingDto })
   @ApiResponse({ status: 200, type: CreateCoursePricingDto })
   updatePricing(
     @Param('pricingId') pricingId: string,
