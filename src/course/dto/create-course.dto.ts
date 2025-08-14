@@ -21,6 +21,7 @@ import {
 } from '../entities/course.entity';
 import { CourseMetadataDto } from './course-metadata.dto';
 import { Type } from 'class-transformer';
+import { CreateCoursePricingDto } from '../course-pricing/dto/create-course-pricing.dto';
 
 export class CreateCourseDto {
   @ApiProperty({
@@ -270,4 +271,13 @@ export class CreateCourseDto {
   @ValidateNested()
   @Type(() => CourseMetadataDto)
   metadata?: CourseMetadataDto;
+
+  @ApiPropertyOptional({
+    type: [CreateCoursePricingDto],
+    description: 'Optional course pricing information',
+  })
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => CreateCoursePricingDto)
+  pricings?: CreateCoursePricingDto[];
 }
