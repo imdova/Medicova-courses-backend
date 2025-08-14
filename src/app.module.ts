@@ -23,6 +23,10 @@ import { QuizModule } from './quiz/quiz.module';
 import { QuizQuestion } from './quiz/entities/quiz-question.entity';
 import { Question } from './quiz/entities/question.entity';
 import { Quiz } from './quiz/entities/quiz.entity';
+import { BundleModule } from './bundle/bundle.module';
+import { Bundle } from './bundle/entities/bundle.entity';
+import { BundlePricing } from './bundle/entities/bundle-pricing.entity';
+import { CourseBundle } from './bundle/entities/course-bundle.entity';
 
 @Module({
   imports: [
@@ -47,6 +51,9 @@ import { Quiz } from './quiz/entities/quiz.entity';
         QuizQuestion,
         Question,
         Quiz,
+        Bundle,
+        BundlePricing,
+        CourseBundle,
       ],
       synchronize: true,
     }),
@@ -65,6 +72,7 @@ import { Quiz } from './quiz/entities/quiz.entity';
     }),
     CourseModule,
     QuizModule,
+    BundleModule,
   ],
   controllers: [AppController],
   providers: [AppService],
