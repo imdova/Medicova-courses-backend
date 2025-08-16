@@ -16,6 +16,8 @@ import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { UserRole } from 'src/user/entities/user.entity';
+import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
+import { Quiz } from './entities/quiz.entity';
 
 @ApiTags('Quizzes')
 @Controller('quizzes')
@@ -34,8 +36,11 @@ export class QuizController {
   @Get()
   @ApiOperation({ summary: 'List all quizzes' })
   @ApiResponse({ status: 200, description: 'List of quizzes' })
-  findAll(@Req() req) {
-    return this.quizService.findAll(req.user.sub);
+  findAll(
+    @Paginate() query: PaginateQuery,
+    @Req() req,
+  ): Promise<Paginated<Quiz>> {
+    return this.quizService.findAll(query, req.user.sub);
   }
 
   @Get(':id')

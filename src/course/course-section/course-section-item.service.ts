@@ -104,24 +104,11 @@ export class CourseSectionItemService {
   async removeItem(itemId: string): Promise<void> {
     const item = await this.itemRepository.findOne({
       where: { id: itemId, deleted_at: null },
-      relations: ['lecture', 'quiz'],
     });
-
     if (!item) {
       throw new NotFoundException('Item not found');
     }
-
-    if (item.curriculumType === CurriculumType.LECTURE && item.lecture) {
-      await this.lectureRepository.remove(item.lecture);
-    }
-
-    if (item.curriculumType === CurriculumType.QUIZ && item.quiz) {
-      await this.quizRepository.remove(item.quiz);
-    }
-
-    // Soft delete the section item
-    item.deleted_at = new Date();
-    await this.itemRepository.save(item); // This keeps the row, FK won't block
+    await this.itemRepository.remove(item);
   }
 
   async bulkAddItems(

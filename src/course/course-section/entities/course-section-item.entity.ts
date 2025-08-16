@@ -1,4 +1,4 @@
-import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, OneToOne } from 'typeorm';
 import { CourseSection } from './course-section.entity';
 import { Lecture } from './lecture.entity';
 import { BasicEntity } from '../../../common/entities/basic.entity';
@@ -29,8 +29,10 @@ export class CourseSectionItem extends BasicEntity {
   @Column({ type: 'int' })
   order: number;
 
-  @ManyToOne(() => Lecture, { nullable: true, onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'lecture_id' })
+  @OneToOne(() => Lecture, (lecture) => lecture.item, {
+    cascade: true,
+    onDelete: 'CASCADE',
+  })
   lecture?: Lecture;
 
   @ManyToOne(() => Quiz, { nullable: true, onDelete: 'CASCADE' })

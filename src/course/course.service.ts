@@ -73,9 +73,14 @@ export class CourseService {
     return this.courseRepository.save(course);
   }
 
-  async getPaginatedCourses(query: PaginateQuery): Promise<Paginated<Course>> {
+  async getPaginatedCourses(
+    query: PaginateQuery,
+    userId: string,
+  ): Promise<Paginated<Course>> {
     const queryBuilder = this.courseRepository.createQueryBuilder('course');
-    queryBuilder.andWhere('course.deleted_at IS NULL'); // soft delete filter
+    queryBuilder
+      .andWhere('course.deleted_at IS NULL') // filter out soft-deleted
+      .andWhere('course.created_by = :userId', { userId }); // filter by creator
 
     return paginate(query, queryBuilder, COURSE_PAGINATION_CONFIG);
   }

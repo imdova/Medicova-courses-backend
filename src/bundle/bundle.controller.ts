@@ -49,8 +49,11 @@ export class BundleController {
   @Get()
   @ApiOperation({ summary: 'Get all bundles with pagination' })
   @ApiResponse({ status: 200, description: 'Paginated list of bundles' })
-  async findAll(@Paginate() query: PaginateQuery): Promise<Paginated<Bundle>> {
-    return this.bundleService.findAll(query);
+  async findAll(
+    @Paginate() query: PaginateQuery,
+    @Req() req,
+  ): Promise<Paginated<Bundle>> {
+    return this.bundleService.findAll(query, req.user.sub);
   }
 
   @Get(':id')

@@ -54,8 +54,11 @@ export class CourseController {
     description: 'Paginated list of courses',
     type: [Course], // you may want to create a PaginatedCourseDto for better Swagger docs
   })
-  findAll(@Paginate() query: PaginateQuery): Promise<Paginated<Course>> {
-    return this.courseService.getPaginatedCourses(query);
+  findAll(
+    @Paginate() query: PaginateQuery,
+    @Req() req,
+  ): Promise<Paginated<Course>> {
+    return this.courseService.getPaginatedCourses(query, req.user.sub);
   }
 
   @Get('tags')
