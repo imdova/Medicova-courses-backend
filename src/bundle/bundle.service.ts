@@ -91,13 +91,17 @@ export class BundleService {
     });
   }
 
-  async findAll(query: PaginateQuery): Promise<Paginated<Bundle>> {
+  async findAll(
+    query: PaginateQuery,
+    userId: string,
+  ): Promise<Paginated<Bundle>> {
     const queryBuilder = this.bundleRepository
       .createQueryBuilder('bundle')
       .leftJoinAndSelect('bundle.pricings', 'pricings')
       .leftJoinAndSelect('bundle.courseBundles', 'courseBundles')
       .leftJoinAndSelect('courseBundles.course', 'course')
-      .where('bundle.deleted_at IS NULL');
+      .where('bundle.deleted_at IS NULL')
+      .andWhere('bundle.created_by = :userId', { userId });
 
     return paginate(query, queryBuilder, BUNDLE_PAGINATION_CONFIG);
   }
