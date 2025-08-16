@@ -11,6 +11,7 @@ import {
   Paginated,
   PaginateQuery,
 } from 'nestjs-paginate';
+import { Question } from './entities/question.entity';
 
 export const QUIZ_PAGINATION_CONFIG: QueryConfig<Quiz> = {
   sortableColumns: ['created_at', 'title'],
@@ -27,6 +28,8 @@ export class QuizService {
   constructor(
     @InjectRepository(Quiz)
     private readonly quizRepo: Repository<Quiz>,
+    @InjectRepository(Question)
+    private readonly questionRepository: Repository<Question>,
   ) {}
 
   async create(dto: CreateQuizDto, userId: string): Promise<Quiz> {
@@ -65,8 +68,22 @@ export class QuizService {
   }
 
   async remove(id: string): Promise<void> {
-    const quiz = await this.findOne(id);
-    quiz.deleted_at = new Date();
-    await this.quizRepo.save(quiz);
+    await this.quizRepo.manager.transaction(async (manager) => {
+      const quiz = await manager.findOne(Quiz, {
+        where: { id },
+        relations: ['quizQuestions', 'quizQuestions.question'],
+      });
+
+      if (!quiz) throw new NotFoundException('Quiz not found');
+
+      // Remove all questions associated with this quiz
+      const questions = quiz.quizQuestions.map((qq) => qq.question);
+      if (questions.length) {
+        await manager.remove(Question, questions);
+      }
+
+      // Remove the quiz (quizQuestions will be removed via cascade)
+      await manager.remove(Quiz, quiz);
+    });
   }
 }

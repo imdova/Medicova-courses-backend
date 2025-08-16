@@ -12,6 +12,7 @@ export class QuizQuestion extends BasicEntity {
   quiz: Quiz;
 
   @ManyToOne(() => Question, (question) => question.quizQuestions, {
+    cascade: ['remove'], // ensure removing quizQuestion removes its question
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'question_id' })

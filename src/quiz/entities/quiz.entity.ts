@@ -104,6 +104,6 @@ export class Quiz extends BasicEntity {
   @Column({ type: 'int', nullable: true })
   answer_time: number;
 
-  @OneToMany(() => QuizQuestion, (qq) => qq.quiz)
+  @OneToMany(() => QuizQuestion, (qq) => qq.quiz, { cascade: ['remove'] })
   quizQuestions: QuizQuestion[];
 }

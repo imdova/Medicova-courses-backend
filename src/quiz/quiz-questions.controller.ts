@@ -30,6 +30,18 @@ export class QuizQuestionsController {
     return this.quizQuestionsService.createQuestionAndAddToQuiz(quizId, dto);
   }
 
+  @Post('bulk')
+  @ApiOperation({
+    summary: 'Create multiple questions and attach them to a quiz',
+  })
+  @ApiParam({ name: 'quizId', type: 'string', description: 'UUID of the quiz' })
+  addQuestionsBulk(
+    @Param('quizId') quizId: string,
+    @Body() dtos: CreateQuestionDto[],
+  ) {
+    return this.quizQuestionsService.createQuestionsBulk(quizId, dtos);
+  }
+
   @Get()
   @ApiOperation({ summary: 'List all questions for a quiz' })
   @ApiParam({ name: 'quizId', type: 'string' })
