@@ -9,7 +9,7 @@ import {
   Paginated,
   PaginateQuery,
 } from 'nestjs-paginate';
-import { QueryConfig } from 'src/common/utils/query-options';
+import { QueryConfig } from '../common/utils/query-options';
 import { CourseTag } from './entities/course-tags.entity';
 import { CoursePricing } from './course-pricing/entities/course-pricing.entity';
 

@@ -7,7 +7,7 @@ import { CourseBundle } from './entities/course-bundle.entity';
 import { CreateBundleDto } from './dto/create-bundle.dto';
 import { Course } from 'src/course/entities/course.entity';
 import { UpdateBundleDto } from './dto/update-bundle.dto';
-import { QueryConfig } from 'src/common/utils/query-options';
+import { QueryConfig } from '../common/utils/query-options';
 import {
   FilterOperator,
   paginate,
