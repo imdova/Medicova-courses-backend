@@ -6,29 +6,36 @@ import {
   Param,
   Patch,
   Post,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { QuizService } from './quiz.service';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
+import { RolesGuard } from 'src/auth/roles.guard';
+import { Roles } from 'src/auth/decorator/roles.decorator';
+import { UserRole } from 'src/user/entities/user.entity';
 
 @ApiTags('Quizzes')
 @Controller('quizzes')
+@UseGuards(RolesGuard)
+@Roles(UserRole.INSTRUCTOR)
 export class QuizController {
   constructor(private readonly quizService: QuizService) {}
 
   @Post()
   @ApiOperation({ summary: 'Create a new quiz' })
   @ApiResponse({ status: 201, description: 'Quiz successfully created' })
-  create(@Body() dto: CreateQuizDto) {
-    return this.quizService.create(dto);
+  create(@Body() dto: CreateQuizDto, @Req() req) {
+    return this.quizService.create(dto, req.user.sub);
   }
 
   @Get()
   @ApiOperation({ summary: 'List all quizzes' })
   @ApiResponse({ status: 200, description: 'List of quizzes' })
-  findAll() {
-    return this.quizService.findAll();
+  findAll(@Req() req) {
+    return this.quizService.findAll(req.user.sub);
   }
 
   @Get(':id')

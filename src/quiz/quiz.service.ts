@@ -15,14 +15,17 @@ export class QuizService {
     private readonly quizRepo: Repository<Quiz>,
   ) {}
 
-  async create(dto: CreateQuizDto): Promise<Quiz> {
-    const quiz = this.quizRepo.create(dto);
+  async create(dto: CreateQuizDto, userId: string): Promise<Quiz> {
+    const quiz = this.quizRepo.create({
+      ...dto,
+      created_by: userId,
+    });
     return this.quizRepo.save(quiz);
   }
 
-  async findAll(): Promise<Quiz[]> {
+  async findAll(userId: string): Promise<Quiz[]> {
     return this.quizRepo.find({
-      where: { deleted_at: null },
+      where: { deleted_at: null, created_by: userId },
     });
   }
 

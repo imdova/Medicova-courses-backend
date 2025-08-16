@@ -28,9 +28,9 @@ export enum AnswerTimeType {
 
 @Entity('quizzes')
 export class Quiz extends BasicEntity {
-  //   @ApiProperty()
-  //   @Column({ type: 'uuid' })
-  //   created_by: string;
+  @ApiProperty()
+  @Column({ type: 'uuid' })
+  created_by: string;
 
   @ApiProperty({ enum: QuizStatus })
   @Column({ type: 'enum', enum: QuizStatus, default: QuizStatus.DRAFT })
