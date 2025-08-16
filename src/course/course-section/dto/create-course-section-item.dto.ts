@@ -35,11 +35,12 @@ export class CreateCourseSectionItemDto {
   @IsOptional()
   quizId?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Order of the item within the section',
     example: 1,
   })
   @IsInt()
   @Min(1)
+  @IsOptional()
   order: number;
 }
