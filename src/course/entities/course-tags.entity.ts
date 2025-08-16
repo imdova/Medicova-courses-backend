@@ -1,6 +1,6 @@
 import { Entity, Column } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
-import { BasicEntity } from 'src/common/entities/basic.entity';
+import { BasicEntity } from '../../common/entities/basic.entity';
 
 @Entity('course_tags')
 export class CourseTag extends BasicEntity {

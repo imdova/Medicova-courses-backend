@@ -1,6 +1,6 @@
 import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { Bundle } from './bundle.entity';
-import { BasicEntity } from 'src/common/entities/basic.entity';
+import { BasicEntity } from '../../common/entities/basic.entity';
 
 export enum CurrencyCode {
   USD = 'USD',

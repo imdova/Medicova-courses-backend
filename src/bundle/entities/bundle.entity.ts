@@ -1,7 +1,7 @@
 import { Entity, Column, OneToMany } from 'typeorm';
 import { CourseBundle } from './course-bundle.entity';
 import { BundlePricing } from './bundle-pricing.entity';
-import { BasicEntity } from 'src/common/entities/basic.entity';
+import { BasicEntity } from '../../common/entities/basic.entity';
 
 export enum BundleStatus {
   DRAFT = 'draft',

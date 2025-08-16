@@ -1,7 +1,7 @@
 import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { CourseSection } from './course-section.entity';
 import { Lecture } from './lecture.entity';
-import { BasicEntity } from 'src/common/entities/basic.entity';
+import { BasicEntity } from '../../../common/entities/basic.entity';
 import { ApiProperty } from '@nestjs/swagger';
 import { Quiz } from 'src/quiz/entities/quiz.entity';
 
