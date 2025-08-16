@@ -1,7 +1,7 @@
 import { Entity, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 import { Course } from '../../entities/course.entity';
 import { CourseSectionItem } from './course-section-item.entity';
-import { BasicEntity } from 'src/common/entities/basic.entity';
+import { BasicEntity } from '../../../common/entities/basic.entity';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 @Entity('course_sections')

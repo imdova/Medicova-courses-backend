@@ -60,6 +60,14 @@ export class CreateQuestionDto {
   @IsString()
   explanation?: string;
 
+  @ApiPropertyOptional({
+    description: 'Optional image for the question',
+    example: 'https://example.com/image.png',
+  })
+  @IsOptional()
+  @IsUrl()
+  image_url?: string;
+
   @ApiProperty({
     description: 'List of possible answers',
     type: [AnswerOptionDto],

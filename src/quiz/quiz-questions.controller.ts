@@ -6,14 +6,20 @@ import {
   Get,
   Patch,
   Delete,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
 import { QuizQuestionsService } from './quiz-questions.service';
 import { CreateQuestionDto } from './dto/create-question.dto';
 import { UpdateQuestionDto } from './dto/update-question.dto';
+import { RolesGuard } from 'src/auth/roles.guard';
+import { Roles } from 'src/auth/decorator/roles.decorator';
+import { UserRole } from 'src/user/entities/user.entity';
 
 @ApiTags('Quiz Questions')
 @Controller('quizzes/:quizId/questions')
+@UseGuards(RolesGuard)
+@Roles(UserRole.INSTRUCTOR)
 export class QuizQuestionsController {
   constructor(private readonly quizQuestionsService: QuizQuestionsService) {}
 
@@ -22,6 +28,18 @@ export class QuizQuestionsController {
   @ApiParam({ name: 'quizId', type: 'string', description: 'UUID of the quiz' })
   addQuestion(@Param('quizId') quizId: string, @Body() dto: CreateQuestionDto) {
     return this.quizQuestionsService.createQuestionAndAddToQuiz(quizId, dto);
+  }
+
+  @Post('bulk')
+  @ApiOperation({
+    summary: 'Create multiple questions and attach them to a quiz',
+  })
+  @ApiParam({ name: 'quizId', type: 'string', description: 'UUID of the quiz' })
+  addQuestionsBulk(
+    @Param('quizId') quizId: string,
+    @Body() dtos: CreateQuestionDto[],
+  ) {
+    return this.quizQuestionsService.createQuestionsBulk(quizId, dtos);
   }
 
   @Get()

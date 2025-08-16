@@ -1,6 +1,7 @@
-import { BasicEntity } from 'src/common/entities/basic.entity';
-import { Entity, Column } from 'typeorm';
+import { BasicEntity } from '../../../common/entities/basic.entity';
+import { Entity, Column, OneToOne, JoinColumn } from 'typeorm';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { CourseSectionItem } from './course-section-item.entity';
 
 @Entity('lectures')
 export class Lecture extends BasicEntity {
@@ -42,4 +43,10 @@ export class Lecture extends BasicEntity {
   @ApiProperty({ description: 'Whether the lecture is free', example: false })
   @Column({ type: 'boolean', default: false })
   isLectureFree: boolean;
+
+  @OneToOne(() => CourseSectionItem, (item) => item.lecture, {
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'item_id' })
+  item: CourseSectionItem;
 }

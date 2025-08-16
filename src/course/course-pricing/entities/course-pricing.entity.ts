@@ -1,4 +1,4 @@
-import { BasicEntity } from 'src/common/entities/basic.entity';
+import { BasicEntity } from '../../../common/entities/basic.entity';
 import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { Course } from '../../entities/course.entity';
 import { ApiProperty } from '@nestjs/swagger';

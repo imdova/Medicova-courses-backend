@@ -1,6 +1,6 @@
 import { Entity, Column, OneToMany } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
-import { BasicEntity } from 'src/common/entities/basic.entity';
+import { BasicEntity } from '../../common/entities/basic.entity';
 import { QuizQuestion } from './quiz-question.entity';
 
 export enum QuizStatus {
@@ -28,9 +28,9 @@ export enum AnswerTimeType {
 
 @Entity('quizzes')
 export class Quiz extends BasicEntity {
-  //   @ApiProperty()
-  //   @Column({ type: 'uuid' })
-  //   created_by: string;
+  @ApiProperty()
+  @Column({ type: 'uuid' })
+  created_by: string;
 
   @ApiProperty({ enum: QuizStatus })
   @Column({ type: 'enum', enum: QuizStatus, default: QuizStatus.DRAFT })
@@ -104,6 +104,6 @@ export class Quiz extends BasicEntity {
   @Column({ type: 'int', nullable: true })
   answer_time: number;
 
-  @OneToMany(() => QuizQuestion, (qq) => qq.quiz)
+  @OneToMany(() => QuizQuestion, (qq) => qq.quiz, { cascade: ['remove'] })
   quizQuestions: QuizQuestion[];
 }

@@ -23,6 +23,7 @@ import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { UserRole } from 'src/user/entities/user.entity';
 import { CourseSection } from './entities/course-section.entity';
+import { CreateMultipleSectionsWithItemsDto } from './dto/create-sections-with-items.dto';
 
 @ApiTags('Course Sections')
 @Controller('courses/:courseId/course-sections')
@@ -45,6 +46,16 @@ export class CourseSectionController {
     @Body() dto: CreateCourseSectionDto,
   ) {
     return this.service.createSection(courseId, dto);
+  }
+
+  @Post('with-items/bulk')
+  @ApiOperation({ summary: 'Create multiple course sections with items' })
+  @ApiBody({ type: CreateMultipleSectionsWithItemsDto })
+  async createMultipleSectionsWithItems(
+    @Param('courseId', ParseUUIDPipe) courseId: string,
+    @Body() dto: CreateMultipleSectionsWithItemsDto,
+  ) {
+    return this.service.createMultipleSectionsWithItems(courseId, dto.sections);
   }
 
   @Get()
@@ -80,6 +91,6 @@ export class CourseSectionController {
   @ApiParam({ name: 'sectionId', description: 'UUID of the section' })
   @ApiResponse({ status: 204, description: 'Section deleted successfully' })
   softDeleteSection(@Param('sectionId', ParseUUIDPipe) sectionId: string) {
-    return this.service.softDeleteSection(sectionId);
+    return this.service.removeSection(sectionId);
   }
 }

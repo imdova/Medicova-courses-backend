@@ -58,6 +58,32 @@ export class QuizQuestionsService {
     });
   }
 
+  async createQuestionsBulk(
+    quizId: string,
+    dtos: CreateQuestionDto[],
+  ): Promise<QuizQuestion[]> {
+    const quiz = await this.quizRepository.findOne({
+      where: { id: quizId, deleted_at: null },
+    });
+    if (!quiz) throw new NotFoundException('Quiz not found');
+
+    // Create all questions at once
+    const questions = this.questionRepository.create(dtos);
+    await this.questionRepository.save(questions);
+
+    // Map to quizQuestions
+    const quizQuestions = questions.map((question, i) =>
+      this.quizQuestionRepository.create({
+        quiz,
+        question,
+        order: dtos[i].order ?? i + 1,
+      }),
+    );
+
+    // Save all quizQuestions at once
+    return this.quizQuestionRepository.save(quizQuestions);
+  }
+
   async updateQuestionInQuiz(
     quizId: string,
     quizQuestionId: string,
@@ -90,11 +116,16 @@ export class QuizQuestionsService {
     quizQuestionId: string,
   ): Promise<void> {
     const quizQuestion = await this.quizQuestionRepository.findOne({
-      where: { id: quizQuestionId, quiz: { id: quizId }, deleted_at: null },
+      where: { id: quizQuestionId, quiz: { id: quizId } },
+      relations: ['question'],
     });
+
     if (!quizQuestion) throw new NotFoundException('Quiz question not found');
 
-    quizQuestion.deleted_at = new Date();
-    await this.quizQuestionRepository.save(quizQuestion);
+    // First remove the question itself
+    await this.questionRepository.remove(quizQuestion.question);
+
+    // Then remove the quiz-question link
+    await this.quizQuestionRepository.remove(quizQuestion);
   }
 }

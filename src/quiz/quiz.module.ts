@@ -7,10 +7,12 @@ import { QuizService } from './quiz.service';
 import { QuizController } from './quiz.controller';
 import { QuizQuestionsController } from './quiz-questions.controller';
 import { QuizQuestionsService } from './quiz-questions.service';
+import { RolesGuard } from 'src/auth/roles.guard';
+import { JwtService } from '@nestjs/jwt';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Quiz, Question, QuizQuestion])],
   controllers: [QuizController, QuizQuestionsController],
-  providers: [QuizService, QuizQuestionsService],
+  providers: [QuizService, QuizQuestionsService, RolesGuard, JwtService],
 })
 export class QuizModule {}
