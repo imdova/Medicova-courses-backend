@@ -3,8 +3,10 @@ import { AppModule } from './app.module';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import basicAuth from 'basic-auth';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
 
-let app: INestApplication; // Declare app as a global variable
+let app: NestExpressApplication; // Change to NestExpressApplication for static serving
 
 // Define your username and password for Swagger access
 const SWAGGER_USERNAME = process.env.SWAGGER_USERNAME;
@@ -26,7 +28,7 @@ function swaggerBasicAuth(req, res, next) {
 
 async function bootstrap() {
   if (!app) {
-    app = await NestFactory.create(AppModule);
+    app = await NestFactory.create<NestExpressApplication>(AppModule);
 
     // Global pipes
     app.useGlobalPipes(
@@ -39,6 +41,18 @@ async function bootstrap() {
 
     app.setGlobalPrefix('api');
     app.enableCors();
+
+    // Serve static files for Swagger UI
+    try {
+      app.useStaticAssets(
+        join(__dirname, '..', 'node_modules', 'swagger-ui-dist'),
+        {
+          prefix: '/swagger-ui/',
+        },
+      );
+    } catch (error) {
+      console.log('Static assets path not found, continuing...');
+    }
 
     // Swagger setup
     const config = new DocumentBuilder()
@@ -57,11 +71,25 @@ async function bootstrap() {
     if (process.env.NODE_ENV === 'production' && swaggerPath) {
       app.use(`/${swaggerPath}`, swaggerBasicAuth);
     }
-    SwaggerModule.setup(swaggerPath, app, document);
+
+    // Setup Swagger with custom options
+    SwaggerModule.setup(swaggerPath, app, document, {
+      customCssUrl:
+        process.env.NODE_ENV === 'production'
+          ? 'https://cdn.jsdelivr.net/npm/swagger-ui-dist@4.15.5/swagger-ui.css'
+          : undefined,
+      customJs:
+        process.env.NODE_ENV === 'production'
+          ? 'https://cdn.jsdelivr.net/npm/swagger-ui-dist@4.15.5/swagger-ui-bundle.js'
+          : undefined,
+      swaggerOptions: {
+        persistAuthorization: true,
+      },
+    });
   }
 
-  await app.init(); // Initialize the app
-  return app; // Return the app instance
+  await app.init();
+  return app;
 }
 
 // FOR VERCEL DEPLOYMENT
