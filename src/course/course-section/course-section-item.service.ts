@@ -56,13 +56,15 @@ export class CourseSectionItemService {
       if (!quiz) throw new NotFoundException('Quiz not found');
     }
 
-    const item = this.itemRepository.create({
+    let item = this.itemRepository.create({
       section,
       curriculumType: dto.curriculumType,
       order: dto.order,
       lecture: lecture || null,
       quiz: quiz || null,
     });
+
+    item = await this.reorderItems(sectionId, item);
 
     return this.itemRepository.save(item);
   }
@@ -73,11 +75,11 @@ export class CourseSectionItemService {
   ): Promise<CourseSectionItem> {
     const item = await this.itemRepository.findOne({
       where: { id: itemId, deleted_at: null },
-      relations: ['lecture', 'quiz'],
+      relations: ['lecture', 'quiz', 'section'],
     });
     if (!item) throw new NotFoundException('Item not found');
 
-    const { lecture: lectureDto, quizId, ...itemData } = dto;
+    const { lecture: lectureDto, quizId, order, ...itemData } = dto;
     Object.assign(item, itemData);
 
     // Lecture updates
@@ -96,6 +98,12 @@ export class CourseSectionItemService {
       });
       if (!quiz) throw new NotFoundException('Quiz not found');
       item.quiz = quiz;
+    }
+
+    // Update order if provided
+    if (order !== undefined && order !== null) {
+      item.order = order;
+      await this.reorderItems(item.section.id, item);
     }
 
     return this.itemRepository.save(item);
@@ -174,5 +182,39 @@ export class CourseSectionItemService {
     const savedItems = await this.itemRepository.save(itemsToSave);
 
     return savedItems;
+  }
+
+  private async reorderItems(
+    sectionId: string,
+    item: CourseSectionItem,
+  ): Promise<CourseSectionItem> {
+    // Fetch all items for the section, ordered
+    const items = await this.itemRepository.find({
+      where: { section: { id: sectionId }, deleted_at: null },
+      order: { order: 'ASC' },
+    });
+
+    // If no order provided, set to last
+    if (item.order === undefined || item.order === null) {
+      item.order = (items[items.length - 1]?.order ?? 0) + 1;
+      return item;
+    }
+
+    // Remove the current item if already exists
+    const filtered = items.filter((i) => i.id !== item.id);
+
+    // Insert item at desired position (order - 1)
+    filtered.splice(item.order - 1, 0, item);
+
+    // Reassign sequential orders starting from 1
+    const reordered = filtered.map((i, index) => {
+      i.order = index + 1;
+      return i;
+    });
+
+    // Save all items except the one being created/updated
+    await this.itemRepository.save(reordered.filter((i) => i.id !== item.id));
+
+    return reordered.find((i) => i.id === item.id) ?? item;
   }
 }

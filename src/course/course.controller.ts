@@ -38,7 +38,7 @@ export class CourseController {
   @ApiResponse({
     status: 201,
     description: 'The course has been successfully created.',
-    type: Course,
+    type: CreateCourseDto,
   })
   create(@Body() createCourseDto: CreateCourseDto, @Req() req) {
     const userId = req.user.sub; // Get user ID from the request
@@ -78,7 +78,7 @@ export class CourseController {
   @ApiResponse({
     status: 200,
     description: 'Course found',
-    type: Course,
+    type: CreateCourseDto,
   })
   @ApiResponse({ status: 404, description: 'Course not found' })
   findOne(@Param('id', ParseUUIDPipe) id: string) {
@@ -92,7 +92,7 @@ export class CourseController {
   @ApiResponse({
     status: 200,
     description: 'Course updated successfully',
-    type: Course,
+    type: CreateCourseDto,
   })
   @ApiResponse({ status: 404, description: 'Course not found' })
   update(

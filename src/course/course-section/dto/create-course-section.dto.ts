@@ -14,11 +14,12 @@ export class CreateCourseSectionDto {
   @IsString()
   description?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Order of the section in the course',
     example: 1,
   })
   @IsInt()
   @Min(1)
+  @IsOptional()
   order: number;
 }
