@@ -11,7 +11,13 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { CoursePricingService } from './course-pricing.service';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBody,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { CreateCoursePricingDto } from './dto/create-course-pricing.dto';
 import { UpdateCoursePricingDto } from './dto/update-course-pricing.dto';
 import { RolesGuard } from 'src/auth/roles.guard';
@@ -32,6 +38,7 @@ export class CoursePricingController {
     description: 'Pricing added',
     type: CreateCoursePricingDto,
   })
+  @ApiBearerAuth()
   createPricing(
     @Param('courseId') courseId: string,
     @Body() dto: CreateCoursePricingDto,
@@ -42,6 +49,7 @@ export class CoursePricingController {
   @Get()
   @ApiOperation({ summary: 'Get all pricing for a course' })
   @ApiResponse({ status: 200, type: [CreateCoursePricingDto] })
+  @ApiBearerAuth()
   getPricing(@Param('courseId') courseId: string) {
     return this.pricingService.getPricingByCourse(courseId);
   }
@@ -50,6 +58,7 @@ export class CoursePricingController {
   @ApiOperation({ summary: 'Update course pricing' })
   @ApiBody({ type: CreateCoursePricingDto })
   @ApiResponse({ status: 200, type: CreateCoursePricingDto })
+  @ApiBearerAuth()
   updatePricing(
     @Param('pricingId') pricingId: string,
     @Body() dto: UpdateCoursePricingDto,
@@ -60,6 +69,7 @@ export class CoursePricingController {
   @Delete(':pricingId')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Deactivate course pricing' })
+  @ApiBearerAuth()
   async deletePricing(@Param('pricingId') pricingId: string) {
     await this.pricingService.softDeletePricing(pricingId);
   }
