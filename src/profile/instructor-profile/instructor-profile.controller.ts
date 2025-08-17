@@ -17,6 +17,7 @@ import {
   ApiBody,
   ApiParam,
   ApiOkResponse,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 import { CreateInstructorProfileDto } from './dto/create-instructor-profile.dto';
 import { InstructorProfileService } from './instructor-profile.service';
@@ -56,6 +57,7 @@ export class InstructorProfileController {
     status: HttpStatus.FORBIDDEN,
     description: 'Instructor is not authorized to create this profile.',
   })
+  @ApiBearerAuth()
   async create(
     @Param('instructorId') instructorId: string,
     @Body() createProfileDto: CreateInstructorProfileDto,
@@ -92,6 +94,7 @@ export class InstructorProfileController {
     status: HttpStatus.FORBIDDEN,
     description: 'Instructor is not authorized to update this profile.',
   })
+  @ApiBearerAuth()
   async update(
     @Param('instructorId') instructorId: string,
     @Body() updateProfileDto: UpdateInstructorProfileDto,
@@ -126,6 +129,7 @@ export class InstructorProfileController {
     status: HttpStatus.FORBIDDEN,
     description: 'Instructor is not authorized to view this profile.',
   })
+  @ApiBearerAuth()
   async findOne(@Param('instructorId') instructorId: string, @Req() req) {
     if (instructorId !== req.user.sub) {
       throw new ForbiddenException();

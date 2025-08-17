@@ -8,7 +8,12 @@ import {
   Delete,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiParam,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { QuizQuestionsService } from './quiz-questions.service';
 import { CreateQuestionDto } from './dto/create-question.dto';
 import { UpdateQuestionDto } from './dto/update-question.dto';
@@ -26,6 +31,7 @@ export class QuizQuestionsController {
   @Post()
   @ApiOperation({ summary: 'Create a question and attach it to a quiz' })
   @ApiParam({ name: 'quizId', type: 'string', description: 'UUID of the quiz' })
+  @ApiBearerAuth()
   addQuestion(@Param('quizId') quizId: string, @Body() dto: CreateQuestionDto) {
     return this.quizQuestionsService.createQuestionAndAddToQuiz(quizId, dto);
   }
@@ -35,6 +41,7 @@ export class QuizQuestionsController {
     summary: 'Create multiple questions and attach them to a quiz',
   })
   @ApiParam({ name: 'quizId', type: 'string', description: 'UUID of the quiz' })
+  @ApiBearerAuth()
   addQuestionsBulk(
     @Param('quizId') quizId: string,
     @Body() dtos: CreateQuestionDto[],
@@ -45,6 +52,7 @@ export class QuizQuestionsController {
   @Get()
   @ApiOperation({ summary: 'List all questions for a quiz' })
   @ApiParam({ name: 'quizId', type: 'string' })
+  @ApiBearerAuth()
   listQuestions(@Param('quizId') quizId: string) {
     return this.quizQuestionsService.listQuestionsForQuiz(quizId);
   }
@@ -57,6 +65,7 @@ export class QuizQuestionsController {
     type: 'string',
     description: 'UUID of the quiz-question link',
   })
+  @ApiBearerAuth()
   updateQuestionInQuiz(
     @Param('quizId') quizId: string,
     @Param('quizQuestionId') quizQuestionId: string,
@@ -73,6 +82,7 @@ export class QuizQuestionsController {
   @ApiOperation({ summary: 'Remove a question from a quiz' })
   @ApiParam({ name: 'quizId', type: 'string' })
   @ApiParam({ name: 'quizQuestionId', type: 'string' })
+  @ApiBearerAuth()
   removeQuestion(
     @Param('quizId') quizId: string,
     @Param('quizQuestionId') quizQuestionId: string,

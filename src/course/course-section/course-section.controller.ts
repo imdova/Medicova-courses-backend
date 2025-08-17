@@ -18,6 +18,7 @@ import {
   ApiParam,
   ApiBody,
   ApiResponse,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/decorator/roles.decorator';
@@ -41,6 +42,7 @@ export class CourseSectionController {
     description: 'Section created successfully',
     type: CourseSection,
   })
+  @ApiBearerAuth()
   createSection(
     @Param('courseId', ParseUUIDPipe) courseId: string,
     @Body() dto: CreateCourseSectionDto,
@@ -51,6 +53,7 @@ export class CourseSectionController {
   @Post('with-items/bulk')
   @ApiOperation({ summary: 'Create multiple course sections with items' })
   @ApiBody({ type: CreateMultipleSectionsWithItemsDto })
+  @ApiBearerAuth()
   async createMultipleSectionsWithItems(
     @Param('courseId', ParseUUIDPipe) courseId: string,
     @Body() dto: CreateMultipleSectionsWithItemsDto,
@@ -66,6 +69,7 @@ export class CourseSectionController {
     description: 'List of course sections',
     type: [CourseSection],
   })
+  @ApiBearerAuth()
   getSections(@Param('courseId', ParseUUIDPipe) courseId: string) {
     return this.service.getSectionsByCourse(courseId);
   }
@@ -79,6 +83,7 @@ export class CourseSectionController {
     description: 'Section updated successfully',
     type: CourseSection,
   })
+  @ApiBearerAuth()
   updateSection(
     @Param('sectionId', ParseUUIDPipe) sectionId: string,
     @Body() dto: UpdateCourseSectionDto,
@@ -90,6 +95,7 @@ export class CourseSectionController {
   @ApiOperation({ summary: 'Soft delete a course section' })
   @ApiParam({ name: 'sectionId', description: 'UUID of the section' })
   @ApiResponse({ status: 204, description: 'Section deleted successfully' })
+  @ApiBearerAuth()
   softDeleteSection(@Param('sectionId', ParseUUIDPipe) sectionId: string) {
     return this.service.removeSection(sectionId);
   }

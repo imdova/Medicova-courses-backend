@@ -18,6 +18,7 @@ import {
   ApiResponse,
   ApiBody,
   ApiParam,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 import { Course } from './entities/course.entity';
 import { RolesGuard } from 'src/auth/roles.guard';
@@ -40,6 +41,7 @@ export class CourseController {
     description: 'The course has been successfully created.',
     type: CreateCourseDto,
   })
+  @ApiBearerAuth()
   create(@Body() createCourseDto: CreateCourseDto, @Req() req) {
     const userId = req.user.sub; // Get user ID from the request
     return this.courseService.create(createCourseDto, userId);
@@ -54,6 +56,7 @@ export class CourseController {
     description: 'Paginated list of courses',
     type: [Course], // you may want to create a PaginatedCourseDto for better Swagger docs
   })
+  @ApiBearerAuth()
   findAll(
     @Paginate() query: PaginateQuery,
     @Req() req,
@@ -68,6 +71,7 @@ export class CourseController {
     description: 'List of all course tags',
     type: [String],
   })
+  @ApiBearerAuth()
   getTags() {
     return this.courseService.getAllTags();
   }
@@ -81,6 +85,7 @@ export class CourseController {
     type: CreateCourseDto,
   })
   @ApiResponse({ status: 404, description: 'Course not found' })
+  @ApiBearerAuth()
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.courseService.findOne(id);
   }
@@ -95,6 +100,7 @@ export class CourseController {
     type: CreateCourseDto,
   })
   @ApiResponse({ status: 404, description: 'Course not found' })
+  @ApiBearerAuth()
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateData: Partial<CreateCourseDto>,
@@ -107,6 +113,7 @@ export class CourseController {
   @ApiParam({ name: 'id', description: 'UUID of the course' })
   @ApiResponse({ status: 204, description: 'Course soft deleted successfully' })
   @ApiResponse({ status: 404, description: 'Course not found' })
+  @ApiBearerAuth()
   async softDelete(@Param('id', ParseUUIDPipe) id: string) {
     await this.courseService.softDelete(id);
   }
