@@ -59,6 +59,9 @@ import { Coupon } from './coupon/entities/coupon.entity';
         Coupon,
       ],
       synchronize: true,
+      extra: {
+        max: 5, // small pool for serverless
+      },
     }),
     UserModule,
     ProfileModule,
