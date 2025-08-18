@@ -5,7 +5,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import basicAuth from 'basic-auth';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
-import * as cookieParser from 'cookie-parser';
+import cookieParser from 'cookie-parser';
 
 //Test2
 
