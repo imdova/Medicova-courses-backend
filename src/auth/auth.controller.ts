@@ -6,20 +6,23 @@ import {
   Req,
   Res,
   Get,
+  UseGuards,
 } from '@nestjs/common';
 import { Response, Request } from 'express';
 import { AuthService } from './auth.service';
 import { CreateAuthDto } from './dto/create-auth.dto';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { AuthGuard } from '@nestjs/passport';
+import { RolesGuard } from './roles.guard';
 
 interface JwtPayload {
   sub: string;
   role: string;
 }
 
-const cookieOptions = {
+export const cookieOptions = {
   httpOnly: true,
-  secure: false,
+  secure: process.env.NODE_ENV === 'production', // only true in prod
   sameSite: 'lax' as const,
 };
 
@@ -40,52 +43,55 @@ export class AuthController {
       throw new BadRequestException('Email must be provided.');
     }
 
-    const user = await this.authService.validateUser(email, password);
-    const { accessToken, refreshToken, userInfo } =
-      await this.authService.generateToken(user);
+    const dbUser = await this.authService.validateUser(email, password);
+    const { access_token, refresh_token, user } =
+      await this.authService.generateToken(dbUser);
 
-    res.cookie('access_token', accessToken, {
+    res.cookie('access_token', access_token, {
       ...cookieOptions,
       maxAge: 15 * 60 * 1000,
     });
 
-    res.cookie('refresh_token', refreshToken, {
+    res.cookie('refresh_token', refresh_token, {
       ...cookieOptions,
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    return { message: 'Login successful', user: userInfo };
+    return { message: 'Login successful', user };
   }
 
   @Post('refresh')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @ApiOperation({ summary: 'Refresh JWT token using refresh token' })
   async refresh(
-    @Req() req: Request,
+    @Req() req: Request & { user?: JwtPayload },
     @Res({ passthrough: true }) res: Response,
   ) {
     const refreshToken = req.cookies['refresh_token'];
-    if (!refreshToken) throw new BadRequestException('No refresh token found');
+    const userId = req.user?.sub; // Comes from JWT in req.user
 
-    const {
-      accessToken,
-      refreshToken: newRefreshToken,
-      userInfo,
-    } = await this.authService.refreshToken(refreshToken);
+    if (!refreshToken || !userId) {
+      throw new BadRequestException('No refresh token or user ID found');
+    }
 
-    res.cookie('access_token', accessToken, {
+    const { access_token, refresh_token, user } =
+      await this.authService.refreshToken(userId, refreshToken);
+
+    res.cookie('access_token', access_token, {
       ...cookieOptions,
       maxAge: 15 * 60 * 1000,
     });
 
-    res.cookie('refresh_token', newRefreshToken, {
+    res.cookie('refresh_token', refresh_token, {
       ...cookieOptions,
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    return { message: 'Token refreshed', user: userInfo };
+    return { message: 'Token refreshed', user };
   }
 
   @Post('logout')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @ApiOperation({ summary: 'Logout user and clear cookies' })
   async logout(
     @Req() req: Request & { user?: JwtPayload },
@@ -97,5 +103,65 @@ export class AuthController {
     res.clearCookie('refresh_token', cookieOptions);
 
     return { message: 'Logged out successfully' };
+  }
+
+  // ================= GOOGLE =================
+  @Get('google')
+  @UseGuards(AuthGuard('google'))
+  @ApiOperation({ summary: 'Initiate Google OAuth login' })
+  async googleLogin() {
+    // Passport will handle the redirect
+  }
+
+  @Get('google/redirect')
+  @UseGuards(AuthGuard('google'))
+  @ApiOperation({ summary: 'Google OAuth callback endpoint' })
+  async googleCallback(
+    @Req() req: any,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { access_token, refresh_token, user } = req.user;
+
+    res.cookie('access_token', access_token, {
+      ...cookieOptions,
+      maxAge: 15 * 60 * 1000,
+    });
+
+    res.cookie('refresh_token', refresh_token, {
+      ...cookieOptions,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    return { message: 'Google login successful', user };
+  }
+
+  // ================= FACEBOOK =================
+  @Get('facebook')
+  @UseGuards(AuthGuard('facebook'))
+  @ApiOperation({ summary: 'Initiate Facebook OAuth login' })
+  async facebookLogin() {
+    // Passport will handle the redirect
+  }
+
+  @Get('facebook/redirect')
+  @UseGuards(AuthGuard('facebook'))
+  @ApiOperation({ summary: 'Facebook OAuth callback endpoint' })
+  async facebookCallback(
+    @Req() req: any,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { access_token, refresh_token, user } = req.user;
+
+    res.cookie('access_token', access_token, {
+      ...cookieOptions,
+      maxAge: 15 * 60 * 1000,
+    });
+
+    res.cookie('refresh_token', refresh_token, {
+      ...cookieOptions,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    return { message: 'Facebook login successful', user };
   }
 }

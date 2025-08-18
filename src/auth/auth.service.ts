@@ -47,9 +47,9 @@ export class AuthService {
     await this.userRepository.save(user);
 
     return {
-      accessToken,
-      refreshToken,
-      userInfo: {
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      user: {
         id: user.id,
         email: user.email,
         role: user.role,
@@ -64,17 +64,13 @@ export class AuthService {
   ): Promise<any> {
     if (!email) {
       throw new UnauthorizedException(
-        'No email associated with this Facebook account.',
+        `No email associated with this ${provider} account.`,
       );
     }
 
     let user = await this.userRepository.findOne({ where: { email } });
 
     if (!user) {
-      const fullName = `${profile.name.givenName || ''} ${
-        profile.name.middleName || ''
-      } ${profile.name.familyName || ''}`.trim();
-
       user = this.userRepository.create({
         email,
         password: '', // No password for OAuth
@@ -87,12 +83,11 @@ export class AuthService {
     return this.generateToken(user);
   }
 
-  async refreshToken(token: string) {
-    const user = await this.userRepository.findOne({
-      where: { refreshToken: Not(IsNull()) },
-    });
-    if (!user) {
-      throw new UnauthorizedException('No user found for refresh token');
+  async refreshToken(userId: string, token: string) {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+
+    if (!user || !user.refreshToken) {
+      throw new UnauthorizedException('No refresh token found for user');
     }
 
     const isMatch = await bcrypt.compare(token, user.refreshToken);
