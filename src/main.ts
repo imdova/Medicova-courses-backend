@@ -7,6 +7,8 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import cookieParser from 'cookie-parser';
 
+//Test Main Build Only
+
 let app: NestExpressApplication; // Change to NestExpressApplication for static serving
 
 // Define your username and password for Swagger access
