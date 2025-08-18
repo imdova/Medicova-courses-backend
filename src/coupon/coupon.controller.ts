@@ -29,10 +29,11 @@ import { RolesGuard } from 'src/auth/roles.guard';
 import { UserRole } from 'src/user/entities/user.entity';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
+import { AuthGuard } from '@nestjs/passport';
 
 @ApiTags('Coupons')
 @Controller('coupons')
-@UseGuards(RolesGuard)
+@UseGuards(AuthGuard('jwt'), RolesGuard)
 @Roles(UserRole.INSTRUCTOR)
 export class CouponController {
   constructor(private readonly couponService: CouponService) {}
@@ -49,7 +50,6 @@ export class CouponController {
     description: 'Coupon created successfully',
     type: Coupon,
   })
-  @ApiBearerAuth()
   async create(
     @Body() createCouponDto: CreateCouponDto,
     @Req() req,
@@ -64,7 +64,6 @@ export class CouponController {
     type: [Coupon],
   })
   @ApiResponse({ status: 200, description: 'List all coupons', type: [Coupon] })
-  @ApiBearerAuth()
   async findAll(
     @Paginate() query: PaginateQuery,
     @Req() req,
@@ -81,7 +80,6 @@ export class CouponController {
     description: 'Get a single coupon',
     type: Coupon,
   })
-  @ApiBearerAuth()
   async findOne(@Param('id') id: string): Promise<Coupon> {
     return this.couponService.findOne(id);
   }
@@ -99,7 +97,6 @@ export class CouponController {
     description: 'Coupon partially updated successfully',
     type: Coupon,
   })
-  @ApiBearerAuth()
   async patch(
     @Param('id') id: string,
     @Body() updateCouponDto: UpdateCouponDto,
@@ -111,7 +108,6 @@ export class CouponController {
   @ApiOperation({ summary: 'Delete a coupon by ID (soft delete)' })
   @ApiNoContentResponse({ description: 'Coupon deleted successfully' })
   @ApiNotFoundResponse({ description: 'Coupon not found' })
-  @ApiBearerAuth()
   @ApiResponse({ status: 204, description: 'Coupon deleted successfully' })
   async remove(@Param('id') id: string): Promise<void> {
     return this.couponService.remove(id);

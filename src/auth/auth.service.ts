@@ -64,17 +64,13 @@ export class AuthService {
   ): Promise<any> {
     if (!email) {
       throw new UnauthorizedException(
-        'No email associated with this Facebook account.',
+        `No email associated with this ${provider} account.`,
       );
     }
 
     let user = await this.userRepository.findOne({ where: { email } });
 
     if (!user) {
-      const fullName = `${profile.name.givenName || ''} ${
-        profile.name.middleName || ''
-      } ${profile.name.familyName || ''}`.trim();
-
       user = this.userRepository.create({
         email,
         password: '', // No password for OAuth
@@ -89,7 +85,8 @@ export class AuthService {
 
   async refreshToken(userId: string, token: string) {
     const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user.refreshToken) {
+
+    if (!user || !user.refreshToken) {
       throw new UnauthorizedException('No refresh token found for user');
     }
 

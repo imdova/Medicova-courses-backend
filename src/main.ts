@@ -1,10 +1,11 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import basicAuth from 'basic-auth';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
+import * as cookieParser from 'cookie-parser';
 
 let app: NestExpressApplication; // Change to NestExpressApplication for static serving
 
@@ -31,6 +32,7 @@ async function bootstrap() {
     app = await NestFactory.create<NestExpressApplication>(AppModule);
 
     // Global pipes
+    app.use(cookieParser()); // ✅ add this
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,

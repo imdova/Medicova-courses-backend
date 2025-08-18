@@ -63,7 +63,6 @@ export class UserController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
   @Get()
-  @ApiBearerAuth()
   @ApiOperation({
     summary: 'List all users',
     description: 'Retrieves all registered users. Admin only.',
@@ -79,7 +78,6 @@ export class UserController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
   @Get(':userId')
-  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Get user by ID',
     description: 'Fetch a single user by its UUID. Admin only.',
@@ -100,7 +98,6 @@ export class UserController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
   @Patch(':userId')
-  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Update user by ID',
     description: 'Updates details of an existing user. Admin only.',
@@ -121,7 +118,6 @@ export class UserController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
   @Delete(':userId')
-  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Delete user by ID',
     description: 'Removes a user from the system. Admin only.',

@@ -20,10 +20,11 @@ import { UpdateQuestionDto } from './dto/update-question.dto';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { UserRole } from 'src/user/entities/user.entity';
+import { AuthGuard } from '@nestjs/passport';
 
 @ApiTags('Quiz Questions')
 @Controller('quizzes/:quizId/questions')
-@UseGuards(RolesGuard)
+@UseGuards(AuthGuard('jwt'), RolesGuard)
 @Roles(UserRole.INSTRUCTOR)
 export class QuizQuestionsController {
   constructor(private readonly quizQuestionsService: QuizQuestionsService) {}
@@ -31,7 +32,6 @@ export class QuizQuestionsController {
   @Post()
   @ApiOperation({ summary: 'Create a question and attach it to a quiz' })
   @ApiParam({ name: 'quizId', type: 'string', description: 'UUID of the quiz' })
-  @ApiBearerAuth()
   addQuestion(@Param('quizId') quizId: string, @Body() dto: CreateQuestionDto) {
     return this.quizQuestionsService.createQuestionAndAddToQuiz(quizId, dto);
   }
@@ -41,7 +41,6 @@ export class QuizQuestionsController {
     summary: 'Create multiple questions and attach them to a quiz',
   })
   @ApiParam({ name: 'quizId', type: 'string', description: 'UUID of the quiz' })
-  @ApiBearerAuth()
   addQuestionsBulk(
     @Param('quizId') quizId: string,
     @Body() dtos: CreateQuestionDto[],
@@ -52,7 +51,6 @@ export class QuizQuestionsController {
   @Get()
   @ApiOperation({ summary: 'List all questions for a quiz' })
   @ApiParam({ name: 'quizId', type: 'string' })
-  @ApiBearerAuth()
   listQuestions(@Param('quizId') quizId: string) {
     return this.quizQuestionsService.listQuestionsForQuiz(quizId);
   }
@@ -65,7 +63,6 @@ export class QuizQuestionsController {
     type: 'string',
     description: 'UUID of the quiz-question link',
   })
-  @ApiBearerAuth()
   updateQuestionInQuiz(
     @Param('quizId') quizId: string,
     @Param('quizQuestionId') quizQuestionId: string,
@@ -82,7 +79,6 @@ export class QuizQuestionsController {
   @ApiOperation({ summary: 'Remove a question from a quiz' })
   @ApiParam({ name: 'quizId', type: 'string' })
   @ApiParam({ name: 'quizQuestionId', type: 'string' })
-  @ApiBearerAuth()
   removeQuestion(
     @Param('quizId') quizId: string,
     @Param('quizQuestionId') quizQuestionId: string,
