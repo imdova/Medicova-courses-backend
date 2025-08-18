@@ -27,10 +27,11 @@ import { RolesGuard } from 'src/auth/roles.guard';
 import { UserRole } from 'src/user/entities/user.entity';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
+import { AuthGuard } from '@nestjs/passport';
 
 @ApiTags('Bundles')
 @Controller('bundles')
-@UseGuards(RolesGuard)
+@UseGuards(AuthGuard('jwt'), RolesGuard)
 @Roles(UserRole.INSTRUCTOR)
 export class BundleController {
   constructor(private readonly bundleService: BundleService) {}
@@ -43,7 +44,6 @@ export class BundleController {
     description: 'Bundle created successfully',
     type: Bundle,
   })
-  @ApiBearerAuth()
   async createBundle(@Body() dto: CreateBundleDto, @Req() req) {
     return this.bundleService.createBundle(dto, req.user.sub);
   }
@@ -51,7 +51,6 @@ export class BundleController {
   @Get()
   @ApiOperation({ summary: 'Get all bundles with pagination' })
   @ApiResponse({ status: 200, description: 'Paginated list of bundles' })
-  @ApiBearerAuth()
   async findAll(
     @Paginate() query: PaginateQuery,
     @Req() req,
@@ -63,7 +62,6 @@ export class BundleController {
   @ApiOperation({ summary: 'Get a single bundle by ID' })
   @ApiParam({ name: 'id', description: 'UUID of the bundle' })
   @ApiResponse({ status: 200, description: 'Bundle details', type: Bundle })
-  @ApiBearerAuth()
   async findOne(@Param('id', ParseUUIDPipe) id: string) {
     const bundle = await this.bundleService.findOne(id);
     if (!bundle) throw new NotFoundException('Bundle not found');
@@ -74,7 +72,6 @@ export class BundleController {
   @ApiOperation({ summary: 'Update a bundle (details, courses, pricing)' })
   @ApiParam({ name: 'id', description: 'UUID of the bundle' })
   @ApiBody({ type: UpdateBundleDto })
-  @ApiBearerAuth()
   async updateBundle(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateBundleDto,
@@ -85,7 +82,6 @@ export class BundleController {
   @Delete(':id')
   @ApiOperation({ summary: 'Soft delete a bundle and its relations' })
   @ApiParam({ name: 'id', description: 'UUID of the bundle' })
-  @ApiBearerAuth()
   async remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.bundleService.remove(id);
   }

@@ -23,10 +23,11 @@ import { Roles } from 'src/auth/decorator/roles.decorator';
 import { UserRole } from 'src/user/entities/user.entity';
 import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
 import { Quiz } from './entities/quiz.entity';
+import { AuthGuard } from '@nestjs/passport';
 
 @ApiTags('Quizzes')
 @Controller('quizzes')
-@UseGuards(RolesGuard)
+@UseGuards(AuthGuard('jwt'), RolesGuard)
 @Roles(UserRole.INSTRUCTOR)
 export class QuizController {
   constructor(private readonly quizService: QuizService) {}
@@ -34,7 +35,6 @@ export class QuizController {
   @Post()
   @ApiOperation({ summary: 'Create a new quiz' })
   @ApiResponse({ status: 201, description: 'Quiz successfully created' })
-  @ApiBearerAuth()
   create(@Body() dto: CreateQuizDto, @Req() req) {
     return this.quizService.create(dto, req.user.sub);
   }
@@ -42,7 +42,6 @@ export class QuizController {
   @Get()
   @ApiOperation({ summary: 'List all quizzes' })
   @ApiResponse({ status: 200, description: 'List of quizzes' })
-  @ApiBearerAuth()
   findAll(
     @Paginate() query: PaginateQuery,
     @Req() req,
@@ -54,7 +53,6 @@ export class QuizController {
   @ApiOperation({ summary: 'Get quiz by ID' })
   @ApiResponse({ status: 200, description: 'Quiz found' })
   @ApiResponse({ status: 404, description: 'Quiz not found' })
-  @ApiBearerAuth()
   findOne(@Param('id') id: string) {
     return this.quizService.findOne(id);
   }
@@ -63,7 +61,6 @@ export class QuizController {
   @ApiOperation({ summary: 'Update quiz by ID' })
   @ApiResponse({ status: 200, description: 'Quiz updated successfully' })
   @ApiResponse({ status: 404, description: 'Quiz not found' })
-  @ApiBearerAuth()
   update(@Param('id') id: string, @Body() dto: UpdateQuizDto) {
     return this.quizService.update(id, dto);
   }
@@ -72,7 +69,6 @@ export class QuizController {
   @ApiOperation({ summary: 'Delete quiz by ID (soft delete)' })
   @ApiResponse({ status: 200, description: 'Quiz deleted successfully' })
   @ApiResponse({ status: 404, description: 'Quiz not found' })
-  @ApiBearerAuth()
   remove(@Param('id') id: string) {
     return this.quizService.remove(id);
   }

@@ -24,10 +24,11 @@ import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { UserRole } from 'src/user/entities/user.entity';
 import { CourseSectionItem } from './entities/course-section-item.entity';
+import { AuthGuard } from '@nestjs/passport';
 
 @ApiTags('Course Section Items')
 @Controller('course-sections/:sectionId/items')
-@UseGuards(RolesGuard)
+@UseGuards(AuthGuard('jwt'), RolesGuard)
 @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN)
 export class CourseSectionItemController {
   constructor(private readonly service: CourseSectionItemService) {}
@@ -41,7 +42,6 @@ export class CourseSectionItemController {
     description: 'Item added successfully',
     type: CourseSectionItem,
   })
-  @ApiBearerAuth()
   addItem(
     @Param('sectionId', ParseUUIDPipe) sectionId: string,
     @Body() dto: CreateCourseSectionItemDto,
@@ -54,7 +54,6 @@ export class CourseSectionItemController {
     summary: 'Add multiple items (lectures or quizzes) to a section',
   })
   @ApiBody({ type: [CreateCourseSectionItemDto] })
-  @ApiBearerAuth()
   bulkAddItems(
     @Param('sectionId', ParseUUIDPipe) sectionId: string,
     @Body() dto: CreateCourseSectionItemDto[],
@@ -72,7 +71,6 @@ export class CourseSectionItemController {
     description: 'Item updated successfully',
     type: CourseSectionItem,
   })
-  @ApiBearerAuth()
   updateItem(
     @Param('itemId', ParseUUIDPipe) itemId: string,
     @Body() dto: UpdateCourseSectionItemDto,
@@ -84,7 +82,6 @@ export class CourseSectionItemController {
   @ApiOperation({ summary: 'Soft delete a section item' })
   @ApiParam({ name: 'itemId', description: 'UUID of the section item' })
   @ApiResponse({ status: 204, description: 'Item deleted successfully' })
-  @ApiBearerAuth()
   removeItem(@Param('itemId', ParseUUIDPipe) itemId: string) {
     return this.service.removeItem(itemId);
   }
