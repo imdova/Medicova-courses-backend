@@ -19,11 +19,12 @@ import { UpdateInstructorProfileDto } from 'src/profile/instructor-profile/dto/u
 //import { CreateStudentProfileDto } from 'src/profile/student-profile/dto/create-student-profile.dto';
 //import { UpdateStudentProfileDto } from 'src/profile/student-profile/dto/update-student-profile.dto';
 import { InstructorProfile } from 'src/profile/instructor-profile/entities/instructor-profile.entity';
+import { AuthGuard } from '@nestjs/passport';
 //import { StudentProfile } from 'src/profile/student-profile/entities/student-profile.entity';
 
 @ApiTags('Admin Profile Management')
 @Controller('admin/profiles')
-@UseGuards(RolesGuard)
+@UseGuards(AuthGuard('jwt'), RolesGuard)
 @Roles(UserRole.ADMIN)
 export class ProfileController {
   constructor(private readonly profileService: ProfileService) {}

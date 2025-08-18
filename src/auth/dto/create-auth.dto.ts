@@ -1,5 +1,5 @@
 // src/auth/dto/login.dto.ts
-import { IsString, ValidateIf, IsEmail, IsNotEmpty } from 'class-validator';
+import { IsString, IsEmail, IsNotEmpty } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateAuthDto {

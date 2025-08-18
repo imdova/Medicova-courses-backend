@@ -26,10 +26,11 @@ import { Roles } from 'src/auth/decorator/roles.decorator';
 import { UserRole } from 'src/user/entities/user.entity';
 import { UpdateInstructorProfileDto } from './dto/update-instructor-profile.dto';
 import { InstructorProfile } from './entities/instructor-profile.entity';
+import { AuthGuard } from '@nestjs/passport';
 
 @ApiTags('Instructor Profile')
 @Controller('instructors/:instructorId/profile')
-@UseGuards(RolesGuard)
+@UseGuards(AuthGuard('jwt'), RolesGuard)
 @Roles(UserRole.INSTRUCTOR)
 export class InstructorProfileController {
   constructor(
@@ -57,7 +58,6 @@ export class InstructorProfileController {
     status: HttpStatus.FORBIDDEN,
     description: 'Instructor is not authorized to create this profile.',
   })
-  @ApiBearerAuth()
   async create(
     @Param('instructorId') instructorId: string,
     @Body() createProfileDto: CreateInstructorProfileDto,
@@ -94,7 +94,6 @@ export class InstructorProfileController {
     status: HttpStatus.FORBIDDEN,
     description: 'Instructor is not authorized to update this profile.',
   })
-  @ApiBearerAuth()
   async update(
     @Param('instructorId') instructorId: string,
     @Body() updateProfileDto: UpdateInstructorProfileDto,
@@ -129,7 +128,6 @@ export class InstructorProfileController {
     status: HttpStatus.FORBIDDEN,
     description: 'Instructor is not authorized to view this profile.',
   })
-  @ApiBearerAuth()
   async findOne(@Param('instructorId') instructorId: string, @Req() req) {
     if (instructorId !== req.user.sub) {
       throw new ForbiddenException();
