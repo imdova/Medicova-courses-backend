@@ -27,6 +27,8 @@ import { BundleModule } from './bundle/bundle.module';
 import { Bundle } from './bundle/entities/bundle.entity';
 import { BundlePricing } from './bundle/entities/bundle-pricing.entity';
 import { CourseBundle } from './bundle/entities/course-bundle.entity';
+import { CouponModule } from './coupon/coupon.module';
+import { Coupon } from './coupon/entities/coupon.entity';
 
 @Module({
   imports: [
@@ -54,6 +56,7 @@ import { CourseBundle } from './bundle/entities/course-bundle.entity';
         Bundle,
         BundlePricing,
         CourseBundle,
+        Coupon,
       ],
       synchronize: true,
     }),
@@ -73,6 +76,7 @@ import { CourseBundle } from './bundle/entities/course-bundle.entity';
     CourseModule,
     QuizModule,
     BundleModule,
+    CouponModule,
   ],
   controllers: [AppController],
   providers: [AppService],
