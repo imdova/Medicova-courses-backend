@@ -15,7 +15,6 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBody,
-  ApiBearerAuth,
   ApiParam,
 } from '@nestjs/swagger';
 import { UserService } from './user.service';
@@ -27,7 +26,6 @@ import { UserRole } from './entities/user.entity';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyResetTokenDto } from './dto/verify-reset-token.dto';
-import { UserHomeService } from './user-home.service';
 import { cookieOptions } from '../auth/auth.controller';
 import { AuthService } from 'src/auth/auth.service';
 import { Response } from 'express';
