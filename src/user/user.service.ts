@@ -29,19 +29,21 @@ export class UserService {
   ) { }
 
   async register(createUserDto: CreateUserDto): Promise<User> {
-    const { password, firstName, lastName, photoUrl, role, ...rest } = createUserDto;
+    const { password, firstName, lastName, photoUrl, role, email, ...rest } = createUserDto;
+
+    const normalizedEmail = email.trim().toLowerCase();
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = this.userRepository.create({
       ...rest,
+      email: normalizedEmail,
       password: hashedPassword,
-      role: role || UserRole.STUDENT, // default to student if not provided
+      role: role || UserRole.STUDENT,
     });
 
     try {
-      const savedUser = await this.userRepository.save(user); // ✅ save the user
+      const savedUser = await this.userRepository.save(user);
 
-      // Only create profile if the user is an instructor
       if (savedUser.role === UserRole.INSTRUCTOR) {
         await this.instructorProfileService.createInstructorProfile(savedUser.id, {
           firstName: firstName || '',
@@ -52,18 +54,12 @@ export class UserService {
 
       return savedUser;
     } catch (error) {
-      if (
-        error instanceof QueryFailedError &&
-        (error as any).code === '23505' // Unique violation in Postgres
-      ) {
-        const detail = (error as any).detail;
+      if (error instanceof QueryFailedError && (error as any).code === '23505') {
+        const detail = (error as any).detail.toLowerCase();
         if (detail.includes('email')) {
           throw new ConflictException('Email is already in use.');
-        } else if (detail.includes('phoneNumber')) {
-          throw new ConflictException('Phone number is already in use.');
-        } else {
-          throw new ConflictException('User already exists.');
         }
+        throw new ConflictException('User already exists.');
       }
 
       throw new InternalServerErrorException('Failed to create user.');
