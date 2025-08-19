@@ -29,6 +29,7 @@ import { BundlePricing } from './bundle/entities/bundle-pricing.entity';
 import { CourseBundle } from './bundle/entities/course-bundle.entity';
 import { CouponModule } from './coupon/coupon.module';
 import { Coupon } from './coupon/entities/coupon.entity';
+import { DatabaseService } from './database.service';
 
 @Module({
   imports: [
@@ -82,6 +83,6 @@ import { Coupon } from './coupon/entities/coupon.entity';
     CouponModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, DatabaseService],
 })
-export class AppModule {}
+export class AppModule { }
