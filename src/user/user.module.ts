@@ -9,9 +9,10 @@ import { EmailService } from '../common/email.service';
 import { PasswordResetToken } from './entities/password-reset-token.entity';
 import { UserHomeService } from './user-home.service';
 import { AuthModule } from '../auth/auth.module';
+import { InstructorProfileModule } from 'src/profile/instructor-profile/instructor-profile.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, PasswordResetToken]), forwardRef(() => AuthModule),],
+  imports: [TypeOrmModule.forFeature([User, PasswordResetToken]), forwardRef(() => AuthModule), forwardRef(() => InstructorProfileModule)],
   controllers: [UserController],
   providers: [
     UserService,
