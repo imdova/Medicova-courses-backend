@@ -34,6 +34,11 @@ export class InstructorProfile extends BasicEntity {
   @Column({ name: 'last_name', nullable: false })
   lastName: string;
 
+  @ApiProperty({ example: 'mohamed.sayed', description: 'Unique username' })
+  @Column({ name: 'user_name', unique: true })
+  userName: string;
+
+
   @ApiPropertyOptional({ example: '/uploads/photo.jpg', description: 'Profile photo URL' })
   @Column({ name: 'photo_url', nullable: true })
   photoUrl?: string;

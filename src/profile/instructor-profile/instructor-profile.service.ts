@@ -9,6 +9,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from 'src/user/entities/user.entity';
 import { InstructorProfile } from './entities/instructor-profile.entity';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class InstructorProfileService {
@@ -17,7 +18,8 @@ export class InstructorProfileService {
     private userRepository: Repository<User>,
     @InjectRepository(InstructorProfile)
     private instructorProfileRepository: Repository<InstructorProfile>,
-  ) {}
+  ) { }
+
   async createInstructorProfile(
     userId: string,
     createInstructorProfileDto: CreateInstructorProfileDto,
@@ -31,13 +33,33 @@ export class InstructorProfileService {
     if (user.instructorProfile)
       throw new BadRequestException('User already has a profile');
 
-    const profile = this.instructorProfileRepository.create(
-      createInstructorProfileDto,
-    );
+    let { firstName, lastName, userName, ...rest } = createInstructorProfileDto;
+
+    // ✅ Auto-generate username if not provided
+    if (!userName) {
+      userName = await this.generateUsername(firstName, lastName);
+    } else {
+      // Ensure provided username is unique
+      const existing = await this.instructorProfileRepository.findOne({
+        where: { userName },
+      });
+      if (existing) {
+        throw new BadRequestException('Username already taken');
+      }
+    }
+
+    const profile = this.instructorProfileRepository.create({
+      firstName,
+      lastName,
+      userName,
+      ...rest,
+    });
+
     await this.instructorProfileRepository.save(profile);
 
     user.instructorProfile = profile;
     await this.userRepository.save(user);
+
     return profile;
   }
 
@@ -95,5 +117,11 @@ export class InstructorProfileService {
     await this.instructorProfileRepository.delete(profileId);
 
     return { message: 'Instructor profile deleted successfully' };
+  }
+
+  private generateUsername(firstName: string, lastName: string): string {
+    const base = `${firstName}.${lastName}`.toLowerCase().replace(/\s+/g, '');
+    const uuidPart = uuidv4().split('-')[0]; // take first segment, e.g., "3f8c92"
+    return `${base}-${uuidPart}`;
   }
 }
