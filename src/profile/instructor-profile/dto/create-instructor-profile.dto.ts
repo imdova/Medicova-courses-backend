@@ -41,6 +41,11 @@ export class CreateInstructorProfileDto {
   @IsString()
   photoUrl?: string;
 
+  @ApiPropertyOptional({ example: 'mohamed.sayed', description: 'Custom username (optional)' })
+  @IsOptional()
+  @IsString()
+  userName?: string;
+
   @ApiPropertyOptional({
     example: '+20100234567',
     description: 'Phone number of the user',
