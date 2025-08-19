@@ -25,9 +25,9 @@ export class UserService {
     @InjectRepository(PasswordResetToken)
     private tokenRepository: Repository<PasswordResetToken>,
     private readonly emailService: EmailService,
-  ) {}
+  ) { }
 
-  async register(createUserDto: CreateUserDto): Promise<{ message: string }> {
+  async register(createUserDto: CreateUserDto): Promise<User> {
     const { password, ...rest } = createUserDto;
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -37,11 +37,7 @@ export class UserService {
     });
 
     try {
-      await this.userRepository.save(user);
-
-      return {
-        message: 'Registration successful.',
-      };
+      return await this.userRepository.save(user); // ✅ return the saved user
     } catch (error) {
       if (
         error instanceof QueryFailedError &&

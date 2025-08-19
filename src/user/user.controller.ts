@@ -8,6 +8,7 @@ import {
   Delete,
   UseGuards,
   HttpStatus,
+  Res,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -27,14 +28,17 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyResetTokenDto } from './dto/verify-reset-token.dto';
 import { UserHomeService } from './user-home.service';
+import { cookieOptions } from '../auth/auth.controller';
+import { AuthService } from 'src/auth/auth.service';
+import { Response } from 'express';
 
 @ApiTags('users')
 @Controller('users')
 export class UserController {
   constructor(
     private readonly userService: UserService,
-    private readonly userHomeService: UserHomeService,
-  ) {}
+    private readonly authService: AuthService,
+  ) { }
 
   @Post('register')
   @ApiOperation({
@@ -53,11 +57,26 @@ export class UserController {
     description: 'Data required to register a user',
     type: CreateUserDto,
   })
-  async register(@Body() createUserDto: CreateUserDto) {
+  async register(@Body() createUserDto: CreateUserDto, @Res({ passthrough: true }) res: Response) {
     if (!createUserDto.email) {
       throw new Error('Email must be provided.');
     }
-    return this.userService.register(createUserDto);
+    const createdUser = await this.userService.register(createUserDto);
+
+    // Now generate token using properly injected AuthService
+    const { access_token, refresh_token, user } = await this.authService.generateToken(createdUser);
+
+    res.cookie('access_token', access_token, {
+      ...cookieOptions,
+      maxAge: 15 * 60 * 1000,
+    });
+    res.cookie('refresh_token', refresh_token, {
+      ...cookieOptions,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    return { message: 'Registration successful', user };
+
   }
 
   @UseGuards(RolesGuard)
