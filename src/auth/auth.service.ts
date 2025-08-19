@@ -14,7 +14,7 @@ export class AuthService {
     private userRepository: Repository<User>,
     private jwtService: JwtService, // Access JWT service to create tokens
     private configService: ConfigService,
-  ) {}
+  ) { }
 
   async validateUser(email: string, password: string): Promise<User> {
     const user = await this.userRepository.findOne({ where: { email } });
@@ -46,13 +46,25 @@ export class AuthService {
     user.refreshToken = hashedRefreshToken;
     await this.userRepository.save(user);
 
+    let findOptions: any = { where: { id: user.id } };
+
+    // add relation only if instructor
+    if (user.role === UserRole.INSTRUCTOR) {
+      findOptions.relations = ['instructorProfile'];
+    }
+    const fullUser = await this.userRepository.findOne(findOptions);
+
     return {
       access_token: accessToken,
       refresh_token: refreshToken,
       user: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
+        id: fullUser.id,
+        email: fullUser.email,
+        role: fullUser.role,
+        firstName: fullUser.instructorProfile?.firstName ?? null,
+        lastName: fullUser.instructorProfile?.lastName ?? null,
+        userName: fullUser.instructorProfile?.userName ?? null,
+        photo: fullUser.instructorProfile?.photoUrl ?? null,
       },
     };
   }
