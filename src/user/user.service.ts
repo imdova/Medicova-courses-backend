@@ -1,14 +1,13 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { User } from './entities/user.entity';
+import { User, UserRole } from './entities/user.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { QueryFailedError, Repository } from 'typeorm';
@@ -16,6 +15,7 @@ import { EmailService } from '../common/email.service';
 import { randomBytes } from 'crypto';
 import { PasswordResetToken } from './entities/password-reset-token.entity';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { InstructorProfileService } from 'src/profile/instructor-profile/instructor-profile.service';
 
 @Injectable()
 export class UserService {
@@ -25,23 +25,32 @@ export class UserService {
     @InjectRepository(PasswordResetToken)
     private tokenRepository: Repository<PasswordResetToken>,
     private readonly emailService: EmailService,
-  ) {}
+    private readonly instructorProfileService: InstructorProfileService, // Assuming this service exists for creating instructor profiles
+  ) { }
 
-  async register(createUserDto: CreateUserDto): Promise<{ message: string }> {
-    const { password, ...rest } = createUserDto;
+  async register(createUserDto: CreateUserDto): Promise<User> {
+    const { password, firstName, lastName, photoUrl, role, ...rest } = createUserDto;
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = this.userRepository.create({
       ...rest,
       password: hashedPassword,
+      role: role || UserRole.STUDENT, // default to student if not provided
     });
 
     try {
-      await this.userRepository.save(user);
+      const savedUser = await this.userRepository.save(user); // ✅ save the user
 
-      return {
-        message: 'Registration successful.',
-      };
+      // Only create profile if the user is an instructor
+      if (savedUser.role === UserRole.INSTRUCTOR) {
+        await this.instructorProfileService.createInstructorProfile(savedUser.id, {
+          firstName: firstName || '',
+          lastName: lastName || '',
+          photoUrl,
+        });
+      }
+
+      return savedUser;
     } catch (error) {
       if (
         error instanceof QueryFailedError &&

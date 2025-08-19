@@ -5,6 +5,7 @@ import {
   MinLength,
   IsEnum,
   IsNotEmpty,
+  IsUrl,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { UserRole } from '../entities/user.entity';
@@ -37,4 +38,21 @@ export class CreateUserDto {
   @IsEnum(UserRole)
   @IsOptional() // optional so default can apply in entity
   role?: UserRole;
+
+  // New optional profile fields
+  @ApiPropertyOptional({ example: 'John', description: 'First name' })
+  @IsString()
+  @IsOptional()
+  firstName?: string;
+
+  @ApiPropertyOptional({ example: 'Doe', description: 'Last name' })
+  @IsString()
+  @IsOptional()
+  lastName?: string;
+
+  @ApiPropertyOptional({ example: 'https://example.com/photo.jpg', description: 'Profile photo URL' })
+  @IsString()
+  @IsUrl()
+  @IsOptional()
+  photoUrl?: string;
 }
