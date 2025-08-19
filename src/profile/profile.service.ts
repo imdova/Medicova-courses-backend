@@ -14,10 +14,12 @@ import { InstructorProfile } from 'src/profile/instructor-profile/entities/instr
 export class ProfileService {
   constructor(
     private readonly instructorProfileService: InstructorProfileService,
+    @InjectRepository(InstructorProfile)
+    private instructorProfileRepository: Repository<InstructorProfile>,
     //private readonly studentProfileService: StudentProfileService,
     @InjectRepository(InstructorProfile)
     private instructorRepo: Repository<InstructorProfile>, // @InjectRepository(StudentProfile) // private studentRepo: Repository<StudentProfile>,
-  ) {}
+  ) { }
 
   // ===== Instructor Profile =====
   createInstructorProfile(userId: string, dto: CreateInstructorProfileDto) {
@@ -60,6 +62,19 @@ export class ProfileService {
       relations: ['user'],
     });
   }
+
+  async getInstructorProfileByUsername(userName: string) {
+    const profile = await this.instructorProfileRepository.findOne({
+      where: { userName },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('Instructor profile not found');
+    }
+
+    return profile;
+  }
+
 
   // async findStudentProfileById(profileId: string) {
   //   return this.studentRepo.findOne({

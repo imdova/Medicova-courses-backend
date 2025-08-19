@@ -6,11 +6,12 @@ import { User } from 'src/user/entities/user.entity';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { JwtService } from '@nestjs/jwt';
 import { InstructorProfileModule } from './instructor-profile/instructor-profile.module';
+import { PublicProfileController } from './public-profile.controller';
 
 @Module({
   imports: [TypeOrmModule.forFeature([User]), InstructorProfileModule],
-  controllers: [ProfileController],
+  controllers: [ProfileController, PublicProfileController],
   providers: [ProfileService, RolesGuard, JwtService],
   exports: [ProfileService],
 })
-export class ProfileModule {}
+export class ProfileModule { }
