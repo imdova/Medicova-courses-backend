@@ -1,7 +1,7 @@
 import { User } from 'src/user/entities/user.entity';
 import { Entity, Column, OneToOne, JoinColumn, Unique } from 'typeorm';
 import { BasicEntity } from '../../../common/entities/basic.entity';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { InstructorMetadataDto } from '../dto/instructor-metadata.dto';
 
 export enum Gender {
@@ -33,6 +33,10 @@ export class InstructorProfile extends BasicEntity {
   @ApiProperty({ example: 'Sayed', description: 'Last name' })
   @Column({ name: 'last_name', nullable: false })
   lastName: string;
+
+  @ApiPropertyOptional({ example: '/uploads/photo.jpg', description: 'Profile photo URL' })
+  @Column({ name: 'photo_url', nullable: true })
+  photoUrl?: string;
 
   @ApiProperty({ example: '+20100234567', description: 'Phone number' })
   @Column({ name: 'phone_number', nullable: true })
