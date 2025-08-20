@@ -30,38 +30,38 @@ export class ProfileController {
   constructor(private readonly profileService: ProfileService) {}
 
   // ===== Instructor Profile =====
-  @Post('instructor/:userId')
-  @ApiOperation({ summary: 'Create instructor profile for a user' })
-  @ApiBody({ type: CreateInstructorProfileDto })
-  @ApiResponse({ status: HttpStatus.CREATED, type: InstructorProfile })
-  createInstructor(
-    @Param('userId') userId: string,
-    @Body() dto: CreateInstructorProfileDto,
-  ) {
-    return this.profileService.createInstructorProfile(userId, dto);
-  }
+  // @Post('instructor/:userId')
+  // @ApiOperation({ summary: 'Create instructor profile for a user' })
+  // @ApiBody({ type: CreateInstructorProfileDto })
+  // @ApiResponse({ status: HttpStatus.CREATED, type: InstructorProfile })
+  // createInstructor(
+  //   @Param('userId') userId: string,
+  //   @Body() dto: CreateInstructorProfileDto,
+  // ) {
+  //   return this.profileService.createInstructorProfile(userId, dto);
+  // }
 
-  @Patch('instructor/:userId')
-  @ApiOperation({ summary: 'Update instructor profile for a user' })
-  @ApiBody({ type: UpdateInstructorProfileDto })
-  updateInstructor(
-    @Param('userId') userId: string,
-    @Body() dto: UpdateInstructorProfileDto,
-  ) {
-    return this.profileService.updateInstructorProfile(userId, dto);
-  }
+  // @Patch('instructor/:userId')
+  // @ApiOperation({ summary: 'Update instructor profile for a user' })
+  // @ApiBody({ type: UpdateInstructorProfileDto })
+  // updateInstructor(
+  //   @Param('userId') userId: string,
+  //   @Body() dto: UpdateInstructorProfileDto,
+  // ) {
+  //   return this.profileService.updateInstructorProfile(userId, dto);
+  // }
 
-  @Get('instructor/:userId')
-  @ApiOperation({ summary: 'Get instructor profile by user ID' })
-  getInstructor(@Param('userId') userId: string) {
-    return this.profileService.getInstructorProfileByUserId(userId);
-  }
+  // @Get('instructor/:userId')
+  // @ApiOperation({ summary: 'Get instructor profile by user ID' })
+  // getInstructor(@Param('userId') userId: string) {
+  //   return this.profileService.getInstructorProfileByUserId(userId);
+  // }
 
-  @Delete('instructor/:userId')
-  @ApiOperation({ summary: 'Delete instructor profile by user ID' })
-  deleteInstructor(@Param('userId') userId: string) {
-    return this.profileService.deleteInstructorProfile(userId);
-  }
+  // @Delete('instructor/:userId')
+  // @ApiOperation({ summary: 'Delete instructor profile by user ID' })
+  // deleteInstructor(@Param('userId') userId: string) {
+  //   return this.profileService.deleteInstructorProfile(userId);
+  // }
 
   // ===== Student Profile =====
   // @Post('student/:userId')
