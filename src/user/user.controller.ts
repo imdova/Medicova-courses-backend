@@ -22,7 +22,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/decorator/roles.decorator';
-import { UserRole } from './entities/user.entity';
+import { User, UserRole } from './entities/user.entity';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyResetTokenDto } from './dto/verify-reset-token.dto';
@@ -59,12 +59,15 @@ export class UserController {
     @Body() createUserDto: CreateUserDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    if (!createUserDto.email) {
-      throw new Error('Email must be provided.');
-    }
-    const createdUser = await this.userService.register(createUserDto);
+    let createdUser: User;
 
-    // Now generate token using properly injected AuthService
+    if (createUserDto.role === UserRole.INSTRUCTOR && createUserDto.academy) {
+      // If instructor is creating an academy
+      createdUser = await this.userService.registerWithAcademy(createUserDto);
+    } else {
+      createdUser = await this.userService.register(createUserDto);
+    }
+
     const { access_token, refresh_token, user } =
       await this.authService.generateToken(createdUser);
 

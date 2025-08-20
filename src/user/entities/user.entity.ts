@@ -1,12 +1,14 @@
 import { BasicEntity } from '../../common/entities/basic.entity';
-import { Entity, Column, OneToOne } from 'typeorm';
+import { Entity, Column, OneToOne, ManyToOne } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 import { InstructorProfile } from 'src/profile/instructor-profile/entities/instructor-profile.entity';
+import { Academy } from 'src/academy/entities/academy.entity';
 
 export enum UserRole {
   STUDENT = 'student',
   INSTRUCTOR = 'instructor',
   ADMIN = 'admin',
+  ACCOUNT_ADMIN = 'account_admin',
 }
 
 @Entity()
@@ -46,4 +48,9 @@ export class User extends BasicEntity {
     (instructorProfile) => instructorProfile.user,
   )
   instructorProfile: InstructorProfile;
+
+  @ManyToOne(() => Academy, (academy) => academy.users, {
+    nullable: true,
+  })
+  academy?: Academy;
 }
