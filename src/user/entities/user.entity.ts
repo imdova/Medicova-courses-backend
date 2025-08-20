@@ -51,6 +51,7 @@ export class User extends BasicEntity {
 
   @ManyToOne(() => Academy, (academy) => academy.users, {
     nullable: true,
+    onDelete: 'CASCADE',
   })
   academy?: Academy;
 }
