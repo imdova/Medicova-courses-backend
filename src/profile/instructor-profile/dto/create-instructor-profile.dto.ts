@@ -41,7 +41,10 @@ export class CreateInstructorProfileDto {
   @IsString()
   photoUrl?: string;
 
-  @ApiPropertyOptional({ example: 'mohamed.sayed', description: 'Custom username (optional)' })
+  @ApiPropertyOptional({
+    example: 'mohamed.sayed',
+    description: 'Custom username (optional)',
+  })
   @IsOptional()
   @IsString()
   userName?: string;
@@ -151,4 +154,12 @@ export class CreateInstructorProfileDto {
   @ValidateNested()
   @Type(() => InstructorMetadataDto)
   metadata?: InstructorMetadataDto;
+
+  @ApiPropertyOptional({
+    example: true,
+    description: 'Whether the instructor profile is publicly visible',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isPublic?: boolean;
 }

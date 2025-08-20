@@ -1,23 +1,53 @@
-import { Controller, Get, Param, NotFoundException, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiParam, ApiOkResponse } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Param,
+  NotFoundException,
+  UseGuards,
+  Patch,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiParam,
+  ApiOkResponse,
+} from '@nestjs/swagger';
 import { ProfileService } from './profile.service';
 import { InstructorProfile } from 'src/profile/instructor-profile/entities/instructor-profile.entity';
 import { AuthGuard } from '@nestjs/passport';
+import { UserRole } from 'src/user/entities/user.entity';
+import { Roles } from 'src/auth/decorator/roles.decorator';
+import { RolesGuard } from 'src/auth/roles.guard';
 
 @ApiTags('Public Instructor Profile')
 @Controller('public/profiles')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt'), RolesGuard)
 export class PublicProfileController {
-    constructor(private readonly profileService: ProfileService) { }
+  constructor(private readonly profileService: ProfileService) {}
 
-    @Get('username/:userName')
-    @ApiOperation({
-        summary: 'Get profile by username',
-        description: 'Public endpoint. Fetches a profile by username.',
-    })
-    @ApiParam({ name: 'userName', type: String })
-    @ApiOkResponse({ type: InstructorProfile })
-    async getInstructorByUsername(@Param('userName') userName: string) {
-        return this.profileService.getInstructorProfileByUsername(userName);
-    }
+  @Get('instructor/username/:userName')
+  @ApiOperation({
+    summary: 'Get instructor profile by username',
+    description: 'Public endpoint. Fetches an instructor profile by username.',
+  })
+  @ApiParam({ name: 'userName', type: String })
+  @ApiOkResponse({ type: InstructorProfile })
+  async getInstructorByUsername(@Param('userName') userName: string) {
+    return this.profileService.getInstructorProfileByUsername(userName);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Patch('instructor/make-all-private')
+  @ApiOperation({
+    summary: 'Set all instructor profiles to private',
+    description:
+      'Admin-only endpoint. Forces all instructor profiles to have isPublic = false.',
+  })
+  async makeAllProfilesPrivate() {
+    await this.profileService.makeAllProfilesPrivate();
+    return {
+      success: true,
+      message: 'All instructor profiles are now private',
+    };
+  }
 }

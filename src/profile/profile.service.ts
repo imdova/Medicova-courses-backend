@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InstructorProfileService } from 'src/profile/instructor-profile/instructor-profile.service';
 //import { StudentProfileService } from 'src/profile/student-profile/student-profile.service';
 import { CreateInstructorProfileDto } from 'src/profile/instructor-profile/dto/create-instructor-profile.dto';
@@ -19,7 +23,7 @@ export class ProfileService {
     //private readonly studentProfileService: StudentProfileService,
     @InjectRepository(InstructorProfile)
     private instructorRepo: Repository<InstructorProfile>, // @InjectRepository(StudentProfile) // private studentRepo: Repository<StudentProfile>,
-  ) { }
+  ) {}
 
   // ===== Instructor Profile =====
   createInstructorProfile(userId: string, dto: CreateInstructorProfileDto) {
@@ -72,9 +76,16 @@ export class ProfileService {
       throw new NotFoundException('Instructor profile not found');
     }
 
+    if (!profile.isPublic) {
+      throw new ForbiddenException('This profile is private');
+    }
+
     return profile;
   }
 
+  async makeAllProfilesPrivate(): Promise<void> {
+    await this.instructorProfileRepository.update({}, { isPublic: false });
+  }
 
   // async findStudentProfileById(profileId: string) {
   //   return this.studentRepo.findOne({
