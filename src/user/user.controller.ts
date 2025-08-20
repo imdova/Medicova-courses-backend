@@ -30,13 +30,13 @@ import { cookieOptions } from '../auth/auth.controller';
 import { AuthService } from 'src/auth/auth.service';
 import { Response } from 'express';
 
-@ApiTags('users')
+@ApiTags('Users')
 @Controller('users')
 export class UserController {
   constructor(
     private readonly userService: UserService,
     private readonly authService: AuthService,
-  ) { }
+  ) {}
 
   @Post('register')
   @ApiOperation({
@@ -55,14 +55,18 @@ export class UserController {
     description: 'Data required to register a user',
     type: CreateUserDto,
   })
-  async register(@Body() createUserDto: CreateUserDto, @Res({ passthrough: true }) res: Response) {
+  async register(
+    @Body() createUserDto: CreateUserDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     if (!createUserDto.email) {
       throw new Error('Email must be provided.');
     }
     const createdUser = await this.userService.register(createUserDto);
 
     // Now generate token using properly injected AuthService
-    const { access_token, refresh_token, user } = await this.authService.generateToken(createdUser);
+    const { access_token, refresh_token, user } =
+      await this.authService.generateToken(createdUser);
 
     res.cookie('access_token', access_token, {
       ...cookieOptions,
@@ -74,7 +78,6 @@ export class UserController {
     });
 
     return { message: 'Registration successful', user };
-
   }
 
   @UseGuards(RolesGuard)
