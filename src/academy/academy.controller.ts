@@ -8,6 +8,8 @@ import {
   Delete,
   HttpStatus,
   UseGuards,
+  Req,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -28,12 +30,12 @@ import { CreateUserDto } from 'src/user/dto/create-user.dto';
 @ApiTags('Academies')
 @Controller('academies')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(UserRole.ACCOUNT_ADMIN)
 export class AcademyController {
   constructor(private readonly academyService: AcademyService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Create a new academy' })
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Create a new academy (admin only)' })
   @ApiBody({ description: 'Academy details', type: CreateAcademyDto })
   @ApiResponse({
     status: HttpStatus.CREATED,
@@ -48,13 +50,15 @@ export class AcademyController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'List all academies' })
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'List all academies (admin only)' })
   @ApiResponse({ status: HttpStatus.OK, description: 'List of all academies' })
   findAll() {
     return this.academyService.findAll();
   }
 
   @Get(':id')
+  @Roles(UserRole.ADMIN, UserRole.ACCOUNT_ADMIN)
   @ApiOperation({ summary: 'Get an academy by ID' })
   @ApiParam({ name: 'id', type: String, description: 'ID of the academy' })
   @ApiResponse({
@@ -65,11 +69,19 @@ export class AcademyController {
     status: HttpStatus.NOT_FOUND,
     description: 'Academy not found',
   })
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id') id: string, @Req() req) {
+    if (req.user.role === UserRole.ACCOUNT_ADMIN) {
+      if (req.user.academyId !== id) {
+        throw new ForbiddenException(
+          'You are not allowed to access this academy',
+        );
+      }
+    }
     return this.academyService.findOne(id);
   }
 
   @Patch(':id')
+  @Roles(UserRole.ADMIN, UserRole.ACCOUNT_ADMIN)
   @ApiOperation({ summary: 'Update an academy by ID' })
   @ApiParam({ name: 'id', type: String, description: 'ID of the academy' })
   @ApiBody({ description: 'Academy update data', type: UpdateAcademyDto })
@@ -77,18 +89,37 @@ export class AcademyController {
     status: HttpStatus.OK,
     description: 'Academy updated successfully',
   })
-  update(@Param('id') id: string, @Body() updateAcademyDto: UpdateAcademyDto) {
+  update(
+    @Param('id') id: string,
+    @Body() updateAcademyDto: UpdateAcademyDto,
+    @Req() req,
+  ) {
+    if (req.user.role === UserRole.ACCOUNT_ADMIN) {
+      if (req.user.academyId !== id) {
+        throw new ForbiddenException(
+          'You are not allowed to edit this academy',
+        );
+      }
+    }
     return this.academyService.update(id, updateAcademyDto);
   }
 
   @Delete(':id')
+  @Roles(UserRole.ADMIN, UserRole.ACCOUNT_ADMIN)
   @ApiOperation({ summary: 'Delete an academy by ID' })
   @ApiParam({ name: 'id', type: String, description: 'ID of the academy' })
   @ApiResponse({
     status: HttpStatus.NO_CONTENT,
     description: 'Academy deleted successfully',
   })
-  remove(@Param('id') id: string) {
+  remove(@Param('id') id: string, @Req() req) {
+    if (req.user.role === UserRole.ACCOUNT_ADMIN) {
+      if (req.user.academyId !== id) {
+        throw new ForbiddenException(
+          'You are not allowed to delete this academy',
+        );
+      }
+    }
     return this.academyService.remove(id);
   }
 
