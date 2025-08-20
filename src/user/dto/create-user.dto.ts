@@ -7,7 +7,11 @@ import {
   IsNotEmpty,
   IsUrl,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  ApiHideProperty,
+  ApiProperty,
+  ApiPropertyOptional,
+} from '@nestjs/swagger';
 import { UserRole } from '../entities/user.entity';
 import { CreateAcademyDto } from 'src/academy/dto/create-academy.dto';
 
@@ -60,10 +64,7 @@ export class CreateUserDto {
   @IsOptional()
   photoUrl?: string;
 
-  @ApiPropertyOptional({
-    description: 'Academy details if the instructor wants to create one',
-    type: CreateAcademyDto,
-  })
+  @ApiHideProperty()
   @IsOptional()
   academy?: CreateAcademyDto;
 }
