@@ -30,6 +30,8 @@ import { CourseBundle } from './bundle/entities/course-bundle.entity';
 import { CouponModule } from './coupon/coupon.module';
 import { Coupon } from './coupon/entities/coupon.entity';
 import { DatabaseService } from './database.service';
+import { AcademyModule } from './academy/academy.module';
+import { Academy } from './academy/entities/academy.entity';
 
 @Module({
   imports: [
@@ -58,6 +60,7 @@ import { DatabaseService } from './database.service';
         BundlePricing,
         CourseBundle,
         Coupon,
+        Academy,
       ],
       synchronize: true,
       extra: {
@@ -81,8 +84,9 @@ import { DatabaseService } from './database.service';
     QuizModule,
     BundleModule,
     CouponModule,
+    AcademyModule,
   ],
   controllers: [AppController],
   providers: [AppService, DatabaseService],
 })
-export class AppModule { }
+export class AppModule {}

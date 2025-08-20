@@ -14,10 +14,13 @@ export class AuthService {
     private userRepository: Repository<User>,
     private jwtService: JwtService, // Access JWT service to create tokens
     private configService: ConfigService,
-  ) { }
+  ) {}
 
   async validateUser(email: string, password: string): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { email } });
+    const user = await this.userRepository.findOne({
+      where: { email },
+      relations: ['academy'],
+    });
 
     if (!user) {
       throw new UnauthorizedException(
@@ -34,7 +37,11 @@ export class AuthService {
   }
 
   async generateToken(user: User) {
-    const payload = { sub: user.id, role: user.role };
+    const payload = {
+      sub: user.id,
+      role: user.role,
+      academyId: user.academy?.id,
+    };
 
     const accessToken = this.jwtService.sign(payload, {
       expiresIn: this.configService.get('JWT_EXPIRATION') || '15m',
@@ -46,7 +53,9 @@ export class AuthService {
     user.refreshToken = hashedRefreshToken;
     await this.userRepository.save(user);
 
-    let findOptions: any = { where: { id: user.id } };
+    let findOptions: any = {
+      where: { id: user.id },
+    };
 
     // add relation only if instructor
     if (user.role === UserRole.INSTRUCTOR) {

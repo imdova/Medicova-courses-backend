@@ -16,6 +16,7 @@ import { randomBytes } from 'crypto';
 import { PasswordResetToken } from './entities/password-reset-token.entity';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { InstructorProfileService } from 'src/profile/instructor-profile/instructor-profile.service';
+import { AcademyService } from 'src/academy/academy.service';
 
 @Injectable()
 export class UserService {
@@ -25,11 +26,13 @@ export class UserService {
     @InjectRepository(PasswordResetToken)
     private tokenRepository: Repository<PasswordResetToken>,
     private readonly emailService: EmailService,
-    private readonly instructorProfileService: InstructorProfileService, // Assuming this service exists for creating instructor profiles
-  ) { }
+    private readonly instructorProfileService: InstructorProfileService,
+    private readonly academyService: AcademyService,
+  ) {}
 
   async register(createUserDto: CreateUserDto): Promise<User> {
-    const { password, firstName, lastName, photoUrl, role, email, ...rest } = createUserDto;
+    const { password, firstName, lastName, photoUrl, role, email, ...rest } =
+      createUserDto;
 
     const normalizedEmail = email.trim().toLowerCase();
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -45,16 +48,22 @@ export class UserService {
       const savedUser = await this.userRepository.save(user);
 
       if (savedUser.role === UserRole.INSTRUCTOR) {
-        await this.instructorProfileService.createInstructorProfile(savedUser.id, {
-          firstName: firstName || '',
-          lastName: lastName || '',
-          photoUrl,
-        });
+        await this.instructorProfileService.createInstructorProfile(
+          savedUser.id,
+          {
+            firstName: firstName || '',
+            lastName: lastName || '',
+            photoUrl,
+          },
+        );
       }
 
       return savedUser;
     } catch (error) {
-      if (error instanceof QueryFailedError && (error as any).code === '23505') {
+      if (
+        error instanceof QueryFailedError &&
+        (error as any).code === '23505'
+      ) {
         const detail = (error as any).detail.toLowerCase();
         if (detail.includes('email')) {
           throw new ConflictException('Email is already in use.');
@@ -64,6 +73,46 @@ export class UserService {
 
       throw new InternalServerErrorException('Failed to create user.');
     }
+  }
+
+  async registerWithAcademy(createUserDto: CreateUserDto): Promise<User> {
+    const {
+      academy: academyDto,
+      firstName,
+      lastName,
+      photoUrl,
+      role,
+      ...userData
+    } = createUserDto;
+
+    if (!academyDto) {
+      throw new BadRequestException('Academy data is required');
+    }
+
+    // 1. Create the academy via AcademyService
+    const newAcademy = await this.academyService.create(academyDto);
+
+    // 2. Hash password for the user
+    const hashedPassword = await bcrypt.hash(userData.password, 10);
+
+    // 3. Create user and link to academy
+    const user = this.userRepository.create({
+      ...userData,
+      password: hashedPassword,
+      role: role || UserRole.ACCOUNT_ADMIN,
+      academy: newAcademy, // link user to academy
+    });
+
+    const savedUser = await this.userRepository.save(user);
+
+    // 4. Create instructor profile
+    await this.instructorProfileService.createInstructorProfile(savedUser.id, {
+      firstName: firstName || '',
+      lastName: lastName || '',
+      photoUrl,
+    });
+
+    return savedUser;
   }
 
   findAll() {
