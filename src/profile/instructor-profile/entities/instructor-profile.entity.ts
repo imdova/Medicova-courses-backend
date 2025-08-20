@@ -38,8 +38,10 @@ export class InstructorProfile extends BasicEntity {
   @Column({ name: 'user_name', unique: true })
   userName: string;
 
-
-  @ApiPropertyOptional({ example: '/uploads/photo.jpg', description: 'Profile photo URL' })
+  @ApiPropertyOptional({
+    example: '/uploads/photo.jpg',
+    description: 'Profile photo URL',
+  })
   @Column({ name: 'photo_url', nullable: true })
   photoUrl?: string;
 
@@ -102,4 +104,11 @@ export class InstructorProfile extends BasicEntity {
   })
   @Column({ type: 'jsonb', nullable: true })
   metadata?: InstructorMetadataDto;
+
+  @ApiProperty({
+    example: true,
+    description: 'Indicates whether the profile is public or private',
+  })
+  @Column({ name: 'is_public', default: false })
+  isPublic: boolean;
 }
