@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -18,9 +19,16 @@ import {
 import { AcademyService } from './academy.service';
 import { CreateAcademyDto } from './dto/create-academy.dto';
 import { UpdateAcademyDto } from './dto/update-academy.dto';
+import { RolesGuard } from 'src/auth/roles.guard';
+import { AuthGuard } from '@nestjs/passport';
+import { Roles } from 'src/auth/decorator/roles.decorator';
+import { UserRole } from 'src/user/entities/user.entity';
+import { CreateUserDto } from 'src/user/dto/create-user.dto';
 
 @ApiTags('Academies')
 @Controller('academies')
+@UseGuards(AuthGuard('jwt'), RolesGuard)
+@Roles(UserRole.ACCOUNT_ADMIN)
 export class AcademyController {
   constructor(private readonly academyService: AcademyService) {}
 
@@ -82,5 +90,21 @@ export class AcademyController {
   })
   remove(@Param('id') id: string) {
     return this.academyService.remove(id);
+  }
+
+  // ---------- New endpoint to add a user under this academy ----------
+  @Post(':id/users')
+  @ApiOperation({ summary: 'Add a new user under a specific academy' })
+  @ApiParam({ name: 'id', type: String, description: 'ID of the academy' })
+  @ApiBody({ description: 'User details', type: CreateUserDto })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'User successfully added to academy',
+  })
+  addUserToAcademy(
+    @Param('id') academyId: string,
+    @Body() createUserDto: CreateUserDto,
+  ) {
+    return this.academyService.addUserToAcademy(academyId, createUserDto);
   }
 }

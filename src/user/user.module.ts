@@ -20,5 +20,6 @@ import { AcademyModule } from 'src/academy/academy.module';
   ],
   controllers: [UserController],
   providers: [UserService, RolesGuard, EmailService, UserHomeService],
+  exports: [UserService],
 })
 export class UserModule {}
