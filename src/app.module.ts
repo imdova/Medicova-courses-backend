@@ -36,6 +36,8 @@ import { ChatModule } from './chat/chat.module';
 import { Chat } from './chat/entities/chat.entity';
 import { ChatUser } from './chat/entities/chat-user.entity';
 import { ChatMessage } from './chat/entities/chat-message.entity';
+import { AssignmentModule } from './assignment/assignment.module';
+import { Assignment } from './assignment/entities/assignment.entity';
 
 @Module({
   imports: [
@@ -68,6 +70,7 @@ import { ChatMessage } from './chat/entities/chat-message.entity';
         Chat,
         ChatUser,
         ChatMessage,
+        Assignment,
       ],
       synchronize: true,
       extra: {
@@ -93,6 +96,7 @@ import { ChatMessage } from './chat/entities/chat-message.entity';
     CouponModule,
     AcademyModule,
     ChatModule,
+    AssignmentModule,
   ],
   controllers: [AppController],
   providers: [AppService, DatabaseService],
