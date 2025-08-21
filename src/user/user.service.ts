@@ -46,14 +46,11 @@ export class UserService {
 
     try {
       const savedUser = await this.userRepository.save(user);
-
-      if (savedUser.role === UserRole.INSTRUCTOR) {
-        await this.profileService.createProfile(savedUser.id, {
-          firstName: firstName || '',
-          lastName: lastName || '',
-          photoUrl,
-        });
-      }
+      await this.profileService.createProfile(savedUser.id, {
+        firstName: firstName || '',
+        lastName: lastName || '',
+        photoUrl,
+      });
 
       return savedUser;
     } catch (error) {

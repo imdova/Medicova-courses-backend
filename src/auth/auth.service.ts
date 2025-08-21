@@ -55,12 +55,8 @@ export class AuthService {
 
     let findOptions: any = {
       where: { id: user.id },
+      relations: ['profile'],
     };
-
-    // add relation only if instructor
-    if (user.role === UserRole.INSTRUCTOR) {
-      findOptions.relations = ['profile'];
-    }
     const fullUser = await this.userRepository.findOne(findOptions);
 
     return {
