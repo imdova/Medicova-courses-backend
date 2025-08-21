@@ -32,6 +32,10 @@ import { Coupon } from './coupon/entities/coupon.entity';
 import { DatabaseService } from './database.service';
 import { AcademyModule } from './academy/academy.module';
 import { Academy } from './academy/entities/academy.entity';
+import { ChatModule } from './chat/chat.module';
+import { Chat } from './chat/entities/chat.entity';
+import { ChatUser } from './chat/entities/chat-user.entity';
+import { ChatMessage } from './chat/entities/chat-message.entity';
 
 @Module({
   imports: [
@@ -61,6 +65,9 @@ import { Academy } from './academy/entities/academy.entity';
         CourseBundle,
         Coupon,
         Academy,
+        Chat,
+        ChatUser,
+        ChatMessage,
       ],
       synchronize: true,
       extra: {
@@ -85,6 +92,7 @@ import { Academy } from './academy/entities/academy.entity';
     BundleModule,
     CouponModule,
     AcademyModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [AppService, DatabaseService],
