@@ -3,7 +3,7 @@ import { Entity, Column, OneToMany } from 'typeorm';
 import { User } from 'src/user/entities/user.entity';
 import { ApiProperty } from '@nestjs/swagger';
 
-@Entity()
+@Entity('academies')
 export class Academy extends BasicEntity {
   @ApiProperty({
     description: 'Name of the academy',
