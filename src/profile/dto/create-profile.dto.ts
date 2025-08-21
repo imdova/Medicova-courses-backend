@@ -11,8 +11,8 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Gender, MaritalStatus } from '../entities/instructor-profile.entity';
-import { InstructorMetadataDto } from './instructor-metadata.dto';
+import { Gender, MaritalStatus } from '../entities/profile.entity';
+import { ProfileMetadataDto } from './profile-metadata.dto';
 
 class LanguageDto {
   @ApiProperty({ example: 'Arabic', description: 'Name of the language' })
@@ -24,7 +24,7 @@ class LanguageDto {
   level: string;
 }
 
-export class CreateInstructorProfileDto {
+export class CreateProfileDto {
   @ApiProperty({ example: 'Mohamed', description: 'First name of the user' })
   @IsString()
   firstName: string;
@@ -146,14 +146,14 @@ export class CreateInstructorProfileDto {
   languages?: LanguageDto[];
 
   @ApiPropertyOptional({
-    type: InstructorMetadataDto,
+    type: ProfileMetadataDto,
     description:
       'Structured instructor metadata (experience, education, skills, etc.)',
   })
   @IsOptional()
   @ValidateNested()
-  @Type(() => InstructorMetadataDto)
-  metadata?: InstructorMetadataDto;
+  @Type(() => ProfileMetadataDto)
+  metadata?: ProfileMetadataDto;
 
   @ApiPropertyOptional({
     example: true,

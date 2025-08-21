@@ -13,7 +13,7 @@ import {
   ApiOkResponse,
 } from '@nestjs/swagger';
 import { ProfileService } from './profile.service';
-import { InstructorProfile } from 'src/profile/instructor-profile/entities/instructor-profile.entity';
+import { Profile } from 'src/profile/entities/profile.entity';
 import { AuthGuard } from '@nestjs/passport';
 import { UserRole } from 'src/user/entities/user.entity';
 import { Roles } from 'src/auth/decorator/roles.decorator';
@@ -31,7 +31,7 @@ export class PublicProfileController {
     description: 'Public endpoint. Fetches an instructor profile by username.',
   })
   @ApiParam({ name: 'userName', type: String })
-  @ApiOkResponse({ type: InstructorProfile })
+  @ApiOkResponse({ type: Profile })
   async getInstructorByUsername(@Param('userName') userName: string) {
     return this.profileService.getInstructorProfileByUsername(userName);
   }

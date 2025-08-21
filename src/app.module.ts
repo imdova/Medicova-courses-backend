@@ -11,7 +11,6 @@ import { MailerModule } from '@nestjs-modules/mailer';
 import { join } from 'path';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { PasswordResetToken } from './user/entities/password-reset-token.entity';
-import { InstructorProfile } from './profile/instructor-profile/entities/instructor-profile.entity';
 import { CourseModule } from './course/course.module';
 import { Course } from './course/entities/course.entity';
 import { CoursePricing } from './course/course-pricing/entities/course-pricing.entity';
@@ -38,6 +37,7 @@ import { ChatUser } from './chat/entities/chat-user.entity';
 import { ChatMessage } from './chat/entities/chat-message.entity';
 import { AssignmentModule } from './assignment/assignment.module';
 import { Assignment } from './assignment/entities/assignment.entity';
+import { Profile } from './profile/entities/profile.entity';
 
 @Module({
   imports: [
@@ -52,7 +52,7 @@ import { Assignment } from './assignment/entities/assignment.entity';
       entities: [
         User,
         PasswordResetToken,
-        InstructorProfile,
+        Profile,
         Course,
         CoursePricing,
         CourseTag,

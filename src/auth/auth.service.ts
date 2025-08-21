@@ -59,7 +59,7 @@ export class AuthService {
 
     // add relation only if instructor
     if (user.role === UserRole.INSTRUCTOR) {
-      findOptions.relations = ['instructorProfile'];
+      findOptions.relations = ['profile'];
     }
     const fullUser = await this.userRepository.findOne(findOptions);
 
@@ -70,10 +70,10 @@ export class AuthService {
         id: fullUser.id,
         email: fullUser.email,
         role: fullUser.role,
-        firstName: fullUser.instructorProfile?.firstName ?? null,
-        lastName: fullUser.instructorProfile?.lastName ?? null,
-        userName: fullUser.instructorProfile?.userName ?? null,
-        photo: fullUser.instructorProfile?.photoUrl ?? null,
+        firstName: fullUser.profile?.firstName ?? null,
+        lastName: fullUser.profile?.lastName ?? null,
+        userName: fullUser.profile?.userName ?? null,
+        photo: fullUser.profile?.photoUrl ?? null,
       },
     };
   }
