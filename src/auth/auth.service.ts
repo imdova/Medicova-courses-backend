@@ -53,11 +53,10 @@ export class AuthService {
     user.refreshToken = hashedRefreshToken;
     await this.userRepository.save(user);
 
-    let findOptions: any = {
+    const fullUser = await this.userRepository.findOne({
       where: { id: user.id },
       relations: ['profile'],
-    };
-    const fullUser = await this.userRepository.findOne(findOptions);
+    });
 
     return {
       access_token: accessToken,
