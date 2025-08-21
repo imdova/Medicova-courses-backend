@@ -34,7 +34,9 @@ export class CourseSectionItemController {
   constructor(private readonly service: CourseSectionItemService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Add an item (lecture or quiz) to a section' })
+  @ApiOperation({
+    summary: 'Add an item (lecture, quiz or assignment) to a section',
+  })
   @ApiParam({ name: 'sectionId', description: 'UUID of the section' })
   @ApiBody({ type: CreateCourseSectionItemDto })
   @ApiResponse({
@@ -51,7 +53,8 @@ export class CourseSectionItemController {
 
   @Post('bulk')
   @ApiOperation({
-    summary: 'Add multiple items (lectures or quizzes) to a section',
+    summary:
+      'Add multiple items (lectures, quizzes or assignments) to a section',
   })
   @ApiBody({ type: [CreateCourseSectionItemDto] })
   bulkAddItems(

@@ -36,6 +36,14 @@ export class CreateCourseSectionItemDto {
   quizId?: string;
 
   @ApiPropertyOptional({
+    description: 'ID of the assignment',
+    format: 'uuid',
+  })
+  @IsString()
+  @IsOptional()
+  assignmentId?: string;
+
+  @ApiPropertyOptional({
     description: 'Order of the item within the section',
     example: 1,
   })

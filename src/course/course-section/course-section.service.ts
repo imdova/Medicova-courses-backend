@@ -69,6 +69,10 @@ export class CourseSectionService {
             item.quiz = { id: itemDto.quizId } as any;
           }
 
+          if (itemDto.curriculumType === 'assignment' && itemDto.assignmentId) {
+            item.assignment = { id: itemDto.assignmentId } as any;
+          }
+
           allItems.push(item);
         }
       }
@@ -96,7 +100,7 @@ export class CourseSectionService {
       // 5. Fetch all sections with relations in one query
       return manager.find(CourseSection, {
         where: { id: In(savedSections.map((s) => s.id)) },
-        relations: ['items', 'items.lecture', 'items.quiz'],
+        relations: ['items', 'items.lecture', 'items.quiz', 'items.assignment'],
         order: {
           order: 'ASC',
           items: { order: 'ASC' },
@@ -110,6 +114,7 @@ export class CourseSectionService {
       .createQueryBuilder('section')
       .leftJoinAndSelect('section.items', 'item')
       .leftJoinAndSelect('item.lecture', 'lecture')
+      .leftJoinAndSelect('item.assignment', 'assignment')
       .leftJoinAndSelect('item.quiz', 'quiz')
       .leftJoinAndSelect('quiz.quizQuestions', 'quizQuestion')
       .leftJoinAndSelect('quizQuestion.question', 'question')
