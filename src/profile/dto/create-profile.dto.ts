@@ -63,7 +63,15 @@ export class CreateProfileDto {
   })
   @IsOptional()
   @IsBoolean()
-  isWhatsapp?: boolean;
+  hasWhatsapp?: boolean;
+
+  @ApiPropertyOptional({
+    example: '+20100234567',
+    description: 'Separate WhatsApp phone number',
+  })
+  @IsOptional()
+  @IsString()
+  phoneNumbertForWhatsapp?: string;
 
   @ApiPropertyOptional({
     example: '1980-05-20',

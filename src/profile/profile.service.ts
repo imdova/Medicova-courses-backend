@@ -70,6 +70,20 @@ export class ProfileService {
       throw new NotFoundException('Profile not found for this user');
     }
 
+    if (!updateProfileDto.userName) {
+      updateProfileDto.userName = await this.generateUsername(
+        updateProfileDto.firstName,
+        updateProfileDto.lastName,
+      );
+    } else {
+      const existing = await this.profileRepository.findOne({
+        where: { userName: updateProfileDto.userName },
+      });
+      if (existing) {
+        throw new BadRequestException('Username already taken');
+      }
+    }
+
     const updatedProfile = Object.assign(user.profile, updateProfileDto);
     await this.profileRepository.save(updatedProfile);
     return updatedProfile;
