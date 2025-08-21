@@ -1,0 +1,44 @@
+import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { BasicEntity } from '../../common/entities/basic.entity';
+import { ApiProperty } from '@nestjs/swagger';
+import { User } from 'src/user/entities/user.entity';
+
+@Entity('assignments')
+export class Assignment extends BasicEntity {
+  @ApiProperty({
+    description: 'Assignment title',
+    example: 'Essay on AI Ethics',
+  })
+  @Column({ type: 'varchar', length: 255 })
+  name: string;
+
+  @ApiProperty({ description: 'Start date of assignment' })
+  @Column({ type: 'date' })
+  start_date: Date;
+
+  @ApiProperty({ description: 'End date of assignment' })
+  @Column({ type: 'date' })
+  end_date: Date;
+
+  @ApiProperty({ description: 'Instructions for the assignment' })
+  @Column({ type: 'text' })
+  instructions: string;
+
+  //   @ApiProperty({ description: 'Grading scale (e.g. 0-100, Pass/Fail)' })
+  //   @Column({ type: 'varchar', length: 50 })
+  //   grading_scale: string;
+
+  @ApiProperty({
+    description: 'Optional attachment (PDF, Doc, etc.)',
+    required: false,
+  })
+  @Column({ type: 'varchar', nullable: true })
+  attachment_url?: string;
+
+  @ApiProperty({
+    description: 'User ID of the teacher/admin who created the assignment',
+    format: 'uuid',
+  })
+  @Column({ type: 'uuid', name: 'created_by' })
+  createdBy: string;
+}
