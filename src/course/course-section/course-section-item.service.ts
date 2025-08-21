@@ -10,6 +10,7 @@ import { CreateCourseSectionItemDto } from './dto/create-course-section-item.dto
 import { UpdateCourseSectionItemDto } from './dto/update-course-section-item.dto';
 import { Lecture } from './entities/lecture.entity';
 import { Quiz } from 'src/quiz/entities/quiz.entity';
+import { Assignment } from 'src/assignment/entities/assignment.entity';
 
 @Injectable()
 export class CourseSectionItemService {
@@ -25,6 +26,9 @@ export class CourseSectionItemService {
 
     @InjectRepository(Quiz)
     private readonly quizRepository: Repository<Quiz>,
+
+    @InjectRepository(Assignment)
+    private readonly assignmentRepository: Repository<Assignment>,
   ) {}
 
   async addItem(
@@ -38,6 +42,7 @@ export class CourseSectionItemService {
 
     let lecture: Lecture | null = null;
     let quiz: Quiz | null = null;
+    let assignment: Assignment | null = null;
 
     if (dto.curriculumType === CurriculumType.LECTURE && dto.lecture) {
       lecture = this.lectureRepository.create({ ...dto.lecture });
@@ -56,12 +61,25 @@ export class CourseSectionItemService {
       if (!quiz) throw new NotFoundException('Quiz not found');
     }
 
+    if (dto.curriculumType === CurriculumType.ASSIGNMENT) {
+      if (!dto.assignmentId) {
+        throw new NotFoundException(
+          'Assignment ID is required for curriculumType ASSIGNMENT',
+        );
+      }
+      assignment = await this.assignmentRepository.findOne({
+        where: { id: dto.assignmentId, deleted_at: null },
+      });
+      if (!assignment) throw new NotFoundException('Assignment not found');
+    }
+
     let item = this.itemRepository.create({
       section,
       curriculumType: dto.curriculumType,
       order: dto.order,
       lecture: lecture || null,
       quiz: quiz || null,
+      assignment: assignment || null,
     });
 
     item = await this.reorderItems(sectionId, item);
@@ -75,7 +93,7 @@ export class CourseSectionItemService {
   ): Promise<CourseSectionItem> {
     const item = await this.itemRepository.findOne({
       where: { id: itemId, deleted_at: null },
-      relations: ['lecture', 'quiz', 'section'],
+      relations: ['lecture', 'quiz', 'assignment', 'section'],
     });
     if (!item) throw new NotFoundException('Item not found');
 
@@ -98,6 +116,15 @@ export class CourseSectionItemService {
       });
       if (!quiz) throw new NotFoundException('Quiz not found');
       item.quiz = quiz;
+    }
+
+    // Assignment reference swap
+    if (item.curriculumType === CurriculumType.ASSIGNMENT && dto.assignmentId) {
+      const assignment = await this.assignmentRepository.findOne({
+        where: { id: dto.assignmentId, deleted_at: null },
+      });
+      if (!assignment) throw new NotFoundException('Assignment not found');
+      item.assignment = assignment;
     }
 
     // Update order if provided
@@ -137,6 +164,7 @@ export class CourseSectionItemService {
       const dto = items[i];
       let lecture: Lecture | null = null;
       let quiz: Quiz | null = null;
+      let assignment: Assignment | null = null;
 
       if (dto.curriculumType === CurriculumType.LECTURE && dto.lecture) {
         lecture = this.lectureRepository.create({ ...dto.lecture });
@@ -156,12 +184,25 @@ export class CourseSectionItemService {
         if (!quiz) throw new NotFoundException('Quiz not found');
       }
 
+      if (dto.curriculumType === CurriculumType.ASSIGNMENT) {
+        if (!dto.assignmentId) {
+          throw new NotFoundException(
+            'Assignment ID is required for curriculumType ASSIGNMENT',
+          );
+        }
+        assignment = await this.assignmentRepository.findOne({
+          where: { id: dto.assignmentId, deleted_at: null },
+        });
+        if (!assignment) throw new NotFoundException('Assignment not found');
+      }
+
       const item = this.itemRepository.create({
         section,
         curriculumType: dto.curriculumType,
         order: dto.order,
         lecture: lecture || null, // temporarily attach, will be updated after save
         quiz,
+        assignment,
       });
 
       itemsToSave.push(item);
