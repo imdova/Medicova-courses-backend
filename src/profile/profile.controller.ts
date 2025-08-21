@@ -30,7 +30,12 @@ import { AuthGuard } from '@nestjs/passport';
 @ApiTags('Profile')
 @Controller('users/:userId/profile')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(UserRole.INSTRUCTOR) // ✅ adjust if needed for more roles later
+@Roles(
+  UserRole.INSTRUCTOR,
+  UserRole.ADMIN,
+  UserRole.STUDENT,
+  UserRole.ACCOUNT_ADMIN,
+)
 export class ProfileController {
   constructor(private readonly profileService: ProfileService) {}
 
@@ -60,7 +65,7 @@ export class ProfileController {
     @Body() createProfileDto: CreateProfileDto,
     @Req() req,
   ) {
-    if (userId !== req.user.sub) {
+    if (!this.canAccess(userId, req)) {
       throw new ForbiddenException();
     }
 
@@ -78,7 +83,7 @@ export class ProfileController {
     type: String,
     description: 'Unique identifier of the user',
   })
-  @ApiBody({ type: UpdateProfileDto })
+  @ApiBody({ type: CreateProfileDto })
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Profile updated successfully.',
@@ -93,7 +98,7 @@ export class ProfileController {
     @Body() updateProfileDto: UpdateProfileDto,
     @Req() req,
   ) {
-    if (userId !== req.user.sub) {
+    if (!this.canAccess(userId, req)) {
       throw new ForbiddenException();
     }
 
@@ -120,10 +125,25 @@ export class ProfileController {
     description: 'User is not authorized to view this profile.',
   })
   async findOne(@Param('userId') userId: string, @Req() req) {
-    if (userId !== req.user.sub) {
+    if (!this.canAccess(userId, req)) {
       throw new ForbiddenException();
     }
 
     return this.profileService.getProfileByUserId(userId);
+  }
+
+  private canAccess(userId: string, req): boolean {
+    // ✅ allow if user is acting on their own profile
+    if (userId === req.user.sub) return true;
+
+    // ✅ allow if user is ADMIN or ACCOUNT_ADMIN
+    if (
+      req.user.role === UserRole.ADMIN ||
+      req.user.role === UserRole.ACCOUNT_ADMIN
+    ) {
+      return true;
+    }
+
+    return false;
   }
 }
