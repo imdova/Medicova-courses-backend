@@ -81,27 +81,42 @@ export class StudentCourseService {
   async findOne(id: string, user: any): Promise<Course> {
     const currency = await this.getCurrencyForUser(user.sub);
 
-    const qb = this.courseRepo
-      .createQueryBuilder('course')
-      .leftJoinAndSelect('course.pricings', 'pricing')
-      .leftJoinAndSelect('course.sections', 'section')
-      .leftJoinAndSelect('section.items', 'item')
-      .leftJoinAndSelect('item.lecture', 'lecture')
-      .leftJoinAndSelect('item.quiz', 'quiz')
-      .leftJoinAndSelect('quiz.quizQuestions', 'quizQuestion')
-      .leftJoinAndSelect('quizQuestion.question', 'question')
-      .leftJoinAndSelect('item.assignment', 'assignment')
-      .where('course.id = :id', { id })
-      .andWhere('course.deleted_at IS NULL')
-      .orderBy('section.order', 'ASC')
-      .addOrderBy('item.order', 'ASC')
-      .addOrderBy('quizQuestion.order', 'ASC');
+    // ✅ check if the student is enrolled
+    const enrollment = await this.courseStudentRepository.findOne({
+      where: { course: { id }, student: { id: user.sub } },
+    });
 
-    const course = await qb.getOne();
+    let course: Course | null = null;
+
+    if (enrollment) {
+      // ✅ full detail query (sections, quizzes, assignments, etc.)
+      course = await this.courseRepo
+        .createQueryBuilder('course')
+        .leftJoinAndSelect('course.pricings', 'pricing')
+        .leftJoinAndSelect('course.sections', 'section')
+        .leftJoinAndSelect('section.items', 'item')
+        .leftJoinAndSelect('item.lecture', 'lecture')
+        .leftJoinAndSelect('item.quiz', 'quiz')
+        .leftJoinAndSelect('quiz.quizQuestions', 'quizQuestion')
+        .leftJoinAndSelect('quizQuestion.question', 'question')
+        .leftJoinAndSelect('item.assignment', 'assignment')
+        .where('course.id = :id', { id })
+        .andWhere('course.deleted_at IS NULL')
+        .orderBy('section.order', 'ASC')
+        .addOrderBy('item.order', 'ASC')
+        .addOrderBy('quizQuestion.order', 'ASC')
+        .getOne();
+    } else {
+      // ❌ not enrolled → only fetch basic info + pricing
+      course = await this.courseRepo.findOne({
+        where: { id, deleted_at: null },
+        relations: ['pricings'],
+      });
+    }
 
     if (!course) throw new NotFoundException('Course not found');
 
-    // ✅ Filter pricing by nationality
+    // ✅ always filter pricing by nationality
     if (currency) {
       course.pricings = course.pricings.filter(
         (p) => p.currencyCode === currency,
