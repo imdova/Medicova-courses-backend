@@ -41,6 +41,7 @@ import { Profile } from './profile/entities/profile.entity';
 import { CourseStudent } from './course/entities/course-student.entity';
 import { CourseProgress } from './course/entities/course-progress.entity';
 import { QuizAttempt } from './quiz/entities/quiz-attempts.entity';
+import { AssignmentSubmission } from './assignment/entities/assignment-submission.entity';
 
 @Module({
   imports: [
@@ -77,6 +78,7 @@ import { QuizAttempt } from './quiz/entities/quiz-attempts.entity';
         CourseStudent,
         CourseProgress,
         QuizAttempt,
+        AssignmentSubmission,
       ],
       synchronize: true,
       extra: {
