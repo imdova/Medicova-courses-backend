@@ -1,0 +1,93 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Course } from './entities/course.entity';
+import { FilterOperator, paginate, PaginateQuery } from 'nestjs-paginate';
+import { QueryConfig } from '../common/utils/query-options';
+import { Profile } from 'src/profile/entities/profile.entity';
+import { CurrencyCode } from './course-pricing/entities/course-pricing.entity';
+
+export const COURSE_PAGINATION_CONFIG: QueryConfig<Course> = {
+  sortableColumns: ['created_at', 'name', 'category', 'status'],
+  defaultSortBy: [['created_at', 'DESC']],
+  filterableColumns: {
+    name: [FilterOperator.ILIKE], // search by course name (case-insensitive)
+    category: [FilterOperator.EQ],
+    status: [FilterOperator.EQ],
+    isActive: [FilterOperator.EQ],
+    createdBy: [FilterOperator.EQ],
+  },
+  relations: [], // add relations if needed
+};
+
+@Injectable()
+export class StudentCourseService {
+  constructor(
+    @InjectRepository(Course) private readonly courseRepo: Repository<Course>,
+    @InjectRepository(Profile)
+    private readonly profileRepo: Repository<Profile>,
+  ) {}
+
+  private async getCurrencyForUser(
+    userId: string,
+  ): Promise<CurrencyCode | null> {
+    const profile = await this.profileRepo.findOne({
+      where: { user: { id: userId } },
+      relations: ['user'],
+    });
+
+    if (!profile || !profile.nationality) {
+      return null;
+    }
+
+    // ✅ simple mapping: Egyptian nationality → EGP
+    if (profile.nationality.toLowerCase() === 'egyptian') {
+      return CurrencyCode.EGP;
+    }
+
+    // TODO: expand mapping for other nationalities (e.g. Saudi → SAR)
+    return CurrencyCode.USD; // fallback default
+  }
+
+  async getPaginatedCourses(query: PaginateQuery, user: any) {
+    const currency = await this.getCurrencyForUser(user.sub);
+
+    const qb = this.courseRepo
+      .createQueryBuilder('course')
+      .leftJoinAndSelect('course.pricings', 'pricing')
+      .andWhere('course.deleted_at IS NULL');
+
+    const result = await paginate(query, qb, COURSE_PAGINATION_CONFIG);
+
+    // ✅ Filter pricings by user’s allowed currency
+    if (currency) {
+      result.data.forEach((course) => {
+        course.pricings = course.pricings.filter(
+          (p) => p.currencyCode === currency,
+        );
+      });
+    }
+
+    return result;
+  }
+
+  async findOne(id: string, user: any): Promise<Course> {
+    const currency = await this.getCurrencyForUser(user.sub);
+
+    const course = await this.courseRepo.findOne({
+      where: { id, deleted_at: null },
+      relations: ['pricings'],
+    });
+
+    if (!course) throw new NotFoundException('Course not found');
+
+    // ✅ Filter pricing by nationality
+    if (currency) {
+      course.pricings = course.pricings.filter(
+        (p) => p.currencyCode === currency,
+      );
+    }
+
+    return course;
+  }
+}
