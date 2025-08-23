@@ -4,6 +4,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CoursePricing } from '../course-pricing/entities/course-pricing.entity';
 import { CourseMetadataDto } from '../dto/course-metadata.dto';
 import { CourseSection } from '../course-section/entities/course-section.entity';
+import { CourseStudent } from './course-student.entity';
 
 export enum CourseType {
   RECORDED = 'recorded',
@@ -219,4 +220,7 @@ export class Course extends BasicEntity {
     cascade: true,
   })
   sections: CourseSection[];
+
+  @OneToMany(() => CourseStudent, (cs) => cs.course)
+  enrollments: CourseStudent[];
 }
