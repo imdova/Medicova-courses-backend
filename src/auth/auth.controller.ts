@@ -43,7 +43,12 @@ export class AuthController {
       throw new BadRequestException('Email must be provided.');
     }
 
-    const dbUser = await this.authService.validateUser(email, password);
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const dbUser = await this.authService.validateUser(
+      normalizedEmail,
+      password,
+    );
     const { access_token, refresh_token, user } =
       await this.authService.generateToken(dbUser);
 
