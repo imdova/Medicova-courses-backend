@@ -37,7 +37,7 @@ export class PublicProfileController {
       'Admin-only endpoint. Forces all instructor profiles to have isPublic = false.',
   })
   async makeAllProfilesPrivate() {
-    await this.profileService.makeAllProfilesPrivate();
+    await this.profileService.makeAllInstructorProfilesPrivate();
     return {
       success: true,
       message: 'All instructor profiles are now private',

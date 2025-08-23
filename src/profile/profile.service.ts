@@ -8,7 +8,7 @@ import { CreateProfileDto } from './dto/create-profile.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User } from 'src/user/entities/user.entity';
+import { User, UserRole } from 'src/user/entities/user.entity';
 import { Profile } from './entities/profile.entity';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -138,7 +138,11 @@ export class ProfileService {
 
   async getInstructorProfileByUsername(userName: string) {
     const profile = await this.profileRepository.findOne({
-      where: { userName },
+      where: {
+        userName,
+        user: { role: UserRole.INSTRUCTOR }, // ✅ filter by instructor role
+      },
+      relations: ['user'], // ✅ ensure user is loaded
     });
 
     if (!profile) {
@@ -152,7 +156,17 @@ export class ProfileService {
     return profile;
   }
 
-  async makeAllProfilesPrivate(): Promise<void> {
-    await this.profileRepository.update({}, { isPublic: false });
+  async makeAllInstructorProfilesPrivate(): Promise<void> {
+    await this.profileRepository
+      .createQueryBuilder()
+      .update()
+      .set({ isPublic: false })
+      .where(
+        `"user_id" IN (
+        SELECT id FROM "user" WHERE role = :role
+    )`,
+      )
+      .setParameter('role', UserRole.INSTRUCTOR)
+      .execute();
   }
 }
