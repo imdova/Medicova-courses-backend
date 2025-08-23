@@ -1,9 +1,10 @@
 import { BasicEntity } from '../../common/entities/basic.entity';
-import { Entity, Column, OneToOne, ManyToOne } from 'typeorm';
+import { Entity, Column, OneToOne, ManyToOne, OneToMany } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 import { Profile } from 'src/profile/entities/profile.entity';
 import { Academy } from 'src/academy/entities/academy.entity';
 import { Exclude } from 'class-transformer';
+import { CourseStudent } from 'src/course/entities/course-student.entity';
 
 export enum UserRole {
   STUDENT = 'student',
@@ -53,4 +54,7 @@ export class User extends BasicEntity {
     onDelete: 'CASCADE',
   })
   academy?: Academy;
+
+  @OneToMany(() => CourseStudent, (cs) => cs.student)
+  enrollments: CourseStudent[];
 }

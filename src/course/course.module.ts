@@ -12,10 +12,17 @@ import { CoursePricing } from './course-pricing/entities/course-pricing.entity';
 import { StudentCourseController } from './student-course.controller';
 import { StudentCourseService } from './student-course.service';
 import { Profile } from 'src/profile/entities/profile.entity';
+import { CourseStudent } from './entities/course-student.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Course, CourseTag, CoursePricing, Profile]),
+    TypeOrmModule.forFeature([
+      Course,
+      CourseTag,
+      CoursePricing,
+      Profile,
+      CourseStudent,
+    ]),
     CoursePricingModule,
     CourseSectionModule,
   ],

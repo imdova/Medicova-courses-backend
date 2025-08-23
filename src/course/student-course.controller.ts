@@ -5,6 +5,7 @@ import {
   ParseUUIDPipe,
   UseGuards,
   Req,
+  Post,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { RolesGuard } from 'src/auth/roles.guard';
@@ -14,6 +15,7 @@ import { Paginate, PaginateQuery } from 'nestjs-paginate';
 import { AuthGuard } from '@nestjs/passport';
 import { StudentCourseService } from './student-course.service';
 import { Course } from './entities/course.entity';
+import { CourseStudent } from './entities/course-student.entity';
 
 @ApiTags('Student Courses')
 @Controller('student/courses')
@@ -21,6 +23,33 @@ import { Course } from './entities/course.entity';
 @Roles(UserRole.STUDENT)
 export class StudentCourseController {
   constructor(private readonly studentCourseService: StudentCourseService) {}
+
+  @Post(':id/enroll')
+  @ApiOperation({
+    summary: 'Enroll student into a course',
+    description: 'Allows the authenticated student to enroll in a course.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'UUID of the course to enroll in',
+    type: String,
+    example: 'd290f1ee-6c54-4b01-90e6-d701748f0851',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Successfully enrolled into course',
+    type: CourseStudent,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Already enrolled or invalid request',
+  })
+  @ApiResponse({ status: 404, description: 'Course not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  enroll(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
+    return this.studentCourseService.enroll(id, req.user.sub);
+  }
 
   @Get()
   @ApiOperation({

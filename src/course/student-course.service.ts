@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Course } from './entities/course.entity';
@@ -6,6 +10,8 @@ import { FilterOperator, paginate, PaginateQuery } from 'nestjs-paginate';
 import { QueryConfig } from '../common/utils/query-options';
 import { Profile } from 'src/profile/entities/profile.entity';
 import { CurrencyCode } from './course-pricing/entities/course-pricing.entity';
+import { CourseStudent } from './entities/course-student.entity';
+import { User } from 'src/user/entities/user.entity';
 
 export const COURSE_PAGINATION_CONFIG: QueryConfig<Course> = {
   sortableColumns: ['created_at', 'name', 'category', 'status'],
@@ -26,6 +32,8 @@ export class StudentCourseService {
     @InjectRepository(Course) private readonly courseRepo: Repository<Course>,
     @InjectRepository(Profile)
     private readonly profileRepo: Repository<Profile>,
+    @InjectRepository(CourseStudent)
+    private readonly courseStudentRepository: Repository<CourseStudent>,
   ) {}
 
   private async getCurrencyForUser(
@@ -89,5 +97,27 @@ export class StudentCourseService {
     }
 
     return course;
+  }
+
+  async enroll(courseId: string, userId: string): Promise<CourseStudent> {
+    const course = await this.courseRepo.findOne({
+      where: { id: courseId, deleted_at: null },
+    });
+    if (!course) throw new NotFoundException('Course not found');
+
+    // Check if already enrolled
+    const existing = await this.courseStudentRepository.findOne({
+      where: { course: { id: courseId }, student: { id: userId } },
+    });
+    if (existing) {
+      throw new BadRequestException('Already enrolled in this course');
+    }
+
+    const enrollment = this.courseStudentRepository.create({
+      course,
+      student: { id: userId } as any, // only need reference
+    });
+
+    return this.courseStudentRepository.save(enrollment);
   }
 }

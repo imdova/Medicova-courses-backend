@@ -38,6 +38,7 @@ import { ChatMessage } from './chat/entities/chat-message.entity';
 import { AssignmentModule } from './assignment/assignment.module';
 import { Assignment } from './assignment/entities/assignment.entity';
 import { Profile } from './profile/entities/profile.entity';
+import { CourseStudent } from './course/entities/course-student.entity';
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { Profile } from './profile/entities/profile.entity';
         ChatUser,
         ChatMessage,
         Assignment,
+        CourseStudent,
       ],
       synchronize: true,
       extra: {
