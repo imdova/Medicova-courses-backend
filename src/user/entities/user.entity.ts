@@ -3,6 +3,7 @@ import { Entity, Column, OneToOne, ManyToOne } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 import { Profile } from 'src/profile/entities/profile.entity';
 import { Academy } from 'src/academy/entities/academy.entity';
+import { Exclude } from 'class-transformer';
 
 export enum UserRole {
   STUDENT = 'student',
@@ -24,6 +25,7 @@ export class User extends BasicEntity {
     description: 'Hashed password of the user',
     example: '$2b$10$somehashedpasswordstring',
   })
+  @Exclude()
   @Column()
   password: string;
 

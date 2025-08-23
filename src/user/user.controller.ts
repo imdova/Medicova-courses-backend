@@ -29,6 +29,7 @@ import { VerifyResetTokenDto } from './dto/verify-reset-token.dto';
 import { cookieOptions } from '../auth/auth.controller';
 import { AuthService } from 'src/auth/auth.service';
 import { Response } from 'express';
+import { AuthGuard } from '@nestjs/passport';
 
 @ApiTags('Users')
 @Controller('users')
@@ -83,7 +84,7 @@ export class UserController {
     return { message: 'Registration successful', user };
   }
 
-  @UseGuards(RolesGuard)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(UserRole.ADMIN)
   @Get()
   @ApiOperation({
@@ -98,7 +99,7 @@ export class UserController {
     return this.userService.findAll();
   }
 
-  @UseGuards(RolesGuard)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(UserRole.ADMIN)
   @Get(':userId')
   @ApiOperation({
@@ -118,7 +119,7 @@ export class UserController {
     return this.userService.findOne(userId);
   }
 
-  @UseGuards(RolesGuard)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(UserRole.ADMIN)
   @Patch(':userId')
   @ApiOperation({
@@ -138,7 +139,7 @@ export class UserController {
     return this.userService.update(userId, updateUserDto);
   }
 
-  @UseGuards(RolesGuard)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(UserRole.ADMIN)
   @Delete(':userId')
   @ApiOperation({

@@ -26,6 +26,7 @@ import { Roles } from 'src/auth/decorator/roles.decorator';
 import { UserRole } from 'src/user/entities/user.entity';
 import { Profile } from './entities/profile.entity';
 import { AuthGuard } from '@nestjs/passport';
+import { UserService } from 'src/user/user.service';
 
 @ApiTags('Profile')
 @Controller('users/:userId/profile')
@@ -37,7 +38,10 @@ import { AuthGuard } from '@nestjs/passport';
   UserRole.ACCOUNT_ADMIN,
 )
 export class ProfileController {
-  constructor(private readonly profileService: ProfileService) {}
+  constructor(
+    private readonly profileService: ProfileService,
+    private readonly userService: UserService,
+  ) {}
 
   @Post()
   @ApiOperation({
@@ -65,7 +69,7 @@ export class ProfileController {
     @Body() createProfileDto: CreateProfileDto,
     @Req() req,
   ) {
-    if (!this.canAccess(userId, req)) {
+    if (!(await this.canAccess(userId, req))) {
       throw new ForbiddenException();
     }
 
@@ -98,7 +102,7 @@ export class ProfileController {
     @Body() updateProfileDto: UpdateProfileDto,
     @Req() req,
   ) {
-    if (!this.canAccess(userId, req)) {
+    if (!(await this.canAccess(userId, req))) {
       throw new ForbiddenException();
     }
 
@@ -125,23 +129,29 @@ export class ProfileController {
     description: 'User is not authorized to view this profile.',
   })
   async findOne(@Param('userId') userId: string, @Req() req) {
-    if (!this.canAccess(userId, req)) {
+    if (!(await this.canAccess(userId, req))) {
       throw new ForbiddenException();
     }
 
     return this.profileService.getProfileByUserId(userId);
   }
 
-  private canAccess(userId: string, req): boolean {
-    // ✅ allow if user is acting on their own profile
-    if (userId === req.user.sub) return true;
+  private async canAccess(userId: string, req): Promise<boolean> {
+    const { sub: currentUserId, role, academyId } = req.user;
 
-    // ✅ allow if user is ADMIN or ACCOUNT_ADMIN
-    if (
-      req.user.role === UserRole.ADMIN ||
-      req.user.role === UserRole.ACCOUNT_ADMIN
-    ) {
-      return true;
+    // ✅ allow if user is acting on their own profile
+    if (userId === currentUserId) return true;
+
+    // ✅ allow if user is ADMIN
+    if (role === UserRole.ADMIN) return true;
+
+    // ✅ allow if user is ACCOUNT_ADMIN but only within same academy
+    if (role === UserRole.ACCOUNT_ADMIN) {
+      const targetUser = await this.userService.findOne(userId);
+
+      if (!targetUser) return false;
+
+      return targetUser.academy?.id === academyId;
     }
 
     return false;

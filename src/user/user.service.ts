@@ -76,12 +76,15 @@ export class UserService {
       lastName,
       photoUrl,
       role,
+      email,
       ...userData
     } = createUserDto;
 
     if (!academyDto) {
       throw new BadRequestException('Academy data is required');
     }
+
+    const normalizedEmail = email.trim().toLowerCase();
 
     // 1. Create the academy via AcademyService
     const newAcademy = await this.academyService.create(academyDto);
@@ -92,6 +95,7 @@ export class UserService {
     // 3. Create user and link to academy
     const user = this.userRepository.create({
       ...userData,
+      email: normalizedEmail,
       password: hashedPassword,
       role: role || UserRole.ACCOUNT_ADMIN,
       academy: newAcademy, // link user to academy
@@ -114,7 +118,10 @@ export class UserService {
   }
 
   async findOne(userId: string): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['academy'],
+    });
     if (!user) {
       throw new NotFoundException(`User with id ${userId} not found`);
     }
