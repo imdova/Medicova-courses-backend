@@ -51,6 +51,23 @@ export class StudentCourseController {
     return this.studentCourseService.enroll(id, req.user.sub);
   }
 
+  @Get('enrolled')
+  @ApiOperation({
+    summary: 'Get paginated list of courses the student is enrolled in',
+    description:
+      'Returns a paginated list of courses the authenticated student is enrolled in. Pricings are automatically filtered based on the student’s nationality.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated list of enrolled courses',
+    type: [Course],
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  getEnrolledCourses(@Paginate() query: PaginateQuery, @Req() req) {
+    return this.studentCourseService.getEnrolledCourses(query, req.user.sub);
+  }
+
   @Get()
   @ApiOperation({
     summary: 'Get paginated list of available courses for students',

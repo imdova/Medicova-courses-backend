@@ -132,4 +132,29 @@ export class StudentCourseService {
 
     return this.courseStudentRepository.save(enrollment);
   }
+
+  async getEnrolledCourses(query: PaginateQuery, userId: string) {
+    const currency = await this.getCurrencyForUser(userId);
+
+    const qb = this.courseRepo
+      .createQueryBuilder('course')
+      .innerJoin('course.enrollments', 'enrollment') // <-- correct relation
+      .innerJoin('enrollment.student', 'student', 'student.id = :userId', {
+        userId,
+      })
+      .leftJoinAndSelect('course.pricings', 'pricing')
+      .andWhere('course.deleted_at IS NULL');
+
+    const result = await paginate(query, qb, COURSE_PAGINATION_CONFIG);
+
+    if (currency) {
+      result.data.forEach((course) => {
+        course.pricings = course.pricings.filter(
+          (p) => p.currencyCode === currency,
+        );
+      });
+    }
+
+    return result;
+  }
 }
