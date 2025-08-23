@@ -12,7 +12,6 @@ import { Academy } from './entities/academy.entity';
 import { CreateAcademyDto } from './dto/create-academy.dto';
 import { UpdateAcademyDto } from './dto/update-academy.dto';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
-import { UserRole } from 'src/user/entities/user.entity';
 import { UserService } from 'src/user/user.service';
 
 @Injectable()

@@ -15,7 +15,7 @@ import { EmailService } from '../common/email.service';
 import { randomBytes } from 'crypto';
 import { PasswordResetToken } from './entities/password-reset-token.entity';
 import { ResetPasswordDto } from './dto/reset-password.dto';
-import { InstructorProfileService } from 'src/profile/instructor-profile/instructor-profile.service';
+import { ProfileService } from 'src/profile/profile.service';
 import { AcademyService } from 'src/academy/academy.service';
 
 @Injectable()
@@ -26,7 +26,7 @@ export class UserService {
     @InjectRepository(PasswordResetToken)
     private tokenRepository: Repository<PasswordResetToken>,
     private readonly emailService: EmailService,
-    private readonly instructorProfileService: InstructorProfileService,
+    private readonly profileService: ProfileService,
     private readonly academyService: AcademyService,
   ) {}
 
@@ -46,17 +46,11 @@ export class UserService {
 
     try {
       const savedUser = await this.userRepository.save(user);
-
-      if (savedUser.role === UserRole.INSTRUCTOR) {
-        await this.instructorProfileService.createInstructorProfile(
-          savedUser.id,
-          {
-            firstName: firstName || '',
-            lastName: lastName || '',
-            photoUrl,
-          },
-        );
-      }
+      await this.profileService.createProfile(savedUser.id, {
+        firstName: firstName || '',
+        lastName: lastName || '',
+        photoUrl,
+      });
 
       return savedUser;
     } catch (error) {
@@ -82,12 +76,15 @@ export class UserService {
       lastName,
       photoUrl,
       role,
+      email,
       ...userData
     } = createUserDto;
 
     if (!academyDto) {
       throw new BadRequestException('Academy data is required');
     }
+
+    const normalizedEmail = email.trim().toLowerCase();
 
     // 1. Create the academy via AcademyService
     const newAcademy = await this.academyService.create(academyDto);
@@ -98,6 +95,7 @@ export class UserService {
     // 3. Create user and link to academy
     const user = this.userRepository.create({
       ...userData,
+      email: normalizedEmail,
       password: hashedPassword,
       role: role || UserRole.ACCOUNT_ADMIN,
       academy: newAcademy, // link user to academy
@@ -106,7 +104,7 @@ export class UserService {
     const savedUser = await this.userRepository.save(user);
 
     // 4. Create instructor profile
-    await this.instructorProfileService.createInstructorProfile(savedUser.id, {
+    await this.profileService.createProfile(savedUser.id, {
       firstName: firstName || '',
       lastName: lastName || '',
       photoUrl,
@@ -120,7 +118,10 @@ export class UserService {
   }
 
   async findOne(userId: string): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['academy'],
+    });
     if (!user) {
       throw new NotFoundException(`User with id ${userId} not found`);
     }

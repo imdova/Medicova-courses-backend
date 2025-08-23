@@ -97,7 +97,7 @@ export class ActivityDto {
   @IsDateString()
   activityDate: Date;
 }
-export class InstructorMetadataDto {
+export class ProfileMetadataDto {
   @ApiProperty({ type: [ExperienceDto], required: false })
   @IsOptional()
   @ValidateNested({ each: true })

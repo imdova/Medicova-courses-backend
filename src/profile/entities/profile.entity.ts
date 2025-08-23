@@ -1,8 +1,8 @@
 import { User } from 'src/user/entities/user.entity';
 import { Entity, Column, OneToOne, JoinColumn, Unique } from 'typeorm';
-import { BasicEntity } from '../../../common/entities/basic.entity';
+import { BasicEntity } from '../../common/entities/basic.entity';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { InstructorMetadataDto } from '../dto/instructor-metadata.dto';
+import { ProfileMetadataDto } from '../dto/profile-metadata.dto';
 
 export enum Gender {
   MALE = 'male',
@@ -17,10 +17,10 @@ export enum MaritalStatus {
   WIDOWED = 'widowed',
 }
 
-@Entity('instructor_profile')
+@Entity('profile')
 @Unique(['user']) // Enforces only one profile per user
-export class InstructorProfile extends BasicEntity {
-  @OneToOne(() => User, (user) => user.instructorProfile, {
+export class Profile extends BasicEntity {
+  @OneToOne(() => User, (user) => user.profile, {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'user_id' })
@@ -51,7 +51,11 @@ export class InstructorProfile extends BasicEntity {
 
   @ApiProperty({ example: true, description: 'Is WhatsApp number' })
   @Column({ name: 'is_whatsapp', default: false })
-  isWhatsapp: boolean;
+  hasWhatsapp: boolean;
+
+  @ApiProperty({ example: '+20100234567', description: 'Phone number' })
+  @Column({ name: 'phone_number_whatsapp', nullable: true })
+  phoneNumbertForWhatsapp?: string;
 
   @ApiProperty({ example: '1980-05-20', description: 'Date of birth' })
   @Column({ name: 'date_of_birth', type: 'date', nullable: true })
@@ -100,10 +104,10 @@ export class InstructorProfile extends BasicEntity {
 
   @ApiProperty({
     description: 'Instructor additional structured info',
-    type: () => InstructorMetadataDto,
+    type: () => ProfileMetadataDto,
   })
   @Column({ type: 'jsonb', nullable: true })
-  metadata?: InstructorMetadataDto;
+  metadata?: ProfileMetadataDto;
 
   @ApiProperty({
     example: true,
