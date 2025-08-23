@@ -11,7 +11,6 @@ import { QueryConfig } from '../common/utils/query-options';
 import { Profile } from 'src/profile/entities/profile.entity';
 import { CurrencyCode } from './course-pricing/entities/course-pricing.entity';
 import { CourseStudent } from './entities/course-student.entity';
-import { User } from 'src/user/entities/user.entity';
 
 export const COURSE_PAGINATION_CONFIG: QueryConfig<Course> = {
   sortableColumns: ['created_at', 'name', 'category', 'status'],
@@ -82,10 +81,23 @@ export class StudentCourseService {
   async findOne(id: string, user: any): Promise<Course> {
     const currency = await this.getCurrencyForUser(user.sub);
 
-    const course = await this.courseRepo.findOne({
-      where: { id, deleted_at: null },
-      relations: ['pricings'],
-    });
+    const qb = this.courseRepo
+      .createQueryBuilder('course')
+      .leftJoinAndSelect('course.pricings', 'pricing')
+      .leftJoinAndSelect('course.sections', 'section')
+      .leftJoinAndSelect('section.items', 'item')
+      .leftJoinAndSelect('item.lecture', 'lecture')
+      .leftJoinAndSelect('item.quiz', 'quiz')
+      .leftJoinAndSelect('quiz.quizQuestions', 'quizQuestion')
+      .leftJoinAndSelect('quizQuestion.question', 'question')
+      .leftJoinAndSelect('item.assignment', 'assignment')
+      .where('course.id = :id', { id })
+      .andWhere('course.deleted_at IS NULL')
+      .orderBy('section.order', 'ASC')
+      .addOrderBy('item.order', 'ASC')
+      .addOrderBy('quizQuestion.order', 'ASC');
+
+    const course = await qb.getOne();
 
     if (!course) throw new NotFoundException('Course not found');
 
