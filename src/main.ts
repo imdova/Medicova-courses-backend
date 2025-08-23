@@ -1,6 +1,6 @@
-import { NestFactory } from '@nestjs/core';
+import { NestFactory, Reflector } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
+import { ClassSerializerInterceptor, ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import basicAuth from 'basic-auth';
 import { NestExpressApplication } from '@nestjs/platform-express';
@@ -13,7 +13,11 @@ const SWAGGER_PASSWORD = process.env.SWAGGER_PASSWORD;
 
 function swaggerBasicAuth(req, res, next) {
   const user = basicAuth(req);
-  if (!user || user.name !== SWAGGER_USERNAME || user.pass !== SWAGGER_PASSWORD) {
+  if (
+    !user ||
+    user.name !== SWAGGER_USERNAME ||
+    user.pass !== SWAGGER_PASSWORD
+  ) {
     res.set('WWW-Authenticate', 'Basic realm="Swagger API Docs"');
     return res.status(401).send('Authentication required.');
   }
@@ -37,15 +41,23 @@ async function bootstrap(): Promise<NestExpressApplication> {
       }),
     );
 
+    // ✅ add ClassSerializerInterceptor globally
+    app.useGlobalInterceptors(
+      new ClassSerializerInterceptor(app.get(Reflector)),
+    );
+
     app.setGlobalPrefix('api');
     app.enableCors();
     app.enableShutdownHooks(); // <-- ensures DB pool closes on exit
 
     // Swagger static assets (optional for local dev)
     try {
-      app.useStaticAssets(join(__dirname, '..', 'node_modules', 'swagger-ui-dist'), {
-        prefix: '/swagger-ui/',
-      });
+      app.useStaticAssets(
+        join(__dirname, '..', 'node_modules', 'swagger-ui-dist'),
+        {
+          prefix: '/swagger-ui/',
+        },
+      );
     } catch {
       console.log('Static assets path not found, continuing...');
     }

@@ -1,75 +1,148 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InstructorProfileService } from 'src/profile/instructor-profile/instructor-profile.service';
-//import { StudentProfileService } from 'src/profile/student-profile/student-profile.service';
-import { CreateInstructorProfileDto } from 'src/profile/instructor-profile/dto/create-instructor-profile.dto';
-import { UpdateInstructorProfileDto } from 'src/profile/instructor-profile/dto/update-instructor-profile.dto';
-//import { CreateStudentProfileDto } from 'src/profile/student-profile/dto/create-student-profile.dto';
-//import { UpdateStudentProfileDto } from 'src/profile/student-profile/dto/update-student-profile.dto';
+import { CreateProfileDto } from './dto/create-profile.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { InstructorProfile } from 'src/profile/instructor-profile/entities/instructor-profile.entity';
-//import { StudentProfile } from 'src/profile/student-profile/entities/student-profile.entity';
+import { User, UserRole } from 'src/user/entities/user.entity';
+import { Profile } from './entities/profile.entity';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class ProfileService {
   constructor(
-    private readonly instructorProfileService: InstructorProfileService,
-    @InjectRepository(InstructorProfile)
-    private instructorProfileRepository: Repository<InstructorProfile>,
-    //private readonly studentProfileService: StudentProfileService,
-    @InjectRepository(InstructorProfile)
-    private instructorRepo: Repository<InstructorProfile>, // @InjectRepository(StudentProfile) // private studentRepo: Repository<StudentProfile>,
+    @InjectRepository(User)
+    private userRepository: Repository<User>,
+    @InjectRepository(Profile)
+    private profileRepository: Repository<Profile>,
   ) {}
 
-  // ===== Instructor Profile =====
-  createInstructorProfile(userId: string, dto: CreateInstructorProfileDto) {
-    return this.instructorProfileService.createInstructorProfile(userId, dto);
+  async createProfile(userId: string, createProfileDto: CreateProfileDto) {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['profile'],
+    });
+
+    if (!user) throw new NotFoundException('User not found');
+    if (user.profile)
+      throw new BadRequestException('User already has a profile');
+
+    let { firstName, lastName, userName, ...rest } = createProfileDto;
+
+    // ✅ Auto-generate username if not provided
+    if (!userName) {
+      userName = await this.generateUsername(firstName, lastName);
+    } else {
+      const existing = await this.profileRepository.findOne({
+        where: { userName },
+      });
+      if (existing) {
+        throw new BadRequestException('Username already taken');
+      }
+    }
+
+    const profile = this.profileRepository.create({
+      firstName,
+      lastName,
+      userName,
+      ...rest,
+    });
+
+    await this.profileRepository.save(profile);
+
+    user.profile = profile;
+    await this.userRepository.save(user);
+
+    return profile;
   }
 
-  updateInstructorProfile(userId: string, dto: UpdateInstructorProfileDto) {
-    return this.instructorProfileService.updateInstructorProfile(userId, dto);
+  async updateProfile(userId: string, updateProfileDto: UpdateProfileDto) {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['profile'],
+    });
+
+    if (!user || !user.profile) {
+      throw new NotFoundException('Profile not found for this user');
+    }
+
+    if (!updateProfileDto.userName) {
+      updateProfileDto.userName = await this.generateUsername(
+        updateProfileDto.firstName,
+        updateProfileDto.lastName,
+      );
+    } else {
+      const existing = await this.profileRepository.findOne({
+        where: { userName: updateProfileDto.userName },
+      });
+      if (existing) {
+        throw new BadRequestException('Username already taken');
+      }
+    }
+
+    const updatedProfile = Object.assign(user.profile, updateProfileDto);
+    await this.profileRepository.save(updatedProfile);
+    return updatedProfile;
   }
 
-  getInstructorProfileByUserId(userId: string) {
-    return this.instructorProfileService.getInstructorProfileByUserId(userId);
+  async getProfileByUserId(userId: string) {
+    const profile = await this.profileRepository.findOne({
+      where: { user: { id: userId } },
+      relations: ['user'],
+    });
+
+    if (!profile) {
+      throw new NotFoundException('Profile not found for this user');
+    }
+
+    delete profile.user.password;
+    return profile;
   }
 
-  deleteInstructorProfile(userId: string) {
-    return this.instructorProfileService.deleteInstructorProfile(userId);
+  async deleteProfile(userId: string) {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['profile'],
+    });
+
+    if (!user || !user.profile) {
+      throw new NotFoundException('Profile not found for this user');
+    }
+
+    const profileId = user.profile.id;
+    user.profile = null;
+    await this.userRepository.save(user);
+
+    await this.profileRepository.delete(profileId);
+
+    return { message: 'Profile deleted successfully' };
   }
 
-  // ===== Student Profile =====
-  // createStudentProfile(userId: string, dto: CreateStudentProfileDto) {
-  //   return this.studentProfileService.createStudentProfile(userId, dto);
-  // }
-
-  // updateStudentProfile(userId: string, dto: UpdateStudentProfileDto) {
-  //   return this.studentProfileService.updateStudentProfile(userId, dto);
-  // }
-
-  // getStudentProfileByUserId(userId: string) {
-  //   return this.studentProfileService.getStudentProfileByUserId(userId);
-  // }
-
-  // deleteStudentProfile(userId: string) {
-  //   return this.studentProfileService.deleteStudentProfile(userId);
-  // }
+  private generateUsername(firstName: string, lastName: string): string {
+    const base = `${firstName}.${lastName}`.toLowerCase().replace(/\s+/g, '');
+    const uuidPart = uuidv4().split('-')[0];
+    return `${base}-${uuidPart}`;
+  }
 
   // ===== Search by profile ID =====
   async findInstructorProfileById(profileId: string) {
-    return this.instructorRepo.findOne({
+    return this.profileRepository.findOne({
       where: { id: profileId },
       relations: ['user'],
     });
   }
 
   async getInstructorProfileByUsername(userName: string) {
-    const profile = await this.instructorProfileRepository.findOne({
-      where: { userName },
+    const profile = await this.profileRepository.findOne({
+      where: {
+        userName,
+        user: { role: UserRole.INSTRUCTOR }, // ✅ filter by instructor role
+      },
+      relations: ['user'], // ✅ ensure user is loaded
     });
 
     if (!profile) {
@@ -83,14 +156,17 @@ export class ProfileService {
     return profile;
   }
 
-  async makeAllProfilesPrivate(): Promise<void> {
-    await this.instructorProfileRepository.update({}, { isPublic: false });
+  async makeAllInstructorProfilesPrivate(): Promise<void> {
+    await this.profileRepository
+      .createQueryBuilder()
+      .update()
+      .set({ isPublic: false })
+      .where(
+        `"user_id" IN (
+        SELECT id FROM "user" WHERE role = :role
+    )`,
+      )
+      .setParameter('role', UserRole.INSTRUCTOR)
+      .execute();
   }
-
-  // async findStudentProfileById(profileId: string) {
-  //   return this.studentRepo.findOne({
-  //     where: { id: profileId },
-  //     relations: ['user'],
-  //   });
-  // }
 }

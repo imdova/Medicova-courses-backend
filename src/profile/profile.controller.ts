@@ -1,116 +1,159 @@
 import {
   Controller,
-  Get,
   Post,
-  Patch,
-  Delete,
   Param,
   Body,
-  HttpStatus,
+  Req,
   UseGuards,
+  ForbiddenException,
+  Patch,
+  Get,
+  HttpStatus,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBody,
+  ApiParam,
+  ApiOkResponse,
+} from '@nestjs/swagger';
+import { CreateProfileDto } from './dto/create-profile.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { ProfileService } from './profile.service';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { UserRole } from 'src/user/entities/user.entity';
-import { ProfileService } from './profile.service';
-import { CreateInstructorProfileDto } from 'src/profile/instructor-profile/dto/create-instructor-profile.dto';
-import { UpdateInstructorProfileDto } from 'src/profile/instructor-profile/dto/update-instructor-profile.dto';
-//import { CreateStudentProfileDto } from 'src/profile/student-profile/dto/create-student-profile.dto';
-//import { UpdateStudentProfileDto } from 'src/profile/student-profile/dto/update-student-profile.dto';
-import { InstructorProfile } from 'src/profile/instructor-profile/entities/instructor-profile.entity';
+import { Profile } from './entities/profile.entity';
 import { AuthGuard } from '@nestjs/passport';
-//import { StudentProfile } from 'src/profile/student-profile/entities/student-profile.entity';
+import { UserService } from 'src/user/user.service';
 
-@ApiTags('Admin Profile Management')
-@Controller('admin/profiles')
+@ApiTags('Profile')
+@Controller('users/:userId/profile')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(UserRole.ADMIN)
+@Roles(
+  UserRole.INSTRUCTOR,
+  UserRole.ADMIN,
+  UserRole.STUDENT,
+  UserRole.ACCOUNT_ADMIN,
+)
 export class ProfileController {
-  constructor(private readonly profileService: ProfileService) {}
+  constructor(
+    private readonly profileService: ProfileService,
+    private readonly userService: UserService,
+  ) {}
 
-  // ===== Instructor Profile =====
-  // @Post('instructor/:userId')
-  // @ApiOperation({ summary: 'Create instructor profile for a user' })
-  // @ApiBody({ type: CreateInstructorProfileDto })
-  // @ApiResponse({ status: HttpStatus.CREATED, type: InstructorProfile })
-  // createInstructor(
-  //   @Param('userId') userId: string,
-  //   @Body() dto: CreateInstructorProfileDto,
-  // ) {
-  //   return this.profileService.createInstructorProfile(userId, dto);
-  // }
+  @Post()
+  @ApiOperation({
+    summary: 'Create a profile',
+    description:
+      'Creates a profile for a specific user. Only the user or an admin can perform this action.',
+  })
+  @ApiParam({
+    name: 'userId',
+    type: String,
+    description: 'Unique identifier of the user',
+  })
+  @ApiBody({ type: CreateProfileDto })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Profile successfully created.',
+    type: Profile,
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User is not authorized to create this profile.',
+  })
+  async create(
+    @Param('userId') userId: string,
+    @Body() createProfileDto: CreateProfileDto,
+    @Req() req,
+  ) {
+    if (!(await this.canAccess(userId, req))) {
+      throw new ForbiddenException();
+    }
 
-  // @Patch('instructor/:userId')
-  // @ApiOperation({ summary: 'Update instructor profile for a user' })
-  // @ApiBody({ type: UpdateInstructorProfileDto })
-  // updateInstructor(
-  //   @Param('userId') userId: string,
-  //   @Body() dto: UpdateInstructorProfileDto,
-  // ) {
-  //   return this.profileService.updateInstructorProfile(userId, dto);
-  // }
+    return this.profileService.createProfile(userId, createProfileDto);
+  }
 
-  // @Get('instructor/:userId')
-  // @ApiOperation({ summary: 'Get instructor profile by user ID' })
-  // getInstructor(@Param('userId') userId: string) {
-  //   return this.profileService.getInstructorProfileByUserId(userId);
-  // }
+  @Patch()
+  @ApiOperation({
+    summary: 'Update a profile',
+    description:
+      'Updates the profile of a specific user. Only the user or an admin can update their profile.',
+  })
+  @ApiParam({
+    name: 'userId',
+    type: String,
+    description: 'Unique identifier of the user',
+  })
+  @ApiBody({ type: CreateProfileDto })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Profile updated successfully.',
+    type: Profile,
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User is not authorized to update this profile.',
+  })
+  async update(
+    @Param('userId') userId: string,
+    @Body() updateProfileDto: UpdateProfileDto,
+    @Req() req,
+  ) {
+    if (!(await this.canAccess(userId, req))) {
+      throw new ForbiddenException();
+    }
 
-  // @Delete('instructor/:userId')
-  // @ApiOperation({ summary: 'Delete instructor profile by user ID' })
-  // deleteInstructor(@Param('userId') userId: string) {
-  //   return this.profileService.deleteInstructorProfile(userId);
-  // }
+    return this.profileService.updateProfile(userId, updateProfileDto);
+  }
 
-  // ===== Student Profile =====
-  // @Post('student/:userId')
-  // @ApiOperation({ summary: 'Create student profile for a user' })
-  // @ApiBody({ type: CreateStudentProfileDto })
-  // @ApiResponse({ status: HttpStatus.CREATED, type: StudentProfile })
-  // createStudent(
-  //   @Param('userId') userId: string,
-  //   @Body() dto: CreateStudentProfileDto,
-  // ) {
-  //   return this.adminProfileService.createStudentProfile(userId, dto);
-  // }
+  @Get()
+  @ApiOperation({
+    summary: 'Get a profile',
+    description:
+      'Retrieves the profile of a specific user. Only the user or an admin can view this profile.',
+  })
+  @ApiParam({
+    name: 'userId',
+    type: String,
+    description: 'Unique identifier of the user',
+  })
+  @ApiOkResponse({
+    description: 'Profile retrieved successfully.',
+    type: Profile,
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User is not authorized to view this profile.',
+  })
+  async findOne(@Param('userId') userId: string, @Req() req) {
+    if (!(await this.canAccess(userId, req))) {
+      throw new ForbiddenException();
+    }
 
-  // @Patch('student/:userId')
-  // @ApiOperation({ summary: 'Update student profile for a user' })
-  // @ApiBody({ type: UpdateStudentProfileDto })
-  // updateStudent(
-  //   @Param('userId') userId: string,
-  //   @Body() dto: UpdateStudentProfileDto,
-  // ) {
-  //   return this.adminProfileService.updateStudentProfile(userId, dto);
-  // }
+    return this.profileService.getProfileByUserId(userId);
+  }
 
-  // @Get('student/:userId')
-  // @ApiOperation({ summary: 'Get student profile by user ID' })
-  // getStudent(@Param('userId') userId: string) {
-  //   return this.profileService.getStudentProfileByUserId(userId);
-  // }
+  private async canAccess(userId: string, req): Promise<boolean> {
+    const { sub: currentUserId, role, academyId } = req.user;
 
-  // @Delete('student/:userId')
-  // @ApiOperation({ summary: 'Delete student profile by user ID' })
-  // deleteStudent(@Param('userId') userId: string) {
-  //   return this.profileService.deleteStudentProfile(userId);
-  // }
+    // ✅ allow if user is acting on their own profile
+    if (userId === currentUserId) return true;
 
-  // ===== Search any profile by Profile ID =====
-  // @Get(':profileId')
-  // @ApiOperation({
-  //   summary: 'Search a profile (instructor or student) by profile ID',
-  // })
-  // @ApiParam({ name: 'profileId', type: String })
-  // async findProfile(@Param('profileId') profileId: string) {
-  //   const profile =
-  //     (await this.profileService.findInstructorProfileById(profileId)) ||
-  //     (await this.profileService.findStudentProfileById(profileId));
+    // ✅ allow if user is ADMIN
+    if (role === UserRole.ADMIN) return true;
 
-  //   if (!profile) {
-  //     throw new NotFoundException('Profile not found in any category');
-  //   }
-  //   return profile;
-  // }
+    // ✅ allow if user is ACCOUNT_ADMIN but only within same academy
+    if (role === UserRole.ACCOUNT_ADMIN) {
+      const targetUser = await this.userService.findOne(userId);
+
+      if (!targetUser) return false;
+
+      return targetUser.academy?.id === academyId;
+    }
+
+    return false;
+  }
 }

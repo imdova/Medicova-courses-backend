@@ -53,15 +53,10 @@ export class AuthService {
     user.refreshToken = hashedRefreshToken;
     await this.userRepository.save(user);
 
-    let findOptions: any = {
+    const fullUser = await this.userRepository.findOne({
       where: { id: user.id },
-    };
-
-    // add relation only if instructor
-    if (user.role === UserRole.INSTRUCTOR) {
-      findOptions.relations = ['instructorProfile'];
-    }
-    const fullUser = await this.userRepository.findOne(findOptions);
+      relations: ['profile'],
+    });
 
     return {
       access_token: accessToken,
@@ -70,10 +65,10 @@ export class AuthService {
         id: fullUser.id,
         email: fullUser.email,
         role: fullUser.role,
-        firstName: fullUser.instructorProfile?.firstName ?? null,
-        lastName: fullUser.instructorProfile?.lastName ?? null,
-        userName: fullUser.instructorProfile?.userName ?? null,
-        photo: fullUser.instructorProfile?.photoUrl ?? null,
+        firstName: fullUser.profile?.firstName ?? null,
+        lastName: fullUser.profile?.lastName ?? null,
+        userName: fullUser.profile?.userName ?? null,
+        photo: fullUser.profile?.photoUrl ?? null,
       },
     };
   }
