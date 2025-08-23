@@ -6,6 +6,7 @@ import {
   UseGuards,
   Req,
   Post,
+  Delete,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { RolesGuard } from 'src/auth/roles.guard';
@@ -107,5 +108,28 @@ export class StudentCourseController {
   @ApiResponse({ status: 403, description: 'Forbidden' })
   findOne(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
     return this.studentCourseService.findOne(id, req.user);
+  }
+
+  @Delete(':id/drop')
+  @ApiOperation({
+    summary: 'Drop a course',
+    description:
+      'Allows the authenticated student to drop (unenroll from) a course they are currently enrolled in.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'UUID of the course to drop',
+    type: String,
+    example: 'd290f1ee-6c54-4b01-90e6-d701748f0851',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Successfully dropped the course',
+  })
+  @ApiResponse({ status: 404, description: 'Course not found or not enrolled' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  drop(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
+    return this.studentCourseService.drop(id, req.user.sub);
   }
 }

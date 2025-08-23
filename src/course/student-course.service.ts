@@ -172,4 +172,17 @@ export class StudentCourseService {
 
     return result;
   }
+
+  async drop(courseId: string, userId: string): Promise<void> {
+    const enrollment = await this.courseStudentRepository.findOne({
+      where: { course: { id: courseId }, student: { id: userId } },
+      relations: ['course', 'student'],
+    });
+
+    if (!enrollment) {
+      throw new NotFoundException('You are not enrolled in this course');
+    }
+
+    await this.courseStudentRepository.remove(enrollment);
+  }
 }
