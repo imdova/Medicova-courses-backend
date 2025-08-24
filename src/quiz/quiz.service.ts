@@ -175,4 +175,52 @@ export class QuizService {
 
     return attempt;
   }
+
+  async submitStandaloneQuizAttempt(
+    quizId: string,
+    userId: string,
+    dto: SubmitQuizDto,
+  ): Promise<QuizAttempt> {
+    // 1️⃣ Fetch quiz
+    const quiz = await this.quizRepo.findOne({
+      where: { id: quizId, standalone: true },
+      relations: ['quizQuestions', 'quizQuestions.question'],
+    });
+    if (!quiz) throw new NotFoundException('Quiz not found');
+
+    // 2️⃣ Calculate score using frontend correctness
+    let score = 0;
+    let totalPoints = 0;
+
+    for (const qq of quiz.quizQuestions) {
+      totalPoints += qq.question.points;
+
+      const answer = dto.answers.find(
+        (a) => a.questionId.toString() === qq.question.id.toString(),
+      );
+
+      if (answer && answer.correct) {
+        score += qq.question.points;
+      }
+    }
+
+    const percentageScore = totalPoints > 0 ? (score / totalPoints) * 100 : 0;
+
+    const passed = quiz.passing_score
+      ? percentageScore >= quiz.passing_score
+      : true;
+
+    // 3️⃣ Save QuizAttempt
+    const attempt = this.attemptRepo.create({
+      quiz,
+      user: { id: userId } as any,
+      answers: dto.answers,
+      score: percentageScore,
+      passed,
+    });
+
+    await this.attemptRepo.save(attempt);
+
+    return attempt;
+  }
 }

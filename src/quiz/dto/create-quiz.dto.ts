@@ -1,4 +1,8 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  ApiHideProperty,
+  ApiProperty,
+  ApiPropertyOptional,
+} from '@nestjs/swagger';
 import {
   IsBoolean,
   IsDateString,
@@ -41,11 +45,8 @@ export class CreateQuizDto {
   @IsString()
   instructions?: string;
 
-  @ApiProperty({
-    description: 'Is the quiz standalone?',
-    default: false,
-    example: true,
-  })
+  @ApiHideProperty()
+  @IsOptional()
   @IsBoolean()
   standalone: boolean;
 

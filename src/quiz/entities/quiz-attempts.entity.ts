@@ -4,6 +4,7 @@ import { CourseStudent } from 'src/course/entities/course-student.entity';
 import { Quiz } from './quiz.entity';
 import { ApiProperty } from '@nestjs/swagger';
 import { QuizAnswerDto } from 'src/quiz/dto/submit-quiz.dto';
+import { User } from 'src/user/entities/user.entity';
 
 @Entity('quiz_attempts')
 export class QuizAttempt extends BasicEntity {
@@ -11,9 +12,13 @@ export class QuizAttempt extends BasicEntity {
     description: 'The student-course enrollment this attempt belongs to',
     type: () => CourseStudent,
   })
-  @ManyToOne(() => CourseStudent, { onDelete: 'CASCADE' })
+  @ManyToOne(() => CourseStudent, { onDelete: 'CASCADE', nullable: true })
   @JoinColumn({ name: 'course_student_id' })
-  courseStudent: CourseStudent;
+  courseStudent?: CourseStudent;
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'user_id' })
+  user?: User;
 
   @ApiProperty({
     description: 'The quiz being attempted',

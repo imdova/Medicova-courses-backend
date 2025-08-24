@@ -59,6 +59,12 @@ export class CourseSectionItemService {
         where: { id: dto.quizId, deleted_at: null },
       });
       if (!quiz) throw new NotFoundException('Quiz not found');
+
+      // 🔑 mark quiz as non-standalone
+      if (quiz.standalone) {
+        quiz.standalone = false;
+        await this.quizRepository.save(quiz);
+      }
     }
 
     if (dto.curriculumType === CurriculumType.ASSIGNMENT) {
@@ -115,6 +121,13 @@ export class CourseSectionItemService {
         where: { id: quizId, deleted_at: null },
       });
       if (!quiz) throw new NotFoundException('Quiz not found');
+
+      // 🔑 mark quiz as non-standalone
+      if (quiz.standalone) {
+        quiz.standalone = false;
+        await this.quizRepository.save(quiz);
+      }
+
       item.quiz = quiz;
     }
 
@@ -158,6 +171,7 @@ export class CourseSectionItemService {
     const lecturesToSave: Lecture[] = [];
     const itemsToSave: CourseSectionItem[] = [];
     const lectureIndexMap: Map<number, number> = new Map(); // map dto index to lecture index
+    const quizzesToUpdate: Quiz[] = [];
 
     // Step 1: Prepare all lectures and items
     for (let i = 0; i < items.length; i++) {
@@ -182,6 +196,12 @@ export class CourseSectionItemService {
           where: { id: dto.quizId, deleted_at: null },
         });
         if (!quiz) throw new NotFoundException('Quiz not found');
+
+        // 🔑 mark quiz as non-standalone
+        if (quiz.standalone) {
+          quiz.standalone = false;
+          quizzesToUpdate.push(quiz);
+        }
       }
 
       if (dto.curriculumType === CurriculumType.ASSIGNMENT) {
@@ -221,6 +241,11 @@ export class CourseSectionItemService {
 
     // Step 4: Bulk save section items
     const savedItems = await this.itemRepository.save(itemsToSave);
+
+    // Step 5: Save updated quizzes
+    if (quizzesToUpdate.length > 0) {
+      await this.quizRepository.save(quizzesToUpdate);
+    }
 
     return savedItems;
   }

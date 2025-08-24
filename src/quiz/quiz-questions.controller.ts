@@ -13,6 +13,7 @@ import {
   ApiOperation,
   ApiParam,
   ApiBearerAuth,
+  ApiBody,
 } from '@nestjs/swagger';
 import { QuizQuestionsService } from './quiz-questions.service';
 import { CreateQuestionDto } from './dto/create-question.dto';
@@ -31,6 +32,7 @@ export class QuizQuestionsController {
 
   @Post()
   @ApiOperation({ summary: 'Create a question and attach it to a quiz' })
+  @ApiBody({ description: 'Question Details', type: CreateQuestionDto })
   @ApiParam({ name: 'quizId', type: 'string', description: 'UUID of the quiz' })
   addQuestion(@Param('quizId') quizId: string, @Body() dto: CreateQuestionDto) {
     return this.quizQuestionsService.createQuestionAndAddToQuiz(quizId, dto);
@@ -39,6 +41,11 @@ export class QuizQuestionsController {
   @Post('bulk')
   @ApiOperation({
     summary: 'Create multiple questions and attach them to a quiz',
+  })
+  @ApiBody({
+    description: 'Array of questions to create',
+    type: CreateQuestionDto,
+    isArray: true,
   })
   @ApiParam({ name: 'quizId', type: 'string', description: 'UUID of the quiz' })
   addQuestionsBulk(
