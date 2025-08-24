@@ -18,7 +18,6 @@ import {
   ApiResponse,
   ApiBody,
   ApiParam,
-  ApiBearerAuth,
 } from '@nestjs/swagger';
 import { Course } from './entities/course.entity';
 import { RolesGuard } from 'src/auth/roles.guard';
@@ -85,6 +84,18 @@ export class CourseController {
   @ApiResponse({ status: 404, description: 'Course not found' })
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.courseService.findOne(id);
+  }
+
+  @Get(':courseId/students/progress')
+  @ApiOperation({
+    summary: 'Get progress of all students in a course (teacher view)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns progress summary for all students in the course',
+  })
+  async getAllStudentsProgress(@Param('courseId') courseId: string) {
+    return this.courseService.getAllStudentsProgress(courseId);
   }
 
   @Patch(':id')

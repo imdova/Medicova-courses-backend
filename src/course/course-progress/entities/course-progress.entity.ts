@@ -1,10 +1,11 @@
-import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, Unique } from 'typeorm';
 import { BasicEntity } from 'src/common/entities/basic.entity';
 import { CourseStudent } from '../../entities/course-student.entity';
 import { CourseSectionItem } from '../../course-section/entities/course-section-item.entity';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 @Entity('course_progress')
+@Unique(['courseStudent', 'item'])
 export class CourseProgress extends BasicEntity {
   @ApiProperty({
     description: 'The course enrollment this progress belongs to',

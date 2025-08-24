@@ -14,6 +14,8 @@ import { StudentCourseService } from './student-course.service';
 import { Profile } from 'src/profile/entities/profile.entity';
 import { CourseStudent } from './entities/course-student.entity';
 import { CourseProgressModule } from './course-progress/course-progress.module';
+import { CourseSectionItem } from './course-section/entities/course-section-item.entity';
+import { CourseProgress } from './course-progress/entities/course-progress.entity';
 
 @Module({
   imports: [
@@ -23,6 +25,8 @@ import { CourseProgressModule } from './course-progress/course-progress.module';
       CoursePricing,
       Profile,
       CourseStudent,
+      CourseSectionItem,
+      CourseProgress,
     ]),
     CoursePricingModule,
     CourseSectionModule,
