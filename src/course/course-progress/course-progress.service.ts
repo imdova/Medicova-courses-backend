@@ -188,8 +188,6 @@ export class CourseProgressService {
     });
     if (!courseStudent) throw new NotFoundException('Student not enrolled');
 
-    console.log(courseStudent);
-
     // 2️⃣ Get all items in course
     const items = await this.courseSectionItemRepo.find({
       where: { section: { course: { id: courseId } } },
