@@ -12,6 +12,9 @@ import {
   PaginateQuery,
 } from 'nestjs-paginate';
 import { Question } from './entities/question.entity';
+import { SubmitQuizDto } from './dto/submit-quiz.dto';
+import { QuizAttempt } from './entities/quiz-attempts.entity';
+import { CourseStudent } from 'src/course/entities/course-student.entity';
 
 export const QUIZ_PAGINATION_CONFIG: QueryConfig<Quiz> = {
   sortableColumns: ['created_at', 'title'],
@@ -28,8 +31,9 @@ export class QuizService {
   constructor(
     @InjectRepository(Quiz)
     private readonly quizRepo: Repository<Quiz>,
-    @InjectRepository(Question)
-    private readonly questionRepository: Repository<Question>,
+    @InjectRepository(CourseStudent)
+    @InjectRepository(QuizAttempt)
+    private attemptRepo: Repository<QuizAttempt>,
   ) {}
 
   async create(dto: CreateQuizDto, userId: string): Promise<Quiz> {
@@ -85,5 +89,53 @@ export class QuizService {
       // Remove the quiz (quizQuestions will be removed via cascade)
       await manager.remove(Quiz, quiz);
     });
+  }
+
+  async submitStandaloneQuizAttempt(
+    quizId: string,
+    userId: string,
+    dto: SubmitQuizDto,
+  ): Promise<QuizAttempt> {
+    // 1️⃣ Fetch quiz
+    const quiz = await this.quizRepo.findOne({
+      where: { id: quizId, standalone: true },
+      relations: ['quizQuestions', 'quizQuestions.question'],
+    });
+    if (!quiz) throw new NotFoundException('Quiz not found');
+
+    // 2️⃣ Calculate score using frontend correctness
+    let score = 0;
+    let totalPoints = 0;
+
+    for (const qq of quiz.quizQuestions) {
+      totalPoints += qq.question.points;
+
+      const answer = dto.answers.find(
+        (a) => a.questionId.toString() === qq.question.id.toString(),
+      );
+
+      if (answer && answer.correct) {
+        score += qq.question.points;
+      }
+    }
+
+    const percentageScore = totalPoints > 0 ? (score / totalPoints) * 100 : 0;
+
+    const passed = quiz.passing_score
+      ? percentageScore >= quiz.passing_score
+      : true;
+
+    // 3️⃣ Save QuizAttempt
+    const attempt = this.attemptRepo.create({
+      quiz,
+      user: { id: userId } as any,
+      answers: dto.answers,
+      score: percentageScore,
+      passed,
+    });
+
+    await this.attemptRepo.save(attempt);
+
+    return attempt;
   }
 }

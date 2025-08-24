@@ -7,6 +7,7 @@ import { UpdateCourseSectionDto } from './dto/update-course-section.dto';
 import { CreateSectionWithItemsDto } from './dto/create-sections-with-items.dto';
 import { CourseSectionItem } from './entities/course-section-item.entity';
 import { Lecture } from './entities/lecture.entity';
+import { Quiz } from 'src/quiz/entities/quiz.entity';
 
 @Injectable()
 export class CourseSectionService {
@@ -40,6 +41,7 @@ export class CourseSectionService {
       const savedSections: CourseSection[] = [];
       const allItems: CourseSectionItem[] = [];
       const allLectures: Lecture[] = [];
+      const quizzesToUpdate: Quiz[] = [];
 
       // 1. Create sections
       for (const sectionDto of sectionsDto) {
@@ -66,7 +68,20 @@ export class CourseSectionService {
           }
 
           if (itemDto.curriculumType === 'quiz' && itemDto.quizId) {
-            item.quiz = { id: itemDto.quizId } as any;
+            // fetch quiz and update standalone flag
+            const quiz = await manager.findOne(Quiz, {
+              where: { id: itemDto.quizId },
+            });
+            if (!quiz) {
+              throw new NotFoundException(
+                `Quiz with ID ${itemDto.quizId} not found`,
+              );
+            }
+            if (quiz.standalone) {
+              quiz.standalone = false;
+              quizzesToUpdate.push(quiz);
+            }
+            item.quiz = quiz;
           }
 
           if (itemDto.curriculumType === 'assignment' && itemDto.assignmentId) {
@@ -97,7 +112,12 @@ export class CourseSectionService {
         await manager.save(allItems);
       }
 
-      // 5. Fetch all sections with relations in one query
+      // 5. Update quizzes (mark them as non-standalone)
+      if (quizzesToUpdate.length) {
+        await manager.save(quizzesToUpdate);
+      }
+
+      // 6. Fetch all sections with relations in one query
       return manager.find(CourseSection, {
         where: { id: In(savedSections.map((s) => s.id)) },
         relations: ['items', 'items.lecture', 'items.quiz', 'items.assignment'],

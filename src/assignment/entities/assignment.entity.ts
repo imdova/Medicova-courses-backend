@@ -1,7 +1,8 @@
-import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
 import { BasicEntity } from '../../common/entities/basic.entity';
 import { ApiProperty } from '@nestjs/swagger';
 import { User } from 'src/user/entities/user.entity';
+import { AssignmentSubmission } from './assignment-submission.entity';
 
 @Entity('assignments')
 export class Assignment extends BasicEntity {
@@ -41,4 +42,7 @@ export class Assignment extends BasicEntity {
   })
   @Column({ type: 'uuid', name: 'created_by' })
   createdBy: string;
+
+  @OneToMany(() => AssignmentSubmission, (submission) => submission.assignment)
+  submissions: AssignmentSubmission[];
 }
