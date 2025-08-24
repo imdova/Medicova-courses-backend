@@ -30,6 +30,7 @@ export class User extends BasicEntity {
   @Column()
   password: string;
 
+  @Exclude()
   @Column({ name: 'refresh_token', nullable: true })
   refreshToken?: string;
 

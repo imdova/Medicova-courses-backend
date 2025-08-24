@@ -243,4 +243,10 @@ export class UserService {
     const bcrypt = await import('bcrypt');
     return bcrypt.hash(password, 10);
   }
+
+  async findByAcademy(academyId: string) {
+    return this.userRepository.find({
+      where: { academy: { id: academyId } },
+    });
+  }
 }

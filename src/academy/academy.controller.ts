@@ -138,4 +138,24 @@ export class AcademyController {
   ) {
     return this.academyService.addUserToAcademy(academyId, createUserDto);
   }
+
+  // ---------- New endpoint to get all users under an academy ----------
+  @Get(':id/users')
+  @Roles(UserRole.ADMIN, UserRole.ACCOUNT_ADMIN)
+  @ApiOperation({ summary: 'Get all users under a specific academy' })
+  @ApiParam({ name: 'id', type: String, description: 'ID of the academy' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'List of users under the academy',
+  })
+  async getUsersInAcademy(@Param('id') academyId: string, @Req() req) {
+    if (req.user.role === UserRole.ACCOUNT_ADMIN) {
+      if (req.user.academyId !== academyId) {
+        throw new ForbiddenException(
+          'You are not allowed to access users of this academy',
+        );
+      }
+    }
+    return this.academyService.getUsersInAcademy(academyId);
+  }
 }

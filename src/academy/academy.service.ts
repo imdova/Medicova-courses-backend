@@ -74,4 +74,14 @@ export class AcademyService {
     // ✅ Only return a success message
     return { message: 'User registered successfully' };
   }
+
+  async getUsersInAcademy(academyId: string) {
+    const academy = await this.findOne(academyId);
+    if (!academy) {
+      throw new NotFoundException('Academy not found');
+    }
+
+    // Use UserService to fetch users
+    return this.userService.findByAcademy(academyId);
+  }
 }
