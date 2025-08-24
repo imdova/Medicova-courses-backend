@@ -32,6 +32,7 @@ export class QuizService {
     @InjectRepository(Quiz)
     private readonly quizRepo: Repository<Quiz>,
     @InjectRepository(CourseStudent)
+    private readonly courseStudentRepo: Repository<CourseStudent>,
     @InjectRepository(QuizAttempt)
     private attemptRepo: Repository<QuizAttempt>,
   ) {}
@@ -137,5 +138,20 @@ export class QuizService {
     await this.attemptRepo.save(attempt);
 
     return attempt;
+  }
+
+  async getStudentQuizAttempts(quizId: string, studentId: string) {
+    return this.attemptRepo
+      .createQueryBuilder('attempt')
+      .leftJoinAndSelect('attempt.quiz', 'quiz')
+      .leftJoinAndSelect('attempt.user', 'user')
+      .leftJoinAndSelect('attempt.courseStudent', 'courseStudent')
+      .leftJoinAndSelect('courseStudent.student', 'student')
+      .where('quiz.id = :quizId', { quizId })
+      .andWhere('(student.id = :studentId OR user.id = :studentId)', {
+        studentId,
+      })
+      .orderBy('attempt.created_at', 'DESC')
+      .getMany();
   }
 }
