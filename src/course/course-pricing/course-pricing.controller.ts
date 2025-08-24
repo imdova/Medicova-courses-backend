@@ -11,13 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { CoursePricingService } from './course-pricing.service';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiBody,
-  ApiBearerAuth,
-} from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { CreateCoursePricingDto } from './dto/create-course-pricing.dto';
 import { UpdateCoursePricingDto } from './dto/update-course-pricing.dto';
 import { RolesGuard } from 'src/auth/roles.guard';
