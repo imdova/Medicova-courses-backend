@@ -24,6 +24,8 @@ import { UserRole } from 'src/user/entities/user.entity';
 import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
 import { Quiz } from './entities/quiz.entity';
 import { AuthGuard } from '@nestjs/passport';
+import { QuizAttempt } from './entities/quiz-attempts.entity';
+import { SubmitQuizDto } from './dto/submit-quiz.dto';
 
 @ApiTags('Quizzes')
 @Controller('quizzes')
@@ -37,6 +39,28 @@ export class QuizController {
   @ApiResponse({ status: 201, description: 'Quiz successfully created' })
   create(@Body() dto: CreateQuizDto, @Req() req) {
     return this.quizService.create(dto, req.user.sub);
+  }
+
+  @Roles(UserRole.STUDENT)
+  @Post(':quizId/attempts')
+  @ApiOperation({ summary: 'Submit a standalone quiz attempt' })
+  @ApiResponse({
+    status: 201,
+    description: 'Quiz attempt recorded successfully',
+    type: QuizAttempt,
+  })
+  async submitStandaloneQuiz(
+    @Param('quizId') quizId: string,
+    @Req() req,
+    @Body() submitQuizDto: SubmitQuizDto,
+  ): Promise<QuizAttempt> {
+    const userId = req.user.sub;
+
+    return this.quizService.submitStandaloneQuizAttempt(
+      quizId,
+      userId,
+      submitQuizDto,
+    );
   }
 
   @Get()

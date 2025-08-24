@@ -45,7 +45,7 @@ export class Quiz extends BasicEntity {
   instructions: string;
 
   @ApiProperty()
-  @Column({ type: 'boolean', default: false })
+  @Column({ type: 'boolean', default: true })
   standalone: boolean;
 
   @ApiProperty()
