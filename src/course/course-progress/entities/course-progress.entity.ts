@@ -1,7 +1,7 @@
 import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { BasicEntity } from 'src/common/entities/basic.entity';
-import { CourseStudent } from './course-student.entity';
-import { CourseSectionItem } from '../course-section/entities/course-section-item.entity';
+import { CourseStudent } from '../../entities/course-student.entity';
+import { CourseSectionItem } from '../../course-section/entities/course-section-item.entity';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 @Entity('course_progress')

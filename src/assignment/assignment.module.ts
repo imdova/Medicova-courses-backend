@@ -5,7 +5,7 @@ import { AssignmentService } from './assignment.service';
 import { AssignmentController } from './assignment.controller';
 import { AssignmentSubmission } from './entities/assignment-submission.entity';
 import { CourseStudent } from 'src/course/entities/course-student.entity';
-import { CourseProgress } from 'src/course/entities/course-progress.entity';
+import { CourseProgress } from 'src/course/course-progress/entities/course-progress.entity';
 import { CourseSectionItem } from 'src/course/course-section/entities/course-section-item.entity';
 import { CourseAssignmentController } from './course-assignment.controller';
 

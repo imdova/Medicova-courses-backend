@@ -15,8 +15,6 @@ import { Question } from './entities/question.entity';
 import { SubmitQuizDto } from './dto/submit-quiz.dto';
 import { QuizAttempt } from './entities/quiz-attempts.entity';
 import { CourseStudent } from 'src/course/entities/course-student.entity';
-import { CourseProgress } from 'src/course/entities/course-progress.entity';
-import { CourseSectionItem } from 'src/course/course-section/entities/course-section-item.entity';
 
 export const QUIZ_PAGINATION_CONFIG: QueryConfig<Quiz> = {
   sortableColumns: ['created_at', 'title'],
@@ -34,12 +32,8 @@ export class QuizService {
     @InjectRepository(Quiz)
     private readonly quizRepo: Repository<Quiz>,
     @InjectRepository(CourseStudent)
-    private readonly courseStudentRepo: Repository<CourseStudent>,
-    @InjectRepository(QuizAttempt) private attemptRepo: Repository<QuizAttempt>,
-    @InjectRepository(CourseProgress)
-    private progressRepo: Repository<CourseProgress>,
-    @InjectRepository(CourseSectionItem)
-    private courseSectionItemRepo: Repository<CourseSectionItem>,
+    @InjectRepository(QuizAttempt)
+    private attemptRepo: Repository<QuizAttempt>,
   ) {}
 
   async create(dto: CreateQuizDto, userId: string): Promise<Quiz> {
@@ -95,85 +89,6 @@ export class QuizService {
       // Remove the quiz (quizQuestions will be removed via cascade)
       await manager.remove(Quiz, quiz);
     });
-  }
-
-  async submitQuizAttempt(
-    courseId: string,
-    quizId: string,
-    studentId: string,
-    dto: SubmitQuizDto,
-  ): Promise<QuizAttempt> {
-    // 1️⃣ Validate enrollment
-    const courseStudent = await this.courseStudentRepo.findOne({
-      where: { course: { id: courseId }, student: { id: studentId } },
-    });
-    if (!courseStudent)
-      throw new NotFoundException('Student is not enrolled in this course');
-
-    // 2️⃣ Fetch quiz with questions and points
-    const quiz = await this.quizRepo.findOne({
-      where: { id: quizId },
-      relations: ['quizQuestions', 'quizQuestions.question'],
-    });
-    if (!quiz) throw new NotFoundException('Quiz not found');
-
-    // 3️⃣ Calculate score using frontend correctness
-    let score = 0;
-    let totalPoints = 0;
-
-    for (const qq of quiz.quizQuestions) {
-      totalPoints += qq.question.points; // sum all points
-      const answer = dto.answers.find(
-        (a) => a.questionId.toString() === qq.question.id.toString(),
-      );
-      if (answer && answer.correct) score += qq.question.points;
-    }
-
-    // Calculate percentage score
-    const percentageScore = totalPoints > 0 ? (score / totalPoints) * 100 : 0;
-
-    // Determine pass/fail
-    const passed = quiz.passing_score
-      ? percentageScore >= quiz.passing_score
-      : true;
-
-    // 4️⃣ Save QuizAttempt
-    const attempt = this.attemptRepo.create({
-      quiz,
-      courseStudent,
-      answers: dto.answers,
-      score: percentageScore,
-      passed,
-    });
-    await this.attemptRepo.save(attempt);
-
-    // 5️⃣ Update or create CourseProgress for this quiz
-    let progress = await this.progressRepo.findOne({
-      where: { item: { quiz: { id: quizId } }, courseStudent },
-    });
-
-    if (!progress) {
-      // Find the course-section item that corresponds to this quiz
-      const item = await this.courseSectionItemRepo.findOne({
-        where: { quiz: { id: quizId } },
-      });
-      if (item) {
-        progress = this.progressRepo.create({
-          courseStudent,
-          item,
-          completed: true,
-          score: percentageScore,
-        });
-      }
-    } else {
-      // Update existing progress
-      progress.score = score;
-      progress.completed = true;
-    }
-
-    if (progress) await this.progressRepo.save(progress);
-
-    return attempt;
   }
 
   async submitStandaloneQuizAttempt(

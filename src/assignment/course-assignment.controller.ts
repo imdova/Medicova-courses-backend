@@ -1,6 +1,5 @@
 import {
   Controller,
-  Post,
   Param,
   Body,
   UseGuards,
@@ -15,38 +14,12 @@ import { Roles } from 'src/auth/decorator/roles.decorator';
 import { UserRole } from 'src/user/entities/user.entity';
 import { AssignmentService } from './assignment.service';
 import { AssignmentSubmission } from './entities/assignment-submission.entity';
-import { SubmitAssignmentDto } from './dto/submit-assignment.dto';
 
 @ApiTags('Course Assignments')
 @Controller('courses/:courseId/assignments')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 export class CourseAssignmentController {
   constructor(private readonly assignmentService: AssignmentService) {}
-
-  @Post(':assignmentId/submissions')
-  @Roles(UserRole.STUDENT)
-  @ApiOperation({ summary: 'Submit an assignment for a course (student)' })
-  @ApiResponse({
-    status: 201,
-    description: 'Assignment submission recorded successfully',
-    type: AssignmentSubmission,
-  })
-  async submitAssignment(
-    @Param('courseId') courseId: string,
-    @Param('assignmentId') assignmentId: string,
-    @Req() req,
-    @Body() submitAssignmentDto: SubmitAssignmentDto,
-  ): Promise<AssignmentSubmission> {
-    const studentId = req.user.sub;
-
-    // delegate to service
-    return this.assignmentService.submitAssignment(
-      courseId,
-      assignmentId,
-      studentId,
-      submitAssignmentDto,
-    );
-  }
 
   @Get()
   @Roles(UserRole.INSTRUCTOR)

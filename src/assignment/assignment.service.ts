@@ -9,10 +9,8 @@ import { Assignment } from './entities/assignment.entity';
 import { CreateAssignmentDto } from './dto/create-assignment.dto';
 import { UpdateAssignmentDto } from './dto/update-assignment.dto';
 import { UserRole } from 'src/user/entities/user.entity';
-import { SubmitAssignmentDto } from './dto/submit-assignment.dto';
 import { AssignmentSubmission } from './entities/assignment-submission.entity';
-import { CourseStudent } from 'src/course/entities/course-student.entity';
-import { CourseProgress } from 'src/course/entities/course-progress.entity';
+import { CourseProgress } from 'src/course/course-progress/entities/course-progress.entity';
 import {
   CourseSectionItem,
   CurriculumType,
@@ -23,8 +21,6 @@ export class AssignmentService {
   constructor(
     @InjectRepository(Assignment)
     private readonly assignmentRepo: Repository<Assignment>,
-    @InjectRepository(CourseStudent)
-    private readonly courseStudentRepo: Repository<CourseStudent>,
     @InjectRepository(CourseProgress)
     private progressRepo: Repository<CourseProgress>,
     @InjectRepository(CourseSectionItem)
@@ -120,56 +116,6 @@ export class AssignmentService {
     createdAt: (a as any).created_at, // from your BasicEntity
     createdById: a.createdBy,
   });
-
-  async submitAssignment(
-    courseId: string,
-    assignmentId: string,
-    studentId: string,
-    dto: SubmitAssignmentDto,
-  ): Promise<AssignmentSubmission> {
-    const courseStudent = await this.courseStudentRepo.findOne({
-      where: { course: { id: courseId }, student: { id: studentId } },
-    });
-    if (!courseStudent) throw new NotFoundException('Student not enrolled');
-
-    const assignment = await this.assignmentRepo.findOne({
-      where: { id: assignmentId },
-    });
-    if (!assignment) throw new NotFoundException('Assignment not found');
-
-    const submission = this.submissionRepo.create({
-      assignment,
-      courseStudent,
-      notes: dto.notes,
-      file_url: dto.file_url,
-    });
-
-    await this.submissionRepo.save(submission);
-
-    // Update course progress
-    let progress = await this.progressRepo.findOne({
-      where: { item: { assignment: { id: assignmentId } }, courseStudent },
-    });
-
-    if (!progress) {
-      const item = await this.courseSectionItemRepo.findOne({
-        where: { assignment: { id: assignmentId } },
-      });
-      if (item) {
-        progress = this.progressRepo.create({
-          courseStudent,
-          item,
-          completed: true,
-        });
-        await this.progressRepo.save(progress);
-      }
-    } else {
-      progress.completed = true;
-      await this.progressRepo.save(progress);
-    }
-
-    return submission;
-  }
 
   async getAllAssignmentsWithSubmissions(courseId: string) {
     // 1️⃣ Fetch all CourseSectionItems of type 'assignment' for the course

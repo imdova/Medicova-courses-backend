@@ -13,6 +13,7 @@ import { StudentCourseController } from './student-course.controller';
 import { StudentCourseService } from './student-course.service';
 import { Profile } from 'src/profile/entities/profile.entity';
 import { CourseStudent } from './entities/course-student.entity';
+import { CourseProgressModule } from './course-progress/course-progress.module';
 
 @Module({
   imports: [
@@ -25,6 +26,8 @@ import { CourseStudent } from './entities/course-student.entity';
     ]),
     CoursePricingModule,
     CourseSectionModule,
+    CourseProgressModule,
+    CourseProgressModule,
   ],
   controllers: [CourseController, StudentCourseController],
   providers: [CourseService, RolesGuard, JwtService, StudentCourseService],
