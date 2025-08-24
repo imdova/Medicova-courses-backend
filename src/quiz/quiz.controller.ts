@@ -63,6 +63,24 @@ export class QuizController {
     );
   }
 
+  @Roles(UserRole.STUDENT)
+  @Get(':quizId/score')
+  @ApiOperation({
+    summary: 'Get all quiz attempts scores for current student',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of quiz attempts scores for current student',
+    type: [QuizAttempt],
+  })
+  async getMyQuizAttempts(
+    @Param('quizId') quizId: string,
+    @Req() req,
+  ): Promise<QuizAttempt[]> {
+    const studentId = req.user.sub;
+    return this.quizService.getStudentQuizAttempts(quizId, studentId);
+  }
+
   @Get()
   @ApiOperation({ summary: 'List all quizzes' })
   @ApiResponse({ status: 200, description: 'List of quizzes' })
