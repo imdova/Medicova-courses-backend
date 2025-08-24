@@ -7,7 +7,6 @@ import {
   Body,
   ParseUUIDPipe,
   UseGuards,
-  Req,
 } from '@nestjs/common';
 import { CourseSectionItemService } from './course-section-item.service';
 import { CreateCourseSectionItemDto } from './dto/create-course-section-item.dto';
@@ -18,7 +17,6 @@ import {
   ApiParam,
   ApiBody,
   ApiResponse,
-  ApiBearerAuth,
 } from '@nestjs/swagger';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/decorator/roles.decorator';
