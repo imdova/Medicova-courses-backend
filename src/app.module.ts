@@ -7,10 +7,6 @@ import { User } from './user/entities/user.entity';
 import { ProfileModule } from './profile/profile.module';
 import { AuthModule } from './auth/auth.module';
 import { ConfigModule } from '@nestjs/config';
-import { MailerModule } from '@nestjs-modules/mailer';
-import { join } from 'path';
-import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
-import { PasswordResetToken } from './user/entities/password-reset-token.entity';
 import { CourseModule } from './course/course.module';
 import { Course } from './course/entities/course.entity';
 import { CoursePricing } from './course/course-pricing/entities/course-pricing.entity';
@@ -55,7 +51,6 @@ import { AssignmentSubmission } from './assignment/entities/assignment-submissio
       database: process.env.DB_NAME,
       entities: [
         User,
-        PasswordResetToken,
         Profile,
         Course,
         CoursePricing,
@@ -88,16 +83,6 @@ import { AssignmentSubmission } from './assignment/entities/assignment-submissio
     UserModule,
     ProfileModule,
     AuthModule,
-    MailerModule.forRoot({
-      transport: process.env.SMTP_TRANSPORT,
-      template: {
-        dir: join(__dirname, '..', 'src', 'templates'),
-        adapter: new HandlebarsAdapter(),
-        options: {
-          strict: true,
-        },
-      },
-    }),
     CourseModule,
     QuizModule,
     BundleModule,

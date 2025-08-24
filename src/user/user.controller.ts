@@ -23,9 +23,6 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { User, UserRole } from './entities/user.entity';
-import { ForgotPasswordDto } from './dto/forgot-password.dto';
-import { ResetPasswordDto } from './dto/reset-password.dto';
-import { VerifyResetTokenDto } from './dto/verify-reset-token.dto';
 import { cookieOptions } from '../auth/auth.controller';
 import { AuthService } from 'src/auth/auth.service';
 import { Response } from 'express';
@@ -154,56 +151,4 @@ export class UserController {
   remove(@Param('userId') userId: string) {
     return this.userService.remove(userId);
   }
-
-  // @Post('forgot-password')
-  // @ApiOperation({
-  //   summary: 'Request password reset',
-  //   description: 'Sends a password reset token to the user’s email.',
-  // })
-  // @ApiBody({
-  //   description: 'Email to send reset token to',
-  //   type: ForgotPasswordDto,
-  // })
-  // @ApiResponse({
-  //   status: HttpStatus.OK,
-  //   description: 'Password reset email sent successfully.',
-  // })
-  // forgotPassword(@Body() dto: ForgotPasswordDto) {
-  //   return this.userService.forgotPassword(dto.email);
-  // }
-
-  // @Post('verify-reset-token')
-  // @ApiOperation({
-  //   summary: 'Verify password reset token',
-  //   description: 'Checks if a password reset token is valid and not expired.',
-  // })
-  // @ApiBody({ description: 'Token to verify', type: VerifyResetTokenDto })
-  // @ApiResponse({
-  //   status: HttpStatus.OK,
-  //   description: 'Token is valid.',
-  // })
-  // @ApiResponse({
-  //   status: HttpStatus.BAD_REQUEST,
-  //   description: 'Invalid or expired token.',
-  // })
-  // verifyResetToken(@Body() dto: VerifyResetTokenDto) {
-  //   return this.userService.verifyResetToken(dto.token);
-  // }
-
-  // @Post('reset-password')
-  // @ApiOperation({
-  //   summary: 'Reset password',
-  //   description: 'Resets a user’s password using a valid reset token.',
-  // })
-  // @ApiBody({
-  //   description: 'Token and new password data',
-  //   type: ResetPasswordDto,
-  // })
-  // @ApiResponse({
-  //   status: HttpStatus.OK,
-  //   description: 'Password reset successfully.',
-  // })
-  // resetPassword(@Body() dto: ResetPasswordDto) {
-  //   return this.userService.resetPassword(dto);
-  // }
 }
