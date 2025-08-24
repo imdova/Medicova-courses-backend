@@ -14,7 +14,6 @@ import {
 import { Question } from './entities/question.entity';
 import { SubmitQuizDto } from './dto/submit-quiz.dto';
 import { QuizAttempt } from './entities/quiz-attempts.entity';
-import { CourseStudent } from 'src/course/entities/course-student.entity';
 
 export const QUIZ_PAGINATION_CONFIG: QueryConfig<Quiz> = {
   sortableColumns: ['created_at', 'title'],
@@ -31,8 +30,6 @@ export class QuizService {
   constructor(
     @InjectRepository(Quiz)
     private readonly quizRepo: Repository<Quiz>,
-    @InjectRepository(CourseStudent)
-    private readonly courseStudentRepo: Repository<CourseStudent>,
     @InjectRepository(QuizAttempt)
     private attemptRepo: Repository<QuizAttempt>,
   ) {}

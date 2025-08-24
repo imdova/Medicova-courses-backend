@@ -12,6 +12,9 @@ import {
 import { QueryConfig } from '../common/utils/query-options';
 import { CourseTag } from './entities/course-tags.entity';
 import { CoursePricing } from './course-pricing/entities/course-pricing.entity';
+import { CourseSectionItem } from './course-section/entities/course-section-item.entity';
+import { CourseProgress } from './course-progress/entities/course-progress.entity';
+import { CourseStudent } from './entities/course-student.entity';
 
 export const COURSE_PAGINATION_CONFIG: QueryConfig<Course> = {
   sortableColumns: ['created_at', 'name', 'category', 'status'],
@@ -35,6 +38,10 @@ export class CourseService {
     private readonly courseTagRepository: Repository<CourseTag>,
     @InjectRepository(CoursePricing)
     private readonly coursePricingRepository: Repository<CoursePricing>,
+    @InjectRepository(CourseSectionItem)
+    private courseSectionItemRepo: Repository<CourseSectionItem>,
+    @InjectRepository(CourseProgress)
+    private progressRepo: Repository<CourseProgress>,
   ) {}
 
   async create(
@@ -160,5 +167,48 @@ export class CourseService {
       order: { name: 'ASC' },
     });
     return tags.map((tag) => tag.name);
+  }
+
+  async getAllStudentsProgress(courseId: string) {
+    // 1️⃣ Count course items
+    const totalItems = await this.courseSectionItemRepo.count({
+      where: { section: { course: { id: courseId } } },
+    });
+    if (totalItems === 0) {
+      throw new NotFoundException('No curriculum items found for this course');
+    }
+
+    // 2️⃣ Start from CourseStudent (enrollments), then join student + progress
+    const summaries = await this.courseRepository.manager
+      .getRepository(CourseStudent)
+      .createQueryBuilder('courseStudent')
+      .leftJoin('courseStudent.student', 'student')
+      .leftJoin(
+        CourseProgress,
+        'progress',
+        'progress.course_student_id = courseStudent.id',
+      )
+      .select('student.id', 'studentId')
+      .addSelect('student.email', 'studentEmail')
+      .addSelect(
+        'COUNT(CASE WHEN progress.completed = true THEN 1 END)',
+        'completedItems',
+      )
+      .where('courseStudent.course = :courseId', { courseId })
+      .groupBy('student.id')
+      .addGroupBy('student.email')
+      .getRawMany();
+
+    // 3️⃣ Map with percentage
+    return summaries.map((s) => {
+      const completed = Number(s.completedItems) || 0;
+      return {
+        studentId: s.studentId,
+        studentEmail: s.studentEmail,
+        totalItems,
+        completedItems: completed,
+        progressPercentage: (completed / totalItems) * 100,
+      };
+    });
   }
 }
