@@ -1,7 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Quiz } from './entities/quiz.entity';
+import { AttemptMode, Quiz } from './entities/quiz.entity';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { QueryConfig } from '../common/utils/query-options';
@@ -94,14 +98,31 @@ export class QuizService {
     userId: string,
     dto: SubmitQuizDto,
   ): Promise<QuizAttempt> {
-    // 1️⃣ Fetch quiz
+    // Fetch quiz
     const quiz = await this.quizRepo.findOne({
       where: { id: quizId, standalone: true },
       relations: ['quizQuestions', 'quizQuestions.question'],
     });
     if (!quiz) throw new NotFoundException('Quiz not found');
 
-    // 2️⃣ Calculate score using frontend correctness
+    // Count attempts (faster than fetching all)
+    const attemptCount = await this.attemptRepo.count({
+      where: { quiz: { id: quizId }, user: { id: userId } },
+    });
+
+    // Enforce attempt limits
+    if (quiz.attempt_mode === AttemptMode.SINGLE && attemptCount >= 1) {
+      throw new BadRequestException('You are only allowed a single attempt.');
+    }
+    if (quiz.attempt_mode === AttemptMode.MULTIPLE) {
+      if (quiz.retakes > 0 && attemptCount >= quiz.retakes) {
+        throw new BadRequestException(
+          `You have reached the maximum of ${quiz.retakes} attempts.`,
+        );
+      }
+    }
+
+    // Calculate score using frontend correctness
     let score = 0;
     let totalPoints = 0;
 
@@ -123,7 +144,7 @@ export class QuizService {
       ? percentageScore >= quiz.passing_score
       : true;
 
-    // 3️⃣ Save QuizAttempt
+    // Save QuizAttempt
     const attempt = this.attemptRepo.create({
       quiz,
       user: { id: userId } as any,

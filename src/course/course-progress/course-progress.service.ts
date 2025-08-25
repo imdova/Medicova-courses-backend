@@ -14,7 +14,7 @@ import {
 import { SubmitCourseItemDto } from './dto/submit-course-item.dto';
 import { QuizAttempt } from 'src/quiz/entities/quiz-attempts.entity';
 import { AssignmentSubmission } from 'src/assignment/entities/assignment-submission.entity';
-import { Quiz } from 'src/quiz/entities/quiz.entity';
+import { AttemptMode, Quiz } from 'src/quiz/entities/quiz.entity';
 import { Assignment } from 'src/assignment/entities/assignment.entity';
 
 @Injectable()
@@ -35,29 +35,29 @@ export class CourseProgressService {
     @InjectRepository(QuizAttempt)
     private readonly attemptRepo: Repository<QuizAttempt>,
 
-    @InjectRepository(Assignment)
-    private readonly assignmentRepo: Repository<Assignment>,
-
     @InjectRepository(AssignmentSubmission)
     private readonly submissionRepo: Repository<AssignmentSubmission>,
   ) {}
 
-  /**
-   * Unified entry point for lecture, quiz, and assignment submissions.
-   */
+  /** ✅ Utility to fetch enrollment or throw */
+  private async getEnrollment(courseId: string, studentId: string) {
+    const cs = await this.courseStudentRepo.findOne({
+      where: { course: { id: courseId }, student: { id: studentId } },
+    });
+    if (!cs) throw new NotFoundException('Student not enrolled');
+    return cs;
+  }
+
+  /** ✅ Unified entry for lecture, quiz, and assignment */
   async submitItemProgress(
     courseId: string,
     itemId: string,
     studentId: string,
     dto: SubmitCourseItemDto,
   ): Promise<CourseProgress> {
-    // 1️⃣ Validate enrollment
-    const courseStudent = await this.courseStudentRepo.findOne({
-      where: { course: { id: courseId }, student: { id: studentId } },
-    });
-    if (!courseStudent) throw new NotFoundException('Student not enrolled');
+    const courseStudent = await this.getEnrollment(courseId, studentId);
 
-    // 2️⃣ Find course item
+    // Load item + its relations
     const item = await this.courseSectionItemRepo.findOne({
       where: { id: itemId },
       relations: ['quiz', 'assignment', 'lecture'],
@@ -66,121 +66,123 @@ export class CourseProgressService {
 
     let score: number | undefined;
 
-    // 3️⃣ Handle per item type
-    if (item.curriculumType === CurriculumType.LECTURE) {
-      if (!item.lecture)
-        throw new BadRequestException('This item is not a lecture');
-      // just mark completed
-    } else if (item.curriculumType === CurriculumType.QUIZ) {
-      if (!item.quiz) throw new BadRequestException('This item is not a quiz');
-      const attempt = await this.submitQuizAttempt(
-        courseId,
-        item.quiz.id,
-        studentId,
-        dto,
-      );
-      score = attempt.score;
-    } else if (item.curriculumType === CurriculumType.ASSIGNMENT) {
-      if (!item.assignment)
-        throw new BadRequestException('This item is not an assignment');
-      await this.submitAssignment(courseId, item.assignment.id, studentId, dto);
-    } else {
-      throw new BadRequestException('Unsupported item type');
+    switch (item.curriculumType) {
+      case CurriculumType.LECTURE:
+        if (!item.lecture)
+          throw new BadRequestException('This item is not a lecture');
+        break;
+
+      case CurriculumType.QUIZ: {
+        if (!item.quiz)
+          throw new BadRequestException('This item is not a quiz');
+
+        const attempt = await this.handleQuizSubmission(
+          courseStudent,
+          item.quiz,
+          dto,
+        );
+        score = attempt.score;
+        break;
+      }
+
+      case CurriculumType.ASSIGNMENT: {
+        if (!item.assignment)
+          throw new BadRequestException('This item is not an assignment');
+        await this.handleAssignmentSubmission(
+          courseStudent,
+          item.assignment,
+          dto,
+        );
+        break;
+      }
+
+      default:
+        throw new BadRequestException('Unsupported item type');
     }
 
-    // 4️⃣ Update course progress
-    let progress = await this.progressRepo.findOne({
-      where: { item: { id: itemId }, courseStudent },
-    });
-
-    if (!progress) {
-      progress = this.progressRepo.create({
+    // ✅ Use upsert instead of findOne → create → save
+    await this.progressRepo.upsert(
+      {
         courseStudent,
         item,
         completed: true,
         score,
-      });
-    } else {
-      progress.completed = true;
-      if (score !== undefined) progress.score = score;
-    }
+      },
+      ['courseStudent', 'item'], // composite unique constraint
+    );
 
-    return this.progressRepo.save(progress);
+    return this.progressRepo.findOne({
+      where: { courseStudent: { id: courseStudent.id }, item: { id: item.id } },
+    });
   }
 
-  /**
-   * Handles quiz submission + attempt saving.
-   */
-  private async submitQuizAttempt(
-    courseId: string,
-    quizId: string,
-    studentId: string,
+  /** ✅ Centralized quiz submission with retake enforcement */
+  private async handleQuizSubmission(
+    courseStudent: CourseStudent,
+    quiz: Quiz,
     dto: SubmitCourseItemDto,
   ): Promise<QuizAttempt> {
-    const courseStudent = await this.courseStudentRepo.findOne({
-      where: { course: { id: courseId }, student: { id: studentId } },
+    const attemptCount = await this.attemptRepo.count({
+      where: { quiz: { id: quiz.id }, courseStudent: { id: courseStudent.id } },
     });
-    if (!courseStudent) throw new NotFoundException('Student not enrolled');
 
-    const quiz = await this.quizRepo.findOne({
-      where: { id: quizId },
+    if (quiz.attempt_mode === AttemptMode.SINGLE && attemptCount >= 1) {
+      throw new BadRequestException('You are only allowed a single attempt.');
+    }
+    if (quiz.attempt_mode === AttemptMode.MULTIPLE) {
+      if (quiz.retakes > 0 && attemptCount >= quiz.retakes) {
+        throw new BadRequestException(
+          `You have reached the maximum of ${quiz.retakes} attempts.`,
+        );
+      }
+    }
+
+    const fullQuiz = await this.quizRepo.findOne({
+      where: { id: quiz.id },
       relations: ['quizQuestions', 'quizQuestions.question'],
     });
-    if (!quiz) throw new NotFoundException('Quiz not found');
+    if (!fullQuiz) throw new NotFoundException('Quiz not found');
 
     let score = 0;
     let totalPoints = 0;
 
-    for (const qq of quiz.quizQuestions) {
+    for (const qq of fullQuiz.quizQuestions) {
       totalPoints += qq.question.points;
       const answer = dto.answers?.find((a) => a.questionId === qq.question.id);
       if (answer?.correct) score += qq.question.points;
     }
 
-    const percentageScore = totalPoints > 0 ? (score / totalPoints) * 100 : 0;
-    const passed = quiz.passing_score
-      ? percentageScore >= quiz.passing_score
+    const percentage = totalPoints > 0 ? (score / totalPoints) * 100 : 0;
+    const passed = fullQuiz.passing_score
+      ? percentage >= fullQuiz.passing_score
       : true;
 
     const attempt = this.attemptRepo.create({
       quiz,
       courseStudent,
       answers: dto.answers,
-      score: percentageScore,
+      score: percentage,
       passed,
     });
     return this.attemptRepo.save(attempt);
   }
 
-  /**
-   * Handles assignment submission.
-   */
-  private async submitAssignment(
-    courseId: string,
-    assignmentId: string,
-    studentId: string,
+  /** ✅ Assignment submission */
+  private async handleAssignmentSubmission(
+    courseStudent: CourseStudent,
+    assignment: Assignment,
     dto: SubmitCourseItemDto,
   ): Promise<AssignmentSubmission> {
-    const courseStudent = await this.courseStudentRepo.findOne({
-      where: { course: { id: courseId }, student: { id: studentId } },
-    });
-    if (!courseStudent) throw new NotFoundException('Student not enrolled');
-
-    const assignment = await this.assignmentRepo.findOne({
-      where: { id: assignmentId },
-    });
-    if (!assignment) throw new NotFoundException('Assignment not found');
-
     const submission = this.submissionRepo.create({
       assignment,
       courseStudent,
       notes: dto.assignmentSubmission?.notes,
       file_url: dto.assignmentSubmission?.file_url,
     });
-
     return this.submissionRepo.save(submission);
   }
 
+  /** ✅ Optimized course progress retrieval */
   async getCourseProgress(courseId: string, studentId: string) {
     // 1️⃣ Validate enrollment
     const courseStudent = await this.courseStudentRepo.findOne({
