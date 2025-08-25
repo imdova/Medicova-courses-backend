@@ -125,6 +125,7 @@ export class AcademyController {
 
   // ---------- New endpoint to add a user under this academy ----------
   @Post(':id/users')
+  @Roles(UserRole.ADMIN, UserRole.ACCOUNT_ADMIN)
   @ApiOperation({ summary: 'Add a new user under a specific academy' })
   @ApiParam({ name: 'id', type: String, description: 'ID of the academy' })
   @ApiBody({ description: 'User details', type: CreateUserDto })
@@ -135,7 +136,15 @@ export class AcademyController {
   addUserToAcademy(
     @Param('id') academyId: string,
     @Body() createUserDto: CreateUserDto,
+    @Req() req,
   ) {
+    if (req.user.role === UserRole.ACCOUNT_ADMIN) {
+      if (req.user.academyId !== academyId) {
+        throw new ForbiddenException(
+          'You are not allowed to add users to this academy',
+        );
+      }
+    }
     return this.academyService.addUserToAcademy(academyId, createUserDto);
   }
 
