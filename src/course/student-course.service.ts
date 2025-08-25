@@ -81,15 +81,14 @@ export class StudentCourseService {
   async findOne(id: string, user: any): Promise<Course> {
     const currency = await this.getCurrencyForUser(user.sub);
 
-    // ✅ check if the student is enrolled
     const enrollment = await this.courseStudentRepository.findOne({
       where: { course: { id }, student: { id: user.sub } },
     });
 
-    let course: Course | null = null;
+    let course: Course | null;
 
     if (enrollment) {
-      // ✅ full detail query (sections, quizzes, assignments, etc.)
+      // Full query with relations
       course = await this.courseRepo
         .createQueryBuilder('course')
         .leftJoinAndSelect('course.pricings', 'pricing')
@@ -106,8 +105,11 @@ export class StudentCourseService {
         .addOrderBy('item.order', 'ASC')
         .addOrderBy('quizQuestion.order', 'ASC')
         .getOne();
+
+      // Randomize quizzes and answers
+      if (course) this.randomizeCourseQuizzes(course);
     } else {
-      // ❌ not enrolled → only fetch basic info + pricing
+      // Not enrolled → only basic info
       course = await this.courseRepo.findOne({
         where: { id, deleted_at: null },
         relations: ['pricings'],
@@ -116,7 +118,7 @@ export class StudentCourseService {
 
     if (!course) throw new NotFoundException('Course not found');
 
-    // ✅ always filter pricing by nationality
+    // Filter pricing by user currency
     if (currency) {
       course.pricings = course.pricings.filter(
         (p) => p.currencyCode === currency,
@@ -184,5 +186,40 @@ export class StudentCourseService {
     }
 
     await this.courseStudentRepository.remove(enrollment);
+  }
+
+  /** 🔹 Randomizes quiz questions and answers for a course */
+  private randomizeCourseQuizzes(course: Course) {
+    course.sections.forEach((section) => {
+      section.items.forEach((item) => {
+        if (item.quiz?.quizQuestions?.length) {
+          let questions = item.quiz.quizQuestions.map((qq) => qq.question);
+
+          if (item.quiz.randomize_questions) {
+            questions = this.shuffleArray(questions);
+          }
+
+          if (item.quiz.randomize_answers) {
+            questions = questions.map((q) => ({
+              ...q,
+              answers: q.answers ? this.shuffleArray([...q.answers]) : [],
+            }));
+          }
+
+          item.quiz.quizQuestions = questions.map(
+            (q) => ({ question: q } as any),
+          );
+        }
+      });
+    });
+  }
+
+  /** 🔹 Utility to shuffle an array */
+  private shuffleArray<T>(array: T[]): T[] {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
   }
 }

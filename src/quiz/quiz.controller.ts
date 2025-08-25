@@ -87,7 +87,8 @@ export class QuizController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get quiz by ID' })
+  @Roles(UserRole.STUDENT, UserRole.INSTRUCTOR)
+  @ApiOperation({ summary: 'Get quiz by ID (instructor or student)' })
   @ApiResponse({ status: 200, description: 'Quiz found' })
   @ApiResponse({ status: 404, description: 'Quiz not found' })
   findOne(@Param('id') id: string) {
