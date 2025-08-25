@@ -15,13 +15,14 @@ import { CoursePricing } from './course-pricing/entities/course-pricing.entity';
 import { CourseSectionItem } from './course-section/entities/course-section-item.entity';
 import { CourseProgress } from './course-progress/entities/course-progress.entity';
 import { CourseStudent } from './entities/course-student.entity';
+import { Category } from 'src/category/entities/category.entity';
 
 export const COURSE_PAGINATION_CONFIG: QueryConfig<Course> = {
   sortableColumns: ['created_at', 'name', 'category', 'status'],
   defaultSortBy: [['created_at', 'DESC']],
   filterableColumns: {
     name: [FilterOperator.ILIKE], // search by course name (case-insensitive)
-    category: [FilterOperator.EQ],
+    'category.name': [FilterOperator.ILIKE],
     status: [FilterOperator.EQ],
     isActive: [FilterOperator.EQ],
     createdBy: [FilterOperator.EQ],
@@ -40,15 +41,26 @@ export class CourseService {
     private readonly coursePricingRepository: Repository<CoursePricing>,
     @InjectRepository(CourseSectionItem)
     private courseSectionItemRepo: Repository<CourseSectionItem>,
-    @InjectRepository(CourseProgress)
-    private progressRepo: Repository<CourseProgress>,
+    @InjectRepository(Category)
+    private categoryRepository: Repository<Category>,
   ) {}
 
   async create(
     createCourseDto: CreateCourseDto,
     userId: string,
   ): Promise<Course> {
-    const { tags = [], pricings = [], ...courseData } = createCourseDto;
+    const {
+      tags,
+      pricings = [],
+      category: categoryId,
+      subcategory: subCategoryId,
+      ...rest
+    } = createCourseDto;
+
+    const { category, subcategory } = await this.getCategoryAndSubcategory(
+      categoryId,
+      subCategoryId,
+    );
 
     if (tags.length > 0) {
       // Step 1: Fetch existing tags in one query
@@ -71,8 +83,10 @@ export class CourseService {
 
     // Step 4: Save the course with tags array
     const course = this.courseRepository.create({
-      ...courseData,
+      ...rest,
       createdBy: createCourseDto.createdBy ?? userId,
+      category,
+      subCategory: subcategory,
       tags,
       pricings,
     });
@@ -86,6 +100,8 @@ export class CourseService {
   ): Promise<Paginated<Course>> {
     const queryBuilder = this.courseRepository.createQueryBuilder('course');
     queryBuilder
+      .leftJoinAndSelect('course.category', 'category')
+      .leftJoinAndSelect('course.subCategory', 'subCategory')
       .andWhere('course.deleted_at IS NULL') // filter out soft-deleted
       .andWhere('course.created_by = :userId', { userId }); // filter by creator
 
@@ -95,7 +111,7 @@ export class CourseService {
   async findOne(id: string): Promise<Course> {
     const course = await this.courseRepository.findOne({
       where: { id, deleted_at: null },
-      relations: ['pricings'],
+      relations: ['pricings', 'category', 'subCategory'],
     });
     if (!course) throw new NotFoundException('Course not found');
     return course;
@@ -107,7 +123,23 @@ export class CourseService {
   ): Promise<Course> {
     const course = await this.findOne(id);
 
-    const { tags, pricings, ...rest } = updateData;
+    const {
+      tags,
+      pricings,
+      category: categoryId,
+      subcategory: subCategoryId,
+      ...rest
+    } = updateData;
+
+    if (categoryId || subCategoryId) {
+      const { category, subcategory } = await this.getCategoryAndSubcategory(
+        categoryId ?? course.category.id, // use current category if not provided
+        subCategoryId,
+      );
+
+      course.category = category;
+      course.subCategory = subcategory ?? null;
+    }
 
     // Handle tags if provided
     if (tags) {
@@ -210,5 +242,32 @@ export class CourseService {
         progressPercentage: (completed / totalItems) * 100,
       };
     });
+  }
+
+  private async getCategoryAndSubcategory(
+    categoryId: string,
+    subCategoryId?: string,
+  ): Promise<{ category: Category; subcategory?: Category }> {
+    const ids = [categoryId, subCategoryId].filter(Boolean);
+
+    const categories = await this.categoryRepository.find({
+      where: { id: In(ids) },
+      relations: ['parent'],
+    });
+
+    const category = categories.find((c) => c.id === categoryId);
+    const subcategory = categories.find((c) => c.id === subCategoryId);
+
+    if (!category || category.parent) {
+      throw new NotFoundException('Invalid main category');
+    }
+
+    if (subCategoryId) {
+      if (!subcategory || subcategory.parent?.id !== category.id) {
+        throw new NotFoundException('Invalid subcategory for given category');
+      }
+    }
+
+    return { category, subcategory };
   }
 }

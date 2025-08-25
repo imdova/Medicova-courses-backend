@@ -78,22 +78,18 @@ export class CreateCourseDto {
   isActive: boolean;
 
   @ApiProperty({
-    description: 'Main category of the course',
-    maxLength: 255,
-    example: 'Programming',
+    description: 'Main category ID',
+    example: '550e8400-e29b-41d4-a716-446655440000',
   })
-  @IsString()
-  @MaxLength(255)
+  @IsUUID()
   category: string;
 
   @ApiPropertyOptional({
-    description: 'Optional subcategory of the course',
-    maxLength: 255,
-    example: 'Web Development',
+    description: 'Optional subcategory ID',
+    example: '770e8400-e29b-41d4-a716-446655440000',
   })
   @IsOptional()
-  @IsString()
-  @MaxLength(255)
+  @IsUUID()
   subcategory?: string;
 
   @ApiProperty({

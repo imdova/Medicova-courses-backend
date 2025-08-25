@@ -1,10 +1,11 @@
 import { BasicEntity } from '../../common/entities/basic.entity';
-import { Entity, Column, OneToMany } from 'typeorm';
+import { Entity, Column, OneToMany, ManyToOne, JoinColumn } from 'typeorm';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CoursePricing } from '../course-pricing/entities/course-pricing.entity';
 import { CourseMetadataDto } from '../dto/course-metadata.dto';
 import { CourseSection } from '../course-section/entities/course-section.entity';
 import { CourseStudent } from './course-student.entity';
+import { Category } from 'src/category/entities/category.entity';
 
 export enum CourseType {
   RECORDED = 'recorded',
@@ -77,17 +78,6 @@ export class Course extends BasicEntity {
   @ApiProperty({ description: 'Is the course active?', default: true })
   @Column({ default: true, name: 'isActive' })
   isActive: boolean;
-
-  @ApiProperty({ description: 'Main category of the course', maxLength: 255 })
-  @Column({ length: 255 })
-  category: string;
-
-  @ApiPropertyOptional({
-    description: 'Subcategory of the course',
-    maxLength: 255,
-  })
-  @Column({ length: 255, nullable: true })
-  subcategory?: string;
 
   @ApiProperty({ description: 'Name of the course', maxLength: 255 })
   @Column({ length: 255 })
@@ -223,4 +213,15 @@ export class Course extends BasicEntity {
 
   @OneToMany(() => CourseStudent, (cs) => cs.course)
   enrollments: CourseStudent[];
+
+  @ManyToOne(() => Category, (category) => category.courses, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({ name: 'category_id' })
+  category: Category;
+
+  @ManyToOne(() => Category, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'subcategory_id' })
+  subCategory?: Category;
 }

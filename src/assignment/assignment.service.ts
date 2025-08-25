@@ -8,7 +8,7 @@ import { Repository } from 'typeorm';
 import { Assignment } from './entities/assignment.entity';
 import { CreateAssignmentDto } from './dto/create-assignment.dto';
 import { UpdateAssignmentDto } from './dto/update-assignment.dto';
-import { UserRole } from 'src/user/entities/user.entity';
+import { User, UserRole } from 'src/user/entities/user.entity';
 import { AssignmentSubmission } from './entities/assignment-submission.entity';
 import { CourseProgress } from 'src/course/course-progress/entities/course-progress.entity';
 import {
@@ -39,25 +39,75 @@ export class AssignmentService {
   }
 
   async findAllForUser(requesterId: string, role: UserRole) {
-    const where =
-      role === UserRole.ADMIN || role === UserRole.ACCOUNT_ADMIN
-        ? {}
-        : { createdBy: requesterId };
+    let query;
 
-    const list = await this.assignmentRepo.find({
-      where,
-      order: { created_at: 'DESC' },
-    });
+    if (role === UserRole.ADMIN) {
+      // Admin → all assignments
+      query = this.assignmentRepo
+        .createQueryBuilder('assignment')
+        .orderBy('assignment.created_at', 'DESC');
+    } else if (role === UserRole.ACCOUNT_ADMIN) {
+      // Account admin → assignments from same academy
+      query = this.assignmentRepo
+        .createQueryBuilder('assignment')
+        .innerJoin(User, 'user', 'user.id = assignment.created_by')
+        .where((qb) => {
+          const subQuery = qb
+            .subQuery()
+            .select('u.academyId')
+            .from(User, 'u')
+            .where('u.id = :requesterId')
+            .getQuery();
+          return 'user.academyId = ' + subQuery;
+        })
+        .setParameter('requesterId', requesterId)
+        .orderBy('assignment.created_at', 'DESC');
+    } else {
+      // Instructor → only their own assignments
+      query = this.assignmentRepo
+        .createQueryBuilder('assignment')
+        .where('assignment.created_by = :requesterId', { requesterId })
+        .orderBy('assignment.created_at', 'DESC');
+    }
+
+    const list = await query.getMany();
     return list.map(this.toResponse);
   }
 
   async findOneForUser(id: string, requesterId: string, role: UserRole) {
-    const assignment = await this.assignmentRepo.findOne({
-      where: { id },
-    });
-    if (!assignment) throw new NotFoundException('Assignment not found');
+    if (role === UserRole.ADMIN) {
+      // Admin → any assignment
+      const assignment = await this.assignmentRepo.findOne({ where: { id } });
+      if (!assignment) throw new NotFoundException('Assignment not found');
+      return this.toResponse(assignment);
+    }
 
-    this.assertOwnershipOrAdmin(assignment, requesterId, role);
+    if (role === UserRole.ACCOUNT_ADMIN) {
+      // Account admin → can only access if creator is in same academy
+      const assignment = await this.assignmentRepo
+        .createQueryBuilder('assignment')
+        .innerJoin(User, 'creator', 'creator.id = assignment.created_by')
+        .innerJoin(User, 'requester', 'requester.id = :requesterId', {
+          requesterId,
+        })
+        .where('assignment.id = :id', { id })
+        .andWhere('creator.academyId = requester.academyId')
+        .getOne();
+
+      if (!assignment) {
+        throw new ForbiddenException(
+          'You do not have access to this assignment',
+        );
+      }
+      return this.toResponse(assignment);
+    }
+
+    // Instructor → only own assignments
+    const assignment = await this.assignmentRepo.findOne({
+      where: { id, createdBy: requesterId },
+    });
+    if (!assignment)
+      throw new ForbiddenException('You do not have access to this assignment');
     return this.toResponse(assignment);
   }
 
@@ -67,12 +117,34 @@ export class AssignmentService {
     requesterId: string,
     role: UserRole,
   ) {
-    const assignment = await this.assignmentRepo.findOne({
-      where: { id },
-    });
-    if (!assignment) throw new NotFoundException('Assignment not found');
+    let assignment: Assignment | null = null;
 
-    this.assertOwnershipOrAdmin(assignment, requesterId, role);
+    if (role === UserRole.ADMIN) {
+      // Admin → any assignment
+      assignment = await this.assignmentRepo.findOne({ where: { id } });
+    } else if (role === UserRole.ACCOUNT_ADMIN) {
+      // Account Admin → assignment must belong to same academy
+      assignment = await this.assignmentRepo
+        .createQueryBuilder('assignment')
+        .innerJoin(User, 'creator', 'creator.id = assignment.created_by')
+        .innerJoin(User, 'requester', 'requester.id = :requesterId', {
+          requesterId,
+        })
+        .where('assignment.id = :id', { id })
+        .andWhere('creator.academyId = requester.academyId')
+        .getOne();
+    } else {
+      // Instructor → only their own assignment
+      assignment = await this.assignmentRepo.findOne({
+        where: { id, createdBy: requesterId },
+      });
+    }
+
+    if (!assignment) {
+      throw new ForbiddenException(
+        'You do not have access to update this assignment',
+      );
+    }
 
     Object.assign(assignment, dto);
     const saved = await this.assignmentRepo.save(assignment);
@@ -80,30 +152,40 @@ export class AssignmentService {
   }
 
   async removeForUser(id: string, requesterId: string, role: UserRole) {
-    const assignment = await this.assignmentRepo.findOne({
-      where: { id },
-    });
-    if (!assignment) throw new NotFoundException('Assignment not found');
+    let assignment: Assignment | null = null;
 
-    this.assertOwnershipOrAdmin(assignment, requesterId, role);
+    if (role === UserRole.ADMIN) {
+      // Admin → any assignment
+      assignment = await this.assignmentRepo.findOne({ where: { id } });
+    } else if (role === UserRole.ACCOUNT_ADMIN) {
+      // Account Admin → assignment must belong to same academy
+      assignment = await this.assignmentRepo
+        .createQueryBuilder('assignment')
+        .innerJoin(User, 'creator', 'creator.id = assignment.created_by')
+        .innerJoin(User, 'requester', 'requester.id = :requesterId', {
+          requesterId,
+        })
+        .where('assignment.id = :id', { id })
+        .andWhere('creator.academyId = requester.academyId')
+        .getOne();
+    } else {
+      // Instructor → only their own assignment
+      assignment = await this.assignmentRepo.findOne({
+        where: { id, createdBy: requesterId },
+      });
+    }
+
+    if (!assignment) {
+      throw new ForbiddenException(
+        'You do not have access to delete this assignment',
+      );
+    }
 
     await this.assignmentRepo.delete(assignment.id);
     return { id, message: 'Assignment deleted' };
   }
 
   // ---- helpers ----
-
-  private assertOwnershipOrAdmin(
-    assignment: Assignment,
-    requesterId: string,
-    role: UserRole,
-  ) {
-    const isAdmin = role === UserRole.ADMIN || role === UserRole.ACCOUNT_ADMIN;
-    const isOwner = assignment.createdBy === requesterId;
-    if (!isAdmin && !isOwner) {
-      throw new ForbiddenException('You do not have access to this assignment');
-    }
-  }
 
   private toResponse = (a: Assignment) => ({
     id: a.id,
@@ -114,7 +196,7 @@ export class AssignmentService {
     //grading_scale: a.grading_scale,
     attachment_url: a.attachment_url,
     createdAt: (a as any).created_at, // from your BasicEntity
-    createdById: a.createdBy,
+    createdBy: a.createdBy,
   });
 
   async getAllAssignmentsWithSubmissions(courseId: string) {

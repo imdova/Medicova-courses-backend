@@ -33,7 +33,9 @@ export class AssignmentController {
 
   @Post()
   @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACCOUNT_ADMIN)
-  @ApiOperation({ summary: 'Create a new assignment (instructors & admins)' })
+  @ApiOperation({
+    summary: 'Create a new assignment (instructors, account admins & admins)',
+  })
   @ApiBody({ type: CreateAssignmentDto })
   @ApiResponse({
     status: HttpStatus.CREATED,
@@ -47,7 +49,7 @@ export class AssignmentController {
   @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACCOUNT_ADMIN)
   @ApiOperation({
     summary:
-      'List assignments (instructors: only their own; admins: all assignments)',
+      'List assignments (instructors: their own; account admins: their academy; admins: all)',
   })
   @ApiResponse({ status: HttpStatus.OK, description: 'List of assignments' })
   findAll(@Req() req) {
@@ -58,7 +60,7 @@ export class AssignmentController {
   @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACCOUNT_ADMIN)
   @ApiOperation({
     summary:
-      'Get assignment by ID (instructor must be the creator; admins see any)',
+      'Get assignment by ID (instructors: only their own; account admins: same academy; admins: any)',
   })
   @ApiParam({ name: 'id', description: 'Assignment ID' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Assignment found' })
@@ -75,7 +77,7 @@ export class AssignmentController {
   @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACCOUNT_ADMIN)
   @ApiOperation({
     summary:
-      'Update assignment (instructor only their own; admins can update any)',
+      'Update assignment (instructors: only their own; account admins: same academy; admins: any',
   })
   @ApiParam({ name: 'id', description: 'Assignment ID' })
   @ApiBody({ type: UpdateAssignmentDto })
@@ -98,7 +100,7 @@ export class AssignmentController {
   @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACCOUNT_ADMIN)
   @ApiOperation({
     summary:
-      'Delete assignment (instructor only their own; admins can delete any)',
+      'Delete assignment (instructors: only their own; account admins: same academy; admins: any',
   })
   @ApiParam({ name: 'id', description: 'Assignment ID' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Assignment deleted' })
