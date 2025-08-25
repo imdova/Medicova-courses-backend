@@ -62,8 +62,30 @@ export class QuizService {
   async findOne(id: string): Promise<Quiz> {
     const quiz = await this.quizRepo.findOne({
       where: { id, deleted_at: null },
+      relations: ['quizQuestions', 'quizQuestions.question'],
     });
+
     if (!quiz) throw new NotFoundException('Quiz not found');
+
+    // Map questions
+    let questions = quiz.quizQuestions.map((qq) => qq.question);
+
+    // Randomize questions
+    if (quiz.randomize_questions) {
+      questions = this.shuffleArray(questions);
+    }
+
+    // Randomize answers (answers are JSON, so we can shuffle directly)
+    if (quiz.randomize_answers) {
+      questions = questions.map((q) => ({
+        ...q,
+        answers: q.answers ? this.shuffleArray([...q.answers]) : [],
+      }));
+    }
+
+    // Attach shuffled questions back to quizQuestions array
+    quiz.quizQuestions = questions.map((q) => ({ question: q } as any));
+
     return quiz;
   }
 
@@ -171,5 +193,13 @@ export class QuizService {
       })
       .orderBy('attempt.created_at', 'DESC')
       .getMany();
+  }
+
+  private shuffleArray<T>(array: T[]): T[] {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
   }
 }
