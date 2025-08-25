@@ -1,10 +1,18 @@
-import { Entity, Column, ManyToOne, JoinColumn, OneToOne } from 'typeorm';
+import {
+  Entity,
+  Column,
+  ManyToOne,
+  JoinColumn,
+  OneToOne,
+  OneToMany,
+} from 'typeorm';
 import { CourseSection } from './course-section.entity';
 import { Lecture } from './lecture.entity';
 import { BasicEntity } from '../../../common/entities/basic.entity';
 import { ApiProperty } from '@nestjs/swagger';
 import { Quiz } from 'src/quiz/entities/quiz.entity';
 import { Assignment } from 'src/assignment/entities/assignment.entity';
+import { CourseProgress } from 'src/course/course-progress/entities/course-progress.entity';
 
 export enum CurriculumType {
   LECTURE = 'lecture',
@@ -44,4 +52,7 @@ export class CourseSectionItem extends BasicEntity {
   @ManyToOne(() => Assignment, { nullable: true, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'assignment_id' })
   assignment?: Assignment;
+
+  @OneToMany(() => CourseProgress, (progress) => progress.item)
+  progresses: CourseProgress[];
 }
