@@ -38,6 +38,8 @@ import { CourseStudent } from './course/entities/course-student.entity';
 import { CourseProgress } from './course/course-progress/entities/course-progress.entity';
 import { QuizAttempt } from './quiz/entities/quiz-attempts.entity';
 import { AssignmentSubmission } from './assignment/entities/assignment-submission.entity';
+import { CategoryModule } from './category/category.module';
+import { Category } from './category/entities/category.entity';
 
 @Module({
   imports: [
@@ -74,6 +76,7 @@ import { AssignmentSubmission } from './assignment/entities/assignment-submissio
         CourseProgress,
         QuizAttempt,
         AssignmentSubmission,
+        Category,
       ],
       synchronize: true,
       extra: {
@@ -90,6 +93,7 @@ import { AssignmentSubmission } from './assignment/entities/assignment-submissio
     AcademyModule,
     ChatModule,
     AssignmentModule,
+    CategoryModule,
   ],
   controllers: [AppController],
   providers: [AppService, DatabaseService],
