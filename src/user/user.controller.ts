@@ -34,7 +34,7 @@ export class UserController {
   constructor(
     private readonly userService: UserService,
     private readonly authService: AuthService,
-  ) {}
+  ) { }
 
   @Post('register')
   @ApiOperation({
@@ -59,7 +59,7 @@ export class UserController {
   ) {
     let createdUser: User;
 
-    if (createUserDto.role === UserRole.INSTRUCTOR && createUserDto.academy) {
+    if (createUserDto.academy) {
       // If instructor is creating an academy
       createdUser = await this.userService.registerWithAcademy(createUserDto);
     } else {

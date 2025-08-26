@@ -3,6 +3,7 @@ import { BasicEntity } from '../../common/entities/basic.entity';
 import { ApiProperty } from '@nestjs/swagger';
 import { User } from 'src/user/entities/user.entity';
 import { AssignmentSubmission } from './assignment-submission.entity';
+import { Academy } from 'src/academy/entities/academy.entity';
 
 @Entity('assignments')
 export class Assignment extends BasicEntity {
@@ -45,4 +46,8 @@ export class Assignment extends BasicEntity {
 
   @OneToMany(() => AssignmentSubmission, (submission) => submission.assignment)
   submissions: AssignmentSubmission[];
+
+  @ManyToOne(() => Academy, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'academy_id' })
+  academy: Academy;
 }

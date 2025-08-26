@@ -90,7 +90,7 @@ export class UserService {
       ...userData,
       email: normalizedEmail,
       password: hashedPassword,
-      role: role || UserRole.ACADEMY_ADMIN,
+      role: UserRole.ACADEMY_ADMIN,
       academy: newAcademy, // link user to academy
     });
 
