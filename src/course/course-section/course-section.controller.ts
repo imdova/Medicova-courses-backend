@@ -29,9 +29,9 @@ import { AuthGuard } from '@nestjs/passport';
 @ApiTags('Course Sections')
 @Controller('courses/:courseId/course-sections')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(UserRole.INSTRUCTOR, UserRole.ADMIN)
+@Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_USER, UserRole.ACADEMY_ADMIN)
 export class CourseSectionController {
-  constructor(private readonly service: CourseSectionService) {}
+  constructor(private readonly service: CourseSectionService) { }
 
   @Post()
   @ApiOperation({ summary: 'Create a new course section' })
