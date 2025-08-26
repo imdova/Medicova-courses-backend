@@ -29,12 +29,12 @@ import { UserRole } from 'src/user/entities/user.entity';
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @Controller('assignments')
 export class AssignmentController {
-  constructor(private readonly assignmentService: AssignmentService) {}
+  constructor(private readonly assignmentService: AssignmentService) { }
 
   @Post()
-  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACCOUNT_ADMIN)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_USER, UserRole.ACADEMY_ADMIN)
   @ApiOperation({
-    summary: 'Create a new assignment (instructors, account admins & admins)',
+    summary: 'Create a new assignment (instructors, academy content creator & admins)',
   })
   @ApiBody({ type: CreateAssignmentDto })
   @ApiResponse({
@@ -42,25 +42,25 @@ export class AssignmentController {
     description: 'Assignment created',
   })
   create(@Body() dto: CreateAssignmentDto, @Req() req) {
-    return this.assignmentService.create(dto, req.user.sub);
+    return this.assignmentService.create(dto, req.user.sub, req.user.academyId);
   }
 
   @Get()
-  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACCOUNT_ADMIN)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_USER, UserRole.ACADEMY_ADMIN)
   @ApiOperation({
     summary:
-      'List assignments (instructors: their own; account admins: their academy; admins: all)',
+      'List assignments (instructors: their own; academy content creators: their academy; admins: all)',
   })
   @ApiResponse({ status: HttpStatus.OK, description: 'List of assignments' })
   findAll(@Req() req) {
-    return this.assignmentService.findAllForUser(req.user.sub, req.user.role);
+    return this.assignmentService.findAllForUser(req.user.sub, req.user.role, req.user.academyId);
   }
 
   @Get(':id')
-  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACCOUNT_ADMIN)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_USER, UserRole.ACADEMY_ADMIN)
   @ApiOperation({
     summary:
-      'Get assignment by ID (instructors: only their own; account admins: same academy; admins: any)',
+      'Get assignment by ID (instructors: only their own; academy content creators: same academy; admins: any)',
   })
   @ApiParam({ name: 'id', description: 'Assignment ID' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Assignment found' })
@@ -70,14 +70,15 @@ export class AssignmentController {
       id,
       req.user.sub,
       req.user.role,
+      req.user.academyId
     );
   }
 
   @Patch(':id')
-  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACCOUNT_ADMIN)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_USER, UserRole.ACADEMY_ADMIN)
   @ApiOperation({
     summary:
-      'Update assignment (instructors: only their own; account admins: same academy; admins: any',
+      'Update assignment (instructors: only their own; academy content creators: same academy; admins: any',
   })
   @ApiParam({ name: 'id', description: 'Assignment ID' })
   @ApiBody({ type: UpdateAssignmentDto })
@@ -93,14 +94,15 @@ export class AssignmentController {
       dto,
       req.user.sub,
       req.user.role,
+      req.user.academyId
     );
   }
 
   @Delete(':id')
-  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACCOUNT_ADMIN)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_USER, UserRole.ACADEMY_ADMIN)
   @ApiOperation({
     summary:
-      'Delete assignment (instructors: only their own; account admins: same academy; admins: any',
+      'Delete assignment (instructors: only their own; academy content creators: same academy; admins: any',
   })
   @ApiParam({ name: 'id', description: 'Assignment ID' })
   @ApiResponse({ status: HttpStatus.OK, description: 'Assignment deleted' })
@@ -110,6 +112,7 @@ export class AssignmentController {
       id,
       req.user.sub,
       req.user.role,
+      req.user.academyId
     );
   }
 }

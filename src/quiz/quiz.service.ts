@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -18,6 +19,9 @@ import {
 import { Question } from './entities/question.entity';
 import { SubmitQuizDto } from './dto/submit-quiz.dto';
 import { QuizAttempt } from './entities/quiz-attempts.entity';
+import { UserRole } from 'src/user/entities/user.entity';
+import { CreateQuizWithQuestionsDto } from './dto/create-quiz-with-questions.dto';
+import { QuizQuestion } from './entities/quiz-question.entity';
 
 export const QUIZ_PAGINATION_CONFIG: QueryConfig<Quiz> = {
   sortableColumns: ['created_at', 'title'],
@@ -36,12 +40,16 @@ export class QuizService {
     private readonly quizRepo: Repository<Quiz>,
     @InjectRepository(QuizAttempt)
     private attemptRepo: Repository<QuizAttempt>,
-  ) {}
+  ) { }
 
-  async create(dto: CreateQuizDto, userId: string): Promise<Quiz> {
+  // All methods are checked for performance
+
+  async create(dto: CreateQuizDto, userId: string, academyId?: string): Promise<Quiz> {
     const quiz = this.quizRepo.create({
       ...dto,
       created_by: userId,
+      academy: { id: academyId },
+
     });
     return this.quizRepo.save(quiz);
   }
@@ -49,23 +57,38 @@ export class QuizService {
   async findAll(
     query: PaginateQuery,
     userId: string,
+    role: string,
+    academyId: string
   ): Promise<Paginated<Quiz>> {
     const qb = this.quizRepo
       .createQueryBuilder('quiz')
       .loadRelationCountAndMap('quiz.questionCount', 'quiz.quizQuestions')
       .where('quiz.deleted_at IS NULL')
-      .andWhere('quiz.created_by = :userId', { userId });
+
+    // 🔑 Role-based restrictions
+    if (role === UserRole.ADMIN) {
+      // no extra filter → see all courses
+    } else if (role === UserRole.ACADEMY_ADMIN) {
+      qb.andWhere('quiz.academy_id = :academyId', { academyId });
+    } else {
+      // INSTRUCTOR, ACADEMY_USER, etc.
+      qb.andWhere('quiz.created_by = :userId', { userId });
+    }
 
     return paginate(query, qb, QUIZ_PAGINATION_CONFIG);
   }
 
-  async findOne(id: string): Promise<Quiz> {
+  async findOne(id: string, userId: string,
+    role: string,
+    academyId: string): Promise<Quiz> {
     const quiz = await this.quizRepo.findOne({
       where: { id, deleted_at: null },
       relations: ['quizQuestions', 'quizQuestions.question'],
     });
 
     if (!quiz) throw new NotFoundException('Quiz not found');
+
+    this.checkOwnership(quiz, userId, academyId, role);
 
     // Map questions
     let questions = quiz.quizQuestions.map((qq) => qq.question);
@@ -89,8 +112,10 @@ export class QuizService {
     return quiz;
   }
 
-  async update(id: string, dto: UpdateQuizDto): Promise<Quiz> {
-    const quiz = await this.findOne(id);
+  async update(id: string, dto: UpdateQuizDto, userId: string,
+    role: string,
+    academyId: string): Promise<Quiz> {
+    const quiz = await this.findOne(id, userId, role, academyId);
     Object.assign(quiz, dto);
     return this.quizRepo.save(quiz);
   }
@@ -201,5 +226,57 @@ export class QuizService {
       [array[i], array[j]] = [array[j], array[i]];
     }
     return array;
+  }
+
+  async createQuizWithQuestions(
+    dto: CreateQuizWithQuestionsDto,
+    userId: string,
+    academyId?: string,
+  ): Promise<Quiz> {
+    return this.quizRepo.manager.transaction(async (manager) => {
+      // 1. Create quiz
+      const quiz = manager.create(Quiz, {
+        ...dto.quiz,
+        created_by: userId,
+        academy: { id: academyId },
+      });
+      await manager.save(quiz);
+
+      // 2. Create all questions in one go
+      const questions = dto.questions.map((q) =>
+        manager.create(Question, q),
+      );
+      await manager.save(questions);
+
+      // 3. Create all quizQuestions in one go
+      const quizQuestions = questions.map((question, i) =>
+        manager.create(QuizQuestion, {
+          quiz,
+          question,
+          order: dto.questions[i].order ?? i + 1,
+        }),
+      );
+      await manager.save(quizQuestions);
+
+      // 4. Optionally reload with relations (1 extra query)
+      return manager.findOne(Quiz, {
+        where: { id: quiz.id },
+        relations: ['quizQuestions', 'quizQuestions.question'],
+      });
+    });
+  }
+
+  private checkOwnership(quiz: Quiz, userId: string, academyId: string, role: string) {
+    if (role === UserRole.ADMIN) return; // full access
+    if (role === UserRole.ACADEMY_ADMIN) {
+      if (quiz.academy?.id !== academyId) {
+        throw new ForbiddenException('You cannot access courses outside your academy');
+      }
+    } else {
+      // instructor / academy_user
+      if (quiz.created_by !== userId) {
+        throw new ForbiddenException('You are not allowed to access this course');
+      }
+    }
   }
 }

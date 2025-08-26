@@ -19,7 +19,7 @@ import { AssignmentSubmission } from './entities/assignment-submission.entity';
 @Controller('courses/:courseId/assignments')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 export class CourseAssignmentController {
-  constructor(private readonly assignmentService: AssignmentService) {}
+  constructor(private readonly assignmentService: AssignmentService) { }
 
   @Get()
   @Roles(UserRole.INSTRUCTOR)
@@ -61,7 +61,6 @@ export class CourseAssignmentController {
   ): Promise<AssignmentSubmission> {
     const teacherId = req.user.sub;
     return this.assignmentService.updateSubmissionScore(
-      courseId,
       assignmentId,
       submissionId,
       teacherId,

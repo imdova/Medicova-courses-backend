@@ -31,7 +31,7 @@ import { CreateUserDto } from 'src/user/dto/create-user.dto';
 @Controller('academies')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 export class AcademyController {
-  constructor(private readonly academyService: AcademyService) {}
+  constructor(private readonly academyService: AcademyService) { }
 
   @Post()
   @Roles(UserRole.ADMIN)
@@ -58,7 +58,7 @@ export class AcademyController {
   }
 
   @Get(':id')
-  @Roles(UserRole.ADMIN, UserRole.ACCOUNT_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.ACADEMY_ADMIN)
   @ApiOperation({ summary: 'Get an academy by ID' })
   @ApiParam({ name: 'id', type: String, description: 'ID of the academy' })
   @ApiResponse({
@@ -70,7 +70,7 @@ export class AcademyController {
     description: 'Academy not found',
   })
   findOne(@Param('id') id: string, @Req() req) {
-    if (req.user.role === UserRole.ACCOUNT_ADMIN) {
+    if (req.user.role === UserRole.ACADEMY_ADMIN) {
       if (req.user.academyId !== id) {
         throw new ForbiddenException(
           'You are not allowed to access this academy',
@@ -81,7 +81,7 @@ export class AcademyController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN, UserRole.ACCOUNT_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.ACADEMY_ADMIN)
   @ApiOperation({ summary: 'Update an academy by ID' })
   @ApiParam({ name: 'id', type: String, description: 'ID of the academy' })
   @ApiBody({ description: 'Academy update data', type: UpdateAcademyDto })
@@ -94,7 +94,7 @@ export class AcademyController {
     @Body() updateAcademyDto: UpdateAcademyDto,
     @Req() req,
   ) {
-    if (req.user.role === UserRole.ACCOUNT_ADMIN) {
+    if (req.user.role === UserRole.ACADEMY_ADMIN) {
       if (req.user.academyId !== id) {
         throw new ForbiddenException(
           'You are not allowed to edit this academy',
@@ -105,7 +105,7 @@ export class AcademyController {
   }
 
   @Delete(':id')
-  @Roles(UserRole.ADMIN, UserRole.ACCOUNT_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.ACADEMY_ADMIN)
   @ApiOperation({ summary: 'Delete an academy by ID' })
   @ApiParam({ name: 'id', type: String, description: 'ID of the academy' })
   @ApiResponse({
@@ -113,7 +113,7 @@ export class AcademyController {
     description: 'Academy deleted successfully',
   })
   remove(@Param('id') id: string, @Req() req) {
-    if (req.user.role === UserRole.ACCOUNT_ADMIN) {
+    if (req.user.role === UserRole.ACADEMY_ADMIN) {
       if (req.user.academyId !== id) {
         throw new ForbiddenException(
           'You are not allowed to delete this academy',
@@ -125,7 +125,7 @@ export class AcademyController {
 
   // ---------- New endpoint to add a user under this academy ----------
   @Post(':id/users')
-  @Roles(UserRole.ADMIN, UserRole.ACCOUNT_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.ACADEMY_ADMIN)
   @ApiOperation({ summary: 'Add a new user under a specific academy' })
   @ApiParam({ name: 'id', type: String, description: 'ID of the academy' })
   @ApiBody({ description: 'User details', type: CreateUserDto })
@@ -138,7 +138,7 @@ export class AcademyController {
     @Body() createUserDto: CreateUserDto,
     @Req() req,
   ) {
-    if (req.user.role === UserRole.ACCOUNT_ADMIN) {
+    if (req.user.role === UserRole.ACADEMY_ADMIN) {
       if (req.user.academyId !== academyId) {
         throw new ForbiddenException(
           'You are not allowed to add users to this academy',
@@ -150,7 +150,7 @@ export class AcademyController {
 
   // ---------- New endpoint to get all users under an academy ----------
   @Get(':id/users')
-  @Roles(UserRole.ADMIN, UserRole.ACCOUNT_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.ACADEMY_ADMIN)
   @ApiOperation({ summary: 'Get all users under a specific academy' })
   @ApiParam({ name: 'id', type: String, description: 'ID of the academy' })
   @ApiResponse({
@@ -158,7 +158,7 @@ export class AcademyController {
     description: 'List of users under the academy',
   })
   async getUsersInAcademy(@Param('id') academyId: string, @Req() req) {
-    if (req.user.role === UserRole.ACCOUNT_ADMIN) {
+    if (req.user.role === UserRole.ACADEMY_ADMIN) {
       if (req.user.academyId !== academyId) {
         throw new ForbiddenException(
           'You are not allowed to access users of this academy',

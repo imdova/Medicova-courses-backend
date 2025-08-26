@@ -29,9 +29,9 @@ import { AuthGuard } from '@nestjs/passport';
 @ApiTags('Courses')
 @Controller('courses')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(UserRole.INSTRUCTOR, UserRole.ADMIN)
+@Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_ADMIN, UserRole.ACADEMY_USER)
 export class CourseController {
-  constructor(private readonly courseService: CourseService) {}
+  constructor(private readonly courseService: CourseService) { }
 
   @Post()
   @ApiOperation({ summary: 'Create a new course' })
@@ -43,7 +43,8 @@ export class CourseController {
   })
   create(@Body() createCourseDto: CreateCourseDto, @Req() req) {
     const userId = req.user.sub; // Get user ID from the request
-    return this.courseService.create(createCourseDto, userId);
+    const academyId = req.user.academyId;
+    return this.courseService.create(createCourseDto, userId, academyId);
   }
 
   @Get()
@@ -59,7 +60,10 @@ export class CourseController {
     @Paginate() query: PaginateQuery,
     @Req() req,
   ): Promise<Paginated<Course>> {
-    return this.courseService.getPaginatedCourses(query, req.user.sub);
+    const userId = req.user.sub;
+    const academyId = req.user.academyId;
+    const role = req.user.role;
+    return this.courseService.getPaginatedCourses(query, userId, academyId, role);
   }
 
   @Get('tags')
@@ -82,8 +86,8 @@ export class CourseController {
     type: CreateCourseDto,
   })
   @ApiResponse({ status: 404, description: 'Course not found' })
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.courseService.findOne(id);
+  findOne(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
+    return this.courseService.findOne(id, req.user.sub, req.user.academyId, req.user.role);
   }
 
   @Get(':courseId/students/progress')
@@ -111,8 +115,9 @@ export class CourseController {
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateData: Partial<CreateCourseDto>,
+    @Req() req
   ) {
-    return this.courseService.update(id, updateData);
+    return this.courseService.update(id, updateData, req.user.sub, req.user.academyId, req.user.role);
   }
 
   @Delete(':id')
@@ -120,7 +125,7 @@ export class CourseController {
   @ApiParam({ name: 'id', description: 'UUID of the course' })
   @ApiResponse({ status: 204, description: 'Course soft deleted successfully' })
   @ApiResponse({ status: 404, description: 'Course not found' })
-  async softDelete(@Param('id', ParseUUIDPipe) id: string) {
-    await this.courseService.softDelete(id);
+  async softDelete(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
+    await this.courseService.softDelete(id, req.user.sub, req.user.academyId, req.user.role);
   }
 }
