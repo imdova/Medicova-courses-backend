@@ -20,6 +20,8 @@ import { Question } from './entities/question.entity';
 import { SubmitQuizDto } from './dto/submit-quiz.dto';
 import { QuizAttempt } from './entities/quiz-attempts.entity';
 import { UserRole } from 'src/user/entities/user.entity';
+import { CreateQuizWithQuestionsDto } from './dto/create-quiz-with-questions.dto';
+import { QuizQuestion } from './entities/quiz-question.entity';
 
 export const QUIZ_PAGINATION_CONFIG: QueryConfig<Quiz> = {
   sortableColumns: ['created_at', 'title'],
@@ -222,6 +224,44 @@ export class QuizService {
       [array[i], array[j]] = [array[j], array[i]];
     }
     return array;
+  }
+
+  async createQuizWithQuestions(
+    dto: CreateQuizWithQuestionsDto,
+    userId: string,
+    academyId?: string,
+  ): Promise<Quiz> {
+    return this.quizRepo.manager.transaction(async (manager) => {
+      // 1. Create quiz
+      const quiz = manager.create(Quiz, {
+        ...dto.quiz,
+        created_by: userId,
+        academy: { id: academyId },
+      });
+      await manager.save(quiz);
+
+      // 2. Create all questions in one go
+      const questions = dto.questions.map((q) =>
+        manager.create(Question, q),
+      );
+      await manager.save(questions);
+
+      // 3. Create all quizQuestions in one go
+      const quizQuestions = questions.map((question, i) =>
+        manager.create(QuizQuestion, {
+          quiz,
+          question,
+          order: dto.questions[i].order ?? i + 1,
+        }),
+      );
+      await manager.save(quizQuestions);
+
+      // 4. Optionally reload with relations (1 extra query)
+      return manager.findOne(Quiz, {
+        where: { id: quiz.id },
+        relations: ['quizQuestions', 'quizQuestions.question'],
+      });
+    });
   }
 
   private checkOwnership(quiz: Quiz, userId: string, academyId: string, role: string) {

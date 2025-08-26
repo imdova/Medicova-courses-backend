@@ -21,6 +21,7 @@ import { Quiz } from './entities/quiz.entity';
 import { AuthGuard } from '@nestjs/passport';
 import { QuizAttempt } from './entities/quiz-attempts.entity';
 import { SubmitQuizDto } from './dto/submit-quiz.dto';
+import { CreateQuizWithQuestionsDto } from './dto/create-quiz-with-questions.dto';
 
 @ApiTags('Quizzes')
 @Controller('quizzes')
@@ -35,6 +36,17 @@ export class QuizController {
   create(@Body() dto: CreateQuizDto, @Req() req) {
     return this.quizService.create(dto, req.user.sub, req.user.academyId);
   }
+
+  @Post('with-questions')
+  @ApiOperation({ summary: 'Create a new quiz with questions' })
+  @ApiResponse({ status: 201, description: 'Quiz with questions created successfully' })
+  createWithQuestions(
+    @Body() dto: CreateQuizWithQuestionsDto,
+    @Req() req,
+  ) {
+    return this.quizService.createQuizWithQuestions(dto, req.user.sub, req.user.academyId);
+  }
+
 
   @Roles(UserRole.STUDENT)
   @Post(':quizId/attempts')
