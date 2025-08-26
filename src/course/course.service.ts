@@ -46,6 +46,8 @@ export class CourseService {
     private categoryRepository: Repository<Category>,
   ) { }
 
+  // All methods are checked for performance
+
   async create(
     createCourseDto: CreateCourseDto,
     userId: string,
