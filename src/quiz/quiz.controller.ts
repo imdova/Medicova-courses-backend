@@ -21,20 +21,32 @@ import { Quiz } from './entities/quiz.entity';
 import { AuthGuard } from '@nestjs/passport';
 import { QuizAttempt } from './entities/quiz-attempts.entity';
 import { SubmitQuizDto } from './dto/submit-quiz.dto';
+import { CreateQuizWithQuestionsDto } from './dto/create-quiz-with-questions.dto';
 
 @ApiTags('Quizzes')
 @Controller('quizzes')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(UserRole.INSTRUCTOR)
+@Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_ADMIN, UserRole.ACADEMY_USER)
 export class QuizController {
-  constructor(private readonly quizService: QuizService) {}
+  constructor(private readonly quizService: QuizService) { }
 
   @Post()
   @ApiOperation({ summary: 'Create a new quiz' })
   @ApiResponse({ status: 201, description: 'Quiz successfully created' })
   create(@Body() dto: CreateQuizDto, @Req() req) {
-    return this.quizService.create(dto, req.user.sub);
+    return this.quizService.create(dto, req.user.sub, req.user.academyId);
   }
+
+  @Post('with-questions')
+  @ApiOperation({ summary: 'Create a new quiz with questions' })
+  @ApiResponse({ status: 201, description: 'Quiz with questions created successfully' })
+  createWithQuestions(
+    @Body() dto: CreateQuizWithQuestionsDto,
+    @Req() req,
+  ) {
+    return this.quizService.createQuizWithQuestions(dto, req.user.sub, req.user.academyId);
+  }
+
 
   @Roles(UserRole.STUDENT)
   @Post(':quizId/attempts')
@@ -83,24 +95,24 @@ export class QuizController {
     @Paginate() query: PaginateQuery,
     @Req() req,
   ): Promise<Paginated<Quiz>> {
-    return this.quizService.findAll(query, req.user.sub);
+    return this.quizService.findAll(query, req.user.sub, req.user.role, req.user.academyId);
   }
 
   @Get(':id')
-  @Roles(UserRole.STUDENT, UserRole.INSTRUCTOR)
+  @Roles(UserRole.STUDENT, UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_ADMIN, UserRole.ACADEMY_USER)
   @ApiOperation({ summary: 'Get quiz by ID (instructor or student)' })
   @ApiResponse({ status: 200, description: 'Quiz found' })
   @ApiResponse({ status: 404, description: 'Quiz not found' })
-  findOne(@Param('id') id: string) {
-    return this.quizService.findOne(id);
+  findOne(@Param('id') id: string, @Req() req) {
+    return this.quizService.findOne(id, req.user.sub, req.user.role, req.user.academyId);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update quiz by ID' })
   @ApiResponse({ status: 200, description: 'Quiz updated successfully' })
   @ApiResponse({ status: 404, description: 'Quiz not found' })
-  update(@Param('id') id: string, @Body() dto: UpdateQuizDto) {
-    return this.quizService.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateQuizDto, @Req() req) {
+    return this.quizService.update(id, dto, req.user.sub, req.user.role, req.user.academyId);
   }
 
   @Delete(':id')

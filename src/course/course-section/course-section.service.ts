@@ -16,7 +16,7 @@ export class CourseSectionService {
     private readonly sectionRepository: Repository<CourseSection>,
     @InjectDataSource()
     private readonly dataSource: DataSource,
-  ) {}
+  ) { }
 
   async createSection(
     courseId: string,
@@ -33,55 +33,51 @@ export class CourseSectionService {
     return this.sectionRepository.save(section);
   }
 
+  // Refactored
   async createMultipleSectionsWithItems(
     courseId: string,
     sectionsDto: CreateSectionWithItemsDto[],
   ): Promise<CourseSection[]> {
     return this.dataSource.transaction(async (manager) => {
-      const savedSections: CourseSection[] = [];
+      const allSections: CourseSection[] = [];
       const allItems: CourseSectionItem[] = [];
       const allLectures: Lecture[] = [];
       const quizzesToUpdate: Quiz[] = [];
+      const quizIds: string[] = [];
 
-      // 1. Create sections
-      for (const sectionDto of sectionsDto) {
-        const section = manager.create(CourseSection, {
-          ...sectionDto.section,
+      // 1. Save all sections first (so they have IDs)
+      const sectionEntities = sectionsDto.map((dto) =>
+        manager.create(CourseSection, {
+          ...dto.section,
           course: { id: courseId } as any,
-        });
-        const savedSection = await manager.save(section);
-        savedSections.push(savedSection);
+        }),
+      );
+      const savedSections = await manager.save(sectionEntities);
 
-        // 2. Prepare items for this section
+      // Build quick lookup map by index
+      const sectionMap = new Map<number, CourseSection>();
+      savedSections.forEach((s, i) => sectionMap.set(i, s));
+
+      // 2. Prepare items now that we have section IDs
+      for (const [i, sectionDto] of sectionsDto.entries()) {
+        const savedSection = sectionMap.get(i)!;
+
         for (const itemDto of sectionDto.items ?? []) {
           const item = manager.create(CourseSectionItem, {
             curriculumType: itemDto.curriculumType,
             order: itemDto.order,
-            section: savedSection,
+            section: { id: savedSection.id } as any, // ✅ only attach ID
           });
 
           if (itemDto.curriculumType === 'lecture' && itemDto.lecture) {
             const lecture = manager.create(Lecture, itemDto.lecture);
             allLectures.push(lecture);
-            // Temporarily store relation, will attach after lecture save
             (item as any).__lectureDto = lecture;
           }
 
           if (itemDto.curriculumType === 'quiz' && itemDto.quizId) {
-            // fetch quiz and update standalone flag
-            const quiz = await manager.findOne(Quiz, {
-              where: { id: itemDto.quizId },
-            });
-            if (!quiz) {
-              throw new NotFoundException(
-                `Quiz with ID ${itemDto.quizId} not found`,
-              );
-            }
-            if (quiz.standalone) {
-              quiz.standalone = false;
-              quizzesToUpdate.push(quiz);
-            }
-            item.quiz = quiz;
+            quizIds.push(itemDto.quizId);
+            (item as any).__quizId = itemDto.quizId;
           }
 
           if (itemDto.curriculumType === 'assignment' && itemDto.assignmentId) {
@@ -95,8 +91,6 @@ export class CourseSectionService {
       // 3. Save lectures in batch
       if (allLectures.length) {
         const savedLectures = await manager.save(allLectures);
-
-        // Attach saved lecture entities back to items
         let lectureIndex = 0;
         for (const item of allItems) {
           if ((item as any).__lectureDto) {
@@ -107,24 +101,46 @@ export class CourseSectionService {
         }
       }
 
-      // 4. Save items in batch
+      // 4. Fetch quizzes in one go
+      if (quizIds.length) {
+        const quizzes = await manager.find(Quiz, {
+          where: { id: In(quizIds) },
+        });
+        const quizMap = new Map(quizzes.map((q) => [q.id, q]));
+
+        for (const item of allItems) {
+          if ((item as any).__quizId) {
+            const quiz = quizMap.get((item as any).__quizId);
+            if (!quiz) {
+              throw new NotFoundException(
+                `Quiz with ID ${(item as any).__quizId} not found`,
+              );
+            }
+            if (quiz.standalone) {
+              quiz.standalone = false;
+              quizzesToUpdate.push(quiz);
+            }
+            item.quiz = quiz;
+            delete (item as any).__quizId;
+          }
+        }
+      }
+
+      // 5. Save items in batch
       if (allItems.length) {
         await manager.save(allItems);
       }
 
-      // 5. Update quizzes (mark them as non-standalone)
+      // 6. Update quizzes (set standalone = false)
       if (quizzesToUpdate.length) {
         await manager.save(quizzesToUpdate);
       }
 
-      // 6. Fetch all sections with relations in one query
+      // 7. Return sections with relations
       return manager.find(CourseSection, {
         where: { id: In(savedSections.map((s) => s.id)) },
         relations: ['items', 'items.lecture', 'items.quiz', 'items.assignment'],
-        order: {
-          order: 'ASC',
-          items: { order: 'ASC' },
-        },
+        order: { order: 'ASC', items: { order: 'ASC' } },
       });
     });
   }

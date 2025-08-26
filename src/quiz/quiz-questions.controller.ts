@@ -20,9 +20,9 @@ import { AuthGuard } from '@nestjs/passport';
 @ApiTags('Quiz Questions')
 @Controller('quizzes/:quizId/questions')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(UserRole.INSTRUCTOR)
+@Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_ADMIN, UserRole.ACADEMY_USER)
 export class QuizQuestionsController {
-  constructor(private readonly quizQuestionsService: QuizQuestionsService) {}
+  constructor(private readonly quizQuestionsService: QuizQuestionsService) { }
 
   @Post()
   @ApiOperation({ summary: 'Create a question and attach it to a quiz' })

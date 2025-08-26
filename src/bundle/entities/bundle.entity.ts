@@ -1,7 +1,8 @@
-import { Entity, Column, OneToMany } from 'typeorm';
+import { Entity, Column, OneToMany, JoinColumn, ManyToOne } from 'typeorm';
 import { CourseBundle } from './course-bundle.entity';
 import { BundlePricing } from './bundle-pricing.entity';
 import { BasicEntity } from '../../common/entities/basic.entity';
+import { Academy } from 'src/academy/entities/academy.entity';
 
 export enum BundleStatus {
   DRAFT = 'draft',
@@ -37,4 +38,8 @@ export class Bundle extends BasicEntity {
 
   @OneToMany(() => BundlePricing, (bundlePricing) => bundlePricing.bundle)
   pricings: BundlePricing[];
+
+  @ManyToOne(() => Academy, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'academy_id' })
+  academy: Academy;
 }
