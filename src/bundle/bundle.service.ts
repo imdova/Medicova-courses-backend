@@ -44,6 +44,8 @@ export class BundleService {
     private readonly courseRepository: Repository<Course>,
   ) { }
 
+  // All methods are checked for performance
+
   async createBundle(dto: CreateBundleDto, userId: string, academyId?: string): Promise<Bundle> {
     // 1️⃣ Validate all courses exist
     const courses = await this.courseRepository.find({
@@ -154,18 +156,28 @@ export class BundleService {
 
     if (dto.pricings) {
       const dtoCurrencies = dto.pricings.map((p) => p.currency_code);
-      for (const pricingDto of dto.pricings) {
-        const existing = bundle.pricings.find((p) => p.currency_code === pricingDto.currency_code);
+
+      // Map updated + new pricings
+      const updatedPricings = dto.pricings.map((pricingDto) => {
+        const existing = bundle.pricings.find(
+          (p) => p.currency_code === pricingDto.currency_code,
+        );
         if (existing) {
-          Object.assign(existing, pricingDto);
-          await this.pricingRepository.save(existing);
-        } else {
-          const newPricing = this.pricingRepository.create({ ...pricingDto, bundle });
-          await this.pricingRepository.save(newPricing);
+          return this.pricingRepository.merge(existing, pricingDto);
         }
+        return this.pricingRepository.create({ ...pricingDto, bundle });
+      });
+
+      // Bulk save all (insert or update in one go)
+      await this.pricingRepository.save(updatedPricings);
+
+      // Remove stale pricings in bulk
+      const toRemove = bundle.pricings.filter(
+        (p) => !dtoCurrencies.includes(p.currency_code),
+      );
+      if (toRemove.length) {
+        await this.pricingRepository.remove(toRemove);
       }
-      const toRemove = bundle.pricings.filter((p) => !dtoCurrencies.includes(p.currency_code));
-      if (toRemove.length) await this.pricingRepository.remove(toRemove);
     }
 
     return this.findOne(id, userId, academyId, role);
