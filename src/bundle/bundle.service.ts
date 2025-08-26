@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Bundle } from './entities/bundle.entity';
@@ -14,6 +14,7 @@ import {
   Paginated,
   PaginateQuery,
 } from 'nestjs-paginate';
+import { UserRole } from 'src/user/entities/user.entity';
 
 export const BUNDLE_PAGINATION_CONFIG: QueryConfig<Bundle> = {
   sortableColumns: ['created_at', 'title', 'status'],
@@ -41,9 +42,9 @@ export class BundleService {
 
     @InjectRepository(Course)
     private readonly courseRepository: Repository<Course>,
-  ) {}
+  ) { }
 
-  async createBundle(dto: CreateBundleDto, userId: string): Promise<Bundle> {
+  async createBundle(dto: CreateBundleDto, userId: string, academyId?: string): Promise<Bundle> {
     // 1️⃣ Validate all courses exist
     const courses = await this.courseRepository.find({
       where: { id: In(dto.courseIds), deleted_at: null },
@@ -62,6 +63,7 @@ export class BundleService {
       status: dto.status,
       created_by: userId, // Replace with actual user from auth
       active: true,
+      academy: { id: academyId },
     });
 
     const savedBundle = await this.bundleRepository.save(bundle);
@@ -91,36 +93,45 @@ export class BundleService {
     });
   }
 
-  async findAll(
-    query: PaginateQuery,
-    userId: string,
-  ): Promise<Paginated<Bundle>> {
-    const queryBuilder = this.bundleRepository
+  async findAll(query: PaginateQuery, userId: string, academyId?: string, role?: UserRole): Promise<Paginated<Bundle>> {
+    const qb = this.bundleRepository
       .createQueryBuilder('bundle')
       .leftJoinAndSelect('bundle.pricings', 'pricings')
       .leftJoinAndSelect('bundle.courseBundles', 'courseBundles')
       .leftJoinAndSelect('courseBundles.course', 'course')
-      .where('bundle.deleted_at IS NULL')
-      .andWhere('bundle.created_by = :userId', { userId });
+      .where('bundle.deleted_at IS NULL');
 
-    return paginate(query, queryBuilder, BUNDLE_PAGINATION_CONFIG);
+    if (role === UserRole.ADMIN) {
+      // no extra filter
+    } else if (role === UserRole.ACADEMY_ADMIN) {
+      qb.andWhere('bundle.academy_id = :academyId', { academyId });
+    } else {
+      qb.andWhere('bundle.created_by = :userId', { userId });
+    }
+
+    return paginate(query, qb, BUNDLE_PAGINATION_CONFIG);
   }
 
-  async findOne(id: string): Promise<Bundle | null> {
-    return this.bundleRepository.findOne({
-      where: { id, deleted_at: null },
-      relations: ['pricings', 'courseBundles', 'courseBundles.course'],
-    });
-  }
-
-  async updateBundle(id: string, dto: UpdateBundleDto): Promise<Bundle> {
+  async findOne(id: string, userId: string, academyId?: string, role?: UserRole): Promise<Bundle> {
     const bundle = await this.bundleRepository.findOne({
       where: { id, deleted_at: null },
-      relations: ['pricings', 'courseBundles'],
+      relations: ['pricings', 'courseBundles', 'courseBundles.course', 'academy'],
     });
     if (!bundle) throw new NotFoundException('Bundle not found');
 
-    // Update main bundle details
+    this.checkOwnership(bundle, userId, academyId, role);
+    return bundle;
+  }
+
+  async updateBundle(id: string, dto: UpdateBundleDto, userId: string, academyId?: string, role?: UserRole): Promise<Bundle> {
+    const bundle = await this.bundleRepository.findOne({
+      where: { id, deleted_at: null },
+      relations: ['pricings', 'courseBundles', 'academy'],
+    });
+    if (!bundle) throw new NotFoundException('Bundle not found');
+
+    this.checkOwnership(bundle, userId, academyId, role);
+
     Object.assign(bundle, {
       title: dto.title ?? bundle.title,
       description: dto.description ?? bundle.description,
@@ -130,7 +141,6 @@ export class BundleService {
     });
     await this.bundleRepository.save(bundle);
 
-    // Update courses if provided
     if (dto.courseIds) {
       await this.courseBundleRepository.delete({ bundle: { id } });
       const courses = await this.courseRepository.find({
@@ -142,48 +152,62 @@ export class BundleService {
       await this.courseBundleRepository.save(courseBundles);
     }
 
-    // Update pricings if provided
     if (dto.pricings) {
+      const dtoCurrencies = dto.pricings.map((p) => p.currency_code);
       for (const pricingDto of dto.pricings) {
-        // Check if pricing already exists for this currency
-        const existingPricing = bundle.pricings.find(
-          (p) => p.currency_code === pricingDto.currency_code,
-        );
-
-        if (existingPricing) {
-          // Update existing
-          Object.assign(existingPricing, pricingDto);
-          await this.pricingRepository.save(existingPricing);
+        const existing = bundle.pricings.find((p) => p.currency_code === pricingDto.currency_code);
+        if (existing) {
+          Object.assign(existing, pricingDto);
+          await this.pricingRepository.save(existing);
         } else {
-          // Create new
-          const newPricing = this.pricingRepository.create({
-            ...pricingDto,
-            bundle,
-          });
+          const newPricing = this.pricingRepository.create({ ...pricingDto, bundle });
           await this.pricingRepository.save(newPricing);
         }
       }
-
-      // Optional: remove pricings for currencies not in dto.pricings
-      const dtoCurrencies = dto.pricings.map((p) => p.currency_code);
-      const pricingsToRemove = bundle.pricings.filter(
-        (p) => !dtoCurrencies.includes(p.currency_code),
-      );
-      if (pricingsToRemove.length > 0) {
-        await this.pricingRepository.remove(pricingsToRemove);
-      }
+      const toRemove = bundle.pricings.filter((p) => !dtoCurrencies.includes(p.currency_code));
+      if (toRemove.length) await this.pricingRepository.remove(toRemove);
     }
 
-    return this.findOne(id);
+    return this.findOne(id, userId, academyId, role);
   }
 
-  async remove(id: string): Promise<{ message: string }> {
+  async remove(id: string, userId: string, academyId?: string, role?: UserRole): Promise<{ message: string }> {
     const bundle = await this.bundleRepository.findOne({
       where: { id, deleted_at: null },
+      relations: ['academy'],
     });
     if (!bundle) throw new NotFoundException('Bundle not found');
 
+    this.checkOwnership(bundle, userId, academyId, role);
     await this.bundleRepository.softDelete(id);
+
     return { message: 'Bundle deleted successfully' };
+  }
+
+  private checkOwnership(
+    bundle: Bundle,
+    userId: string,
+    academyId?: string,
+    role?: UserRole,
+  ) {
+    if (role === UserRole.ADMIN) {
+      // Super Admin → unrestricted
+      return;
+    }
+
+    if (role === UserRole.ACADEMY_ADMIN) {
+      // Academy admin → must match academy
+      if (bundle.academy?.id !== academyId) {
+        throw new ForbiddenException(
+          'You cannot access bundles outside your academy',
+        );
+      }
+      return;
+    }
+
+    // Everyone else (instructors, content creators, etc.) → must be creator
+    if (bundle.created_by !== userId) {
+      throw new ForbiddenException('You cannot access this bundle');
+    }
   }
 }

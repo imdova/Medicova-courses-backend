@@ -29,9 +29,9 @@ import { AuthGuard } from '@nestjs/passport';
 @ApiTags('Courses')
 @Controller('courses')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(UserRole.INSTRUCTOR, UserRole.ADMIN)
+@Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_ADMIN, UserRole.ACADEMY_USER)
 export class CourseController {
-  constructor(private readonly courseService: CourseService) {}
+  constructor(private readonly courseService: CourseService) { }
 
   @Post()
   @ApiOperation({ summary: 'Create a new course' })
@@ -43,7 +43,8 @@ export class CourseController {
   })
   create(@Body() createCourseDto: CreateCourseDto, @Req() req) {
     const userId = req.user.sub; // Get user ID from the request
-    return this.courseService.create(createCourseDto, userId);
+    const academyId = req.user.academyId;
+    return this.courseService.create(createCourseDto, userId, academyId);
   }
 
   @Get()

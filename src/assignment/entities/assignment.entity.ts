@@ -1,7 +1,6 @@
 import { Entity, Column, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
 import { BasicEntity } from '../../common/entities/basic.entity';
 import { ApiProperty } from '@nestjs/swagger';
-import { User } from 'src/user/entities/user.entity';
 import { AssignmentSubmission } from './assignment-submission.entity';
 import { Academy } from 'src/academy/entities/academy.entity';
 

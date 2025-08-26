@@ -43,11 +43,12 @@ export class CourseService {
     private courseSectionItemRepo: Repository<CourseSectionItem>,
     @InjectRepository(Category)
     private categoryRepository: Repository<Category>,
-  ) {}
+  ) { }
 
   async create(
     createCourseDto: CreateCourseDto,
     userId: string,
+    academyId: string,
   ): Promise<Course> {
     const {
       tags,
@@ -89,6 +90,7 @@ export class CourseService {
       subCategory: subcategory,
       tags,
       pricings,
+      academy: { id: academyId },
     });
 
     return this.courseRepository.save(course);

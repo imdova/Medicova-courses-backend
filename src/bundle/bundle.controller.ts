@@ -31,9 +31,9 @@ import { AuthGuard } from '@nestjs/passport';
 @ApiTags('Bundles')
 @Controller('bundles')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(UserRole.INSTRUCTOR)
+@Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_USER, UserRole.ACADEMY_ADMIN)
 export class BundleController {
-  constructor(private readonly bundleService: BundleService) {}
+  constructor(private readonly bundleService: BundleService) { }
 
   @Post()
   @ApiOperation({ summary: 'Create a new bundle with courses and pricing' })
@@ -44,7 +44,7 @@ export class BundleController {
     type: Bundle,
   })
   async createBundle(@Body() dto: CreateBundleDto, @Req() req) {
-    return this.bundleService.createBundle(dto, req.user.sub);
+    return this.bundleService.createBundle(dto, req.user.sub, req.user.academyId);
   }
 
   @Get()
@@ -54,15 +54,15 @@ export class BundleController {
     @Paginate() query: PaginateQuery,
     @Req() req,
   ): Promise<Paginated<Bundle>> {
-    return this.bundleService.findAll(query, req.user.sub);
+    return this.bundleService.findAll(query, req.user.sub, req.user.academyId, req.user.role);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get a single bundle by ID' })
   @ApiParam({ name: 'id', description: 'UUID of the bundle' })
   @ApiResponse({ status: 200, description: 'Bundle details', type: Bundle })
-  async findOne(@Param('id', ParseUUIDPipe) id: string) {
-    const bundle = await this.bundleService.findOne(id);
+  async findOne(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
+    const bundle = await this.bundleService.findOne(id, req.user.sub, req.user.academyId, req.user.role);
     if (!bundle) throw new NotFoundException('Bundle not found');
     return bundle;
   }
@@ -74,14 +74,15 @@ export class BundleController {
   async updateBundle(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateBundleDto,
+    @Req() req
   ) {
-    return this.bundleService.updateBundle(id, dto);
+    return this.bundleService.updateBundle(id, dto, req.user.sub, req.user.academyId, req.user.role);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Soft delete a bundle and its relations' })
   @ApiParam({ name: 'id', description: 'UUID of the bundle' })
-  async remove(@Param('id', ParseUUIDPipe) id: string) {
-    return this.bundleService.remove(id);
+  async remove(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
+    return this.bundleService.remove(id, req.user.sub, req.user.academyId, req.user.role);
   }
 }

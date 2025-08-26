@@ -53,7 +53,7 @@ export class AssignmentController {
   })
   @ApiResponse({ status: HttpStatus.OK, description: 'List of assignments' })
   findAll(@Req() req) {
-    return this.assignmentService.findAllForUser(req.user.sub, req.user.role);
+    return this.assignmentService.findAllForUser(req.user.sub, req.user.role, req.user.academyId);
   }
 
   @Get(':id')
@@ -70,6 +70,7 @@ export class AssignmentController {
       id,
       req.user.sub,
       req.user.role,
+      req.user.academyId
     );
   }
 
@@ -93,6 +94,7 @@ export class AssignmentController {
       dto,
       req.user.sub,
       req.user.role,
+      req.user.academyId
     );
   }
 
@@ -110,6 +112,7 @@ export class AssignmentController {
       id,
       req.user.sub,
       req.user.role,
+      req.user.academyId
     );
   }
 }
