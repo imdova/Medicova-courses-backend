@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Course } from './entities/course.entity';
@@ -16,6 +16,7 @@ import { CourseSectionItem } from './course-section/entities/course-section-item
 import { CourseProgress } from './course-progress/entities/course-progress.entity';
 import { CourseStudent } from './entities/course-student.entity';
 import { Category } from 'src/category/entities/category.entity';
+import { UserRole } from 'src/user/entities/user.entity';
 
 export const COURSE_PAGINATION_CONFIG: QueryConfig<Course> = {
   sortableColumns: ['created_at', 'name', 'category', 'status'],
@@ -99,31 +100,48 @@ export class CourseService {
   async getPaginatedCourses(
     query: PaginateQuery,
     userId: string,
+    academyId: string,
+    role: string,
   ): Promise<Paginated<Course>> {
-    const queryBuilder = this.courseRepository.createQueryBuilder('course');
-    queryBuilder
+    const qb = this.courseRepository.createQueryBuilder('course');
+    qb
       .leftJoinAndSelect('course.category', 'category')
       .leftJoinAndSelect('course.subCategory', 'subCategory')
       .andWhere('course.deleted_at IS NULL') // filter out soft-deleted
-      .andWhere('course.created_by = :userId', { userId }); // filter by creator
 
-    return paginate(query, queryBuilder, COURSE_PAGINATION_CONFIG);
+    // 🔑 Role-based restrictions
+    if (role === UserRole.ADMIN) {
+      // no extra filter → see all courses
+    } else if (role === UserRole.ACADEMY_ADMIN) {
+      qb.andWhere('course.academy_id = :academyId', { academyId });
+    } else {
+      // INSTRUCTOR, ACADEMY_USER, etc.
+      qb.andWhere('course.created_by = :userId', { userId });
+    }
+
+    return paginate(query, qb, COURSE_PAGINATION_CONFIG);
   }
 
-  async findOne(id: string): Promise<Course> {
+  async findOne(id: string, userId: string, academyId: string, role: string): Promise<Course> {
     const course = await this.courseRepository.findOne({
       where: { id, deleted_at: null },
-      relations: ['pricings', 'category', 'subCategory'],
+      relations: ['pricings', 'category', 'subCategory', 'academy'],
     });
     if (!course) throw new NotFoundException('Course not found');
+
+    this.checkOwnership(course, userId, academyId, role);
+
     return course;
   }
 
   async update(
     id: string,
     updateData: Partial<CreateCourseDto>,
+    userId: string,
+    academyId: string,
+    role: string,
   ): Promise<Course> {
-    const course = await this.findOne(id);
+    const course = await this.findOne(id, userId, academyId, role);
 
     const {
       tags,
@@ -189,8 +207,8 @@ export class CourseService {
     return this.courseRepository.save(course);
   }
 
-  async softDelete(id: string): Promise<void> {
-    const course = await this.findOne(id);
+  async softDelete(id: string, userId: string, academyId: string, role: string): Promise<void> {
+    const course = await this.findOne(id, userId, academyId, role);
     course.deleted_at = new Date();
     course.pricings.forEach((p) => (p.deleted_at = new Date()));
     await this.courseRepository.save(course);
@@ -272,4 +290,19 @@ export class CourseService {
 
     return { category, subcategory };
   }
+
+  private checkOwnership(course: Course, userId: string, academyId: string, role: string) {
+    if (role === UserRole.ADMIN) return; // full access
+    if (role === UserRole.ACADEMY_ADMIN) {
+      if (course.academy?.id !== academyId) {
+        throw new ForbiddenException('You cannot access courses outside your academy');
+      }
+    } else {
+      // instructor / academy_user
+      if (course.createdBy !== userId) {
+        throw new ForbiddenException('You are not allowed to access this course');
+      }
+    }
+  }
+
 }
