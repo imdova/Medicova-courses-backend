@@ -42,6 +42,8 @@ export class QuizService {
     private attemptRepo: Repository<QuizAttempt>,
   ) { }
 
+  // All methods are checked for performance
+
   async create(dto: CreateQuizDto, userId: string, academyId?: string): Promise<Quiz> {
     const quiz = this.quizRepo.create({
       ...dto,
@@ -226,7 +228,6 @@ export class QuizService {
     return array;
   }
 
-  // Refactored
   async createQuizWithQuestions(
     dto: CreateQuizWithQuestionsDto,
     userId: string,
