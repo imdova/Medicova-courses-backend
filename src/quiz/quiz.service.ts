@@ -226,6 +226,7 @@ export class QuizService {
     return array;
   }
 
+  // Refactored
   async createQuizWithQuestions(
     dto: CreateQuizWithQuestionsDto,
     userId: string,

@@ -33,6 +33,7 @@ export class CourseSectionService {
     return this.sectionRepository.save(section);
   }
 
+  // Refactored
   async createMultipleSectionsWithItems(
     courseId: string,
     sectionsDto: CreateSectionWithItemsDto[],
