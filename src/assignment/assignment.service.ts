@@ -27,7 +27,7 @@ export class AssignmentService {
     private courseSectionItemRepo: Repository<CourseSectionItem>,
     @InjectRepository(AssignmentSubmission)
     private submissionRepo: Repository<AssignmentSubmission>,
-  ) {}
+  ) { }
 
   async create(dto: CreateAssignmentDto, creatorId: string) {
     const assignment = this.assignmentRepo.create({
@@ -46,8 +46,8 @@ export class AssignmentService {
       query = this.assignmentRepo
         .createQueryBuilder('assignment')
         .orderBy('assignment.created_at', 'DESC');
-    } else if (role === UserRole.ACCOUNT_ADMIN) {
-      // Account admin → assignments from same academy
+    } else if (role === UserRole.ACADEMY_ADMIN) {
+      // Academy admin → assignments from same academy
       query = this.assignmentRepo
         .createQueryBuilder('assignment')
         .innerJoin(User, 'user', 'user.id = assignment.created_by')
@@ -63,7 +63,7 @@ export class AssignmentService {
         .setParameter('requesterId', requesterId)
         .orderBy('assignment.created_at', 'DESC');
     } else {
-      // Instructor → only their own assignments
+      // Instructor OR Academy content creator → only their own assignments
       query = this.assignmentRepo
         .createQueryBuilder('assignment')
         .where('assignment.created_by = :requesterId', { requesterId })
@@ -82,8 +82,8 @@ export class AssignmentService {
       return this.toResponse(assignment);
     }
 
-    if (role === UserRole.ACCOUNT_ADMIN) {
-      // Account admin → can only access if creator is in same academy
+    if (role === UserRole.ACADEMY_ADMIN) {
+      // Academy admin → can only access if creator is in same academy
       const assignment = await this.assignmentRepo
         .createQueryBuilder('assignment')
         .innerJoin(User, 'creator', 'creator.id = assignment.created_by')
@@ -102,7 +102,7 @@ export class AssignmentService {
       return this.toResponse(assignment);
     }
 
-    // Instructor → only own assignments
+    // Instructor OR Academy content creator → only own assignments
     const assignment = await this.assignmentRepo.findOne({
       where: { id, createdBy: requesterId },
     });
@@ -122,8 +122,8 @@ export class AssignmentService {
     if (role === UserRole.ADMIN) {
       // Admin → any assignment
       assignment = await this.assignmentRepo.findOne({ where: { id } });
-    } else if (role === UserRole.ACCOUNT_ADMIN) {
-      // Account Admin → assignment must belong to same academy
+    } else if (role === UserRole.ACADEMY_ADMIN) {
+      // Academy Admin → assignment must belong to same academy
       assignment = await this.assignmentRepo
         .createQueryBuilder('assignment')
         .innerJoin(User, 'creator', 'creator.id = assignment.created_by')
@@ -134,7 +134,7 @@ export class AssignmentService {
         .andWhere('creator.academyId = requester.academyId')
         .getOne();
     } else {
-      // Instructor → only their own assignment
+      // Instructor OR Academy content creator → only their own assignment
       assignment = await this.assignmentRepo.findOne({
         where: { id, createdBy: requesterId },
       });
@@ -157,8 +157,8 @@ export class AssignmentService {
     if (role === UserRole.ADMIN) {
       // Admin → any assignment
       assignment = await this.assignmentRepo.findOne({ where: { id } });
-    } else if (role === UserRole.ACCOUNT_ADMIN) {
-      // Account Admin → assignment must belong to same academy
+    } else if (role === UserRole.ACADEMY_ADMIN) {
+      // Academy Admin → assignment must belong to same academy
       assignment = await this.assignmentRepo
         .createQueryBuilder('assignment')
         .innerJoin(User, 'creator', 'creator.id = assignment.created_by')
@@ -169,7 +169,7 @@ export class AssignmentService {
         .andWhere('creator.academyId = requester.academyId')
         .getOne();
     } else {
-      // Instructor → only their own assignment
+      // Instructor OR Academy content creator → only their own assignment
       assignment = await this.assignmentRepo.findOne({
         where: { id, createdBy: requesterId },
       });
@@ -221,7 +221,6 @@ export class AssignmentService {
   }
 
   async updateSubmissionScore(
-    courseId: string,
     assignmentId: string,
     submissionId: string,
     teacherId: string,

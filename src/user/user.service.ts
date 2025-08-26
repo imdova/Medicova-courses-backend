@@ -21,7 +21,7 @@ export class UserService {
     private userRepository: Repository<User>,
     private readonly profileService: ProfileService,
     private readonly academyService: AcademyService,
-  ) {}
+  ) { }
 
   async register(createUserDto: CreateUserDto): Promise<User> {
     const { password, firstName, lastName, photoUrl, role, email, ...rest } =
@@ -90,7 +90,7 @@ export class UserService {
       ...userData,
       email: normalizedEmail,
       password: hashedPassword,
-      role: role || UserRole.ACCOUNT_ADMIN,
+      role: role || UserRole.ACADEMY_ADMIN,
       academy: newAcademy, // link user to academy
     });
 

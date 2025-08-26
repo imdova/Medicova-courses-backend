@@ -10,7 +10,9 @@ export enum UserRole {
   STUDENT = 'student',
   INSTRUCTOR = 'instructor',
   ADMIN = 'admin',
-  ACCOUNT_ADMIN = 'account_admin',
+  ACADEMY_ADMIN = 'academy_admin', // Adds users to academy
+  ACADEMY_CONTENT_CREATOR = 'academy_content_creator', // Adds content to academy
+  ACADEMY_INSTRUCTOR = 'academy_instructor', // Teaches in course (no profile)
 }
 
 @Entity()

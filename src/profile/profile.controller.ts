@@ -35,13 +35,13 @@ import { UserService } from 'src/user/user.service';
   UserRole.INSTRUCTOR,
   UserRole.ADMIN,
   UserRole.STUDENT,
-  UserRole.ACCOUNT_ADMIN,
+  UserRole.ACADEMY_ADMIN,
 )
 export class ProfileController {
   constructor(
     private readonly profileService: ProfileService,
     private readonly userService: UserService,
-  ) {}
+  ) { }
 
   @Post()
   @ApiOperation({
@@ -146,7 +146,7 @@ export class ProfileController {
     if (role === UserRole.ADMIN) return true;
 
     // ✅ allow if user is ACCOUNT_ADMIN but only within same academy
-    if (role === UserRole.ACCOUNT_ADMIN) {
+    if (role === UserRole.ACADEMY_ADMIN) {
       const targetUser = await this.userService.findOne(userId);
 
       if (!targetUser) return false;
