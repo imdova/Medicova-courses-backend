@@ -1,7 +1,8 @@
-import { Entity, Column, OneToMany } from 'typeorm';
+import { Entity, Column, OneToMany, ManyToOne, JoinColumn } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 import { BasicEntity } from '../../common/entities/basic.entity';
 import { QuizQuestion } from './quiz-question.entity';
+import { Academy } from 'src/academy/entities/academy.entity';
 
 export enum QuizStatus {
   DRAFT = 'draft',
@@ -106,4 +107,8 @@ export class Quiz extends BasicEntity {
 
   @OneToMany(() => QuizQuestion, (qq) => qq.quiz, { cascade: ['remove'] })
   quizQuestions: QuizQuestion[];
+
+  @ManyToOne(() => Academy, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'academy_id' })
+  academy?: Academy;
 }
