@@ -52,15 +52,6 @@ export class CreateCourseDto {
   tags?: string[];
 
   @ApiPropertyOptional({
-    description:
-      'ID of the user who created the course. If not provided, defaults to the authenticated user.',
-    example: '550e8400-e29b-41d4-a716-446655440000',
-  })
-  @IsOptional()
-  @IsUUID()
-  createdBy?: string;
-
-  @ApiPropertyOptional({
     enum: CourseStatus,
     description: 'Status of the course',
     default: CourseStatus.DRAFT,
@@ -276,4 +267,18 @@ export class CreateCourseDto {
   @ValidateNested({ each: true })
   @Type(() => CreateCoursePricingDto)
   pricings?: CreateCoursePricingDto[];
+
+  @ApiPropertyOptional({
+    description:
+      'List of academy instructor IDs associated with this course (non-user instructors)',
+    type: [String],
+    example: [
+      '550e8400-e29b-41d4-a716-446655440000',
+      '770e8400-e29b-41d4-a716-446655440001',
+    ],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  academyInstructorIds?: string[];
 }

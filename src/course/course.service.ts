@@ -1,4 +1,8 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Course } from './entities/course.entity';
@@ -44,7 +48,7 @@ export class CourseService {
     private courseSectionItemRepo: Repository<CourseSectionItem>,
     @InjectRepository(Category)
     private categoryRepository: Repository<Category>,
-  ) { }
+  ) {}
 
   // All methods are checked for performance
 
@@ -88,7 +92,7 @@ export class CourseService {
     // Step 4: Save the course with tags array
     const course = this.courseRepository.create({
       ...rest,
-      createdBy: createCourseDto.createdBy ?? userId,
+      createdBy: userId,
       category,
       subCategory: subcategory,
       tags,
@@ -106,10 +110,9 @@ export class CourseService {
     role: string,
   ): Promise<Paginated<Course>> {
     const qb = this.courseRepository.createQueryBuilder('course');
-    qb
-      .leftJoinAndSelect('course.category', 'category')
+    qb.leftJoinAndSelect('course.category', 'category')
       .leftJoinAndSelect('course.subCategory', 'subCategory')
-      .andWhere('course.deleted_at IS NULL') // filter out soft-deleted
+      .andWhere('course.deleted_at IS NULL'); // filter out soft-deleted
 
     // 🔑 Role-based restrictions
     if (role === UserRole.ADMIN) {
@@ -124,7 +127,12 @@ export class CourseService {
     return paginate(query, qb, COURSE_PAGINATION_CONFIG);
   }
 
-  async findOne(id: string, userId: string, academyId: string, role: string): Promise<Course> {
+  async findOne(
+    id: string,
+    userId: string,
+    academyId: string,
+    role: string,
+  ): Promise<Course> {
     const course = await this.courseRepository.findOne({
       where: { id, deleted_at: null },
       relations: ['pricings', 'category', 'subCategory', 'academy'],
@@ -209,7 +217,12 @@ export class CourseService {
     return this.courseRepository.save(course);
   }
 
-  async softDelete(id: string, userId: string, academyId: string, role: string): Promise<void> {
+  async softDelete(
+    id: string,
+    userId: string,
+    academyId: string,
+    role: string,
+  ): Promise<void> {
     const course = await this.findOne(id, userId, academyId, role);
     course.deleted_at = new Date();
     course.pricings.forEach((p) => (p.deleted_at = new Date()));
@@ -293,16 +306,25 @@ export class CourseService {
     return { category, subcategory };
   }
 
-  private checkOwnership(course: Course, userId: string, academyId: string, role: string) {
+  private checkOwnership(
+    course: Course,
+    userId: string,
+    academyId: string,
+    role: string,
+  ) {
     if (role === UserRole.ADMIN) return; // full access
     if (role === UserRole.ACADEMY_ADMIN) {
       if (course.academy?.id !== academyId) {
-        throw new ForbiddenException('You cannot access courses outside your academy');
+        throw new ForbiddenException(
+          'You cannot access courses outside your academy',
+        );
       }
     } else {
       // instructor / academy_user
       if (course.createdBy !== userId) {
-        throw new ForbiddenException('You are not allowed to access this course');
+        throw new ForbiddenException(
+          'You are not allowed to access this course',
+        );
       }
     }
   }
