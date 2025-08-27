@@ -229,4 +229,19 @@ export class Course extends BasicEntity {
   @ManyToOne(() => Academy, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'academy_id' })
   academy: Academy;
+
+  @ApiPropertyOptional({
+    description: 'List of academy instructor IDs associated with the course',
+    type: [String],
+    example: [
+      '550e8400-e29b-41d4-a716-446655440000',
+      '770e8400-e29b-41d4-a716-446655440000',
+    ],
+  })
+  @Column('uuid', {
+    array: true,
+    nullable: true,
+    name: 'academy_instructor_ids',
+  })
+  academyInstructorIds?: string[];
 }
