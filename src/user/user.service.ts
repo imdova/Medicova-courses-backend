@@ -16,6 +16,31 @@ import { AcademyService } from 'src/academy/academy.service';
 import { Course } from 'src/course/entities/course.entity';
 import { UpdateSecuritySettingsDto } from './dto/security-settings.dto';
 import { Profile } from 'src/profile/entities/profile.entity';
+import {
+  FilterOperator,
+  paginate,
+  Paginated,
+  PaginateQuery,
+} from 'nestjs-paginate';
+import { QueryConfig } from 'src/common/utils/query-options';
+
+export const STUDENT_PAGINATION_CONFIG: QueryConfig<User> = {
+  sortableColumns: [
+    'email',
+    'role',
+    'created_at',
+    'profile.firstName',
+    'profile.lastName',
+  ],
+  defaultSortBy: [['created_at', 'DESC']],
+  filterableColumns: {
+    email: [FilterOperator.ILIKE],
+    role: [FilterOperator.EQ],
+    'profile.firstName': [FilterOperator.ILIKE],
+    'profile.lastName': [FilterOperator.ILIKE],
+  },
+  relations: ['profile'], // 👈 ensures TypeORM joins the profile automatically
+};
 
 @Injectable()
 export class UserService {
@@ -150,39 +175,39 @@ export class UserService {
     });
   }
 
-  async findStudentsByInstructor(instructorId: string): Promise<any[]> {
-    const qb = this.courseRepository
-      .createQueryBuilder('course')
-      .innerJoin('course.enrollments', 'enrollment')
-      .innerJoin('enrollment.student', 'student')
+  async findStudentsByInstructor(
+    query: PaginateQuery,
+    instructorId: string,
+  ): Promise<Paginated<any>> {
+    const qb = this.userRepository
+      .createQueryBuilder('student')
+      .innerJoin('student.enrollments', 'enrollment')
+      .innerJoin('enrollment.course', 'course')
       .leftJoinAndSelect('student.profile', 'profile')
-      .leftJoin('student.enrollments', 'studentEnrollments')
       .where('course.createdBy = :instructorId', { instructorId })
-      .select([
-        'student.id AS "id"',
-        'student.email AS "email"',
-        'student.role AS "role"',
-        'profile.firstName AS "firstName"',
-        'profile.lastName AS "lastName"',
-        'profile.photoUrl AS "photoUrl"',
-        'COALESCE(COUNT(DISTINCT studentEnrollments.course_id), 0) AS "numberOfCourses"', // ✅ fixed
-      ])
-      .groupBy('student.id')
-      .addGroupBy('profile.id');
+      .loadRelationCountAndMap(
+        'student.numberOfCourses',
+        'student.enrollments',
+      );
 
-    const rawStudents = await qb.getRawMany();
+    const result = await paginate<any>(query, qb, STUDENT_PAGINATION_CONFIG);
 
-    return rawStudents.map((row) => ({
-      id: row.id,
-      email: row.email,
-      role: row.role,
-      profile: {
-        firstName: row.firstName,
-        lastName: row.lastName,
-        photoUrl: row.photoUrl,
-      },
-      numberOfCourses: Number(row.numberOfCourses) || 0,
-    }));
+    result.data = result.data.map(
+      (student: User & { numberOfCourses?: number }) => ({
+        id: student.id,
+        email: student.email,
+        role: student.role,
+        numberOfCourses: student.numberOfCourses ?? 0,
+        profile: {
+          firstName: student.profile?.firstName ?? null,
+          lastName: student.profile?.lastName ?? null,
+          photoUrl: student.profile?.photoUrl ?? null,
+          phoneNumber: student.profile?.phoneNumber ?? null,
+        },
+      }),
+    );
+
+    return result;
   }
 
   async updateSecuritySettings(
