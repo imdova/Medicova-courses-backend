@@ -5,6 +5,7 @@ import {
   NotFoundException,
   forwardRef,
   Inject,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -15,6 +16,7 @@ import { CreateUserDto } from 'src/user/dto/create-user.dto';
 import { UserService } from 'src/user/user.service';
 import { CreateAcademyInstructorDto } from './dto/create-academy-instructor.dto';
 import { AcademyInstructor } from './entities/academy-instructors.entity';
+import { UserRole } from 'src/user/entities/user.entity';
 
 @Injectable()
 export class AcademyService {
@@ -65,8 +67,21 @@ export class AcademyService {
     const academy = await this.findOne(academyId);
     if (!academy) throw new NotFoundException('Academy not found');
 
-    // Ensure role is either INSTRUCTOR or ACCOUNT_ADMIN
+    // Ensure role is either ACADEMY_USER or ACADEMY_ADMIN or STUDENT
     const role = createUserDto.role;
+
+    // ✅ Only allow 'student' or 'academy_user' roles
+    if (
+      ![
+        UserRole.STUDENT,
+        UserRole.ACADEMY_USER,
+        UserRole.ACADEMY_ADMIN,
+      ].includes(role)
+    ) {
+      throw new BadRequestException(
+        'You can only create users with role "student" or "academy_user" or "academy_admin"',
+      );
+    }
 
     // Call UserService.register and link the academy
     await this.userService.register({

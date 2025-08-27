@@ -124,7 +124,7 @@ export class AcademyController {
     return this.academyService.remove(id);
   }
 
-  // ---------- New endpoint to add a user under this academy ----------
+  // ---------- New endpoint to add academy user under this academy ----------
   @Post(':id/users')
   @Roles(UserRole.ADMIN, UserRole.ACADEMY_ADMIN)
   @ApiOperation({ summary: 'Add a new user under a specific academy' })
