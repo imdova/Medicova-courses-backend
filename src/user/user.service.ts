@@ -13,6 +13,7 @@ import * as bcrypt from 'bcrypt';
 import { QueryFailedError, Repository } from 'typeorm';
 import { ProfileService } from 'src/profile/profile.service';
 import { AcademyService } from 'src/academy/academy.service';
+import { Course } from 'src/course/entities/course.entity';
 
 @Injectable()
 export class UserService {
@@ -21,6 +22,8 @@ export class UserService {
     private userRepository: Repository<User>,
     private readonly profileService: ProfileService,
     private readonly academyService: AcademyService,
+    @InjectRepository(Course)
+    private courseRepository: Repository<Course>,
   ) {}
 
   async register(createUserDto: CreateUserDto): Promise<User> {
@@ -141,5 +144,40 @@ export class UserService {
     return this.userRepository.find({
       where: { academy: { id: academyId } },
     });
+  }
+
+  async findStudentsByInstructor(instructorId: string): Promise<any[]> {
+    const qb = this.courseRepository
+      .createQueryBuilder('course')
+      .innerJoin('course.enrollments', 'enrollment')
+      .innerJoin('enrollment.student', 'student')
+      .leftJoinAndSelect('student.profile', 'profile')
+      .leftJoin('student.enrollments', 'studentEnrollments')
+      .where('course.createdBy = :instructorId', { instructorId })
+      .select([
+        'student.id AS "id"',
+        'student.email AS "email"',
+        'student.role AS "role"',
+        'profile.firstName AS "firstName"',
+        'profile.lastName AS "lastName"',
+        'profile.photoUrl AS "photoUrl"',
+        'COALESCE(COUNT(DISTINCT studentEnrollments.course_id), 0) AS "numberOfCourses"', // ✅ fixed
+      ])
+      .groupBy('student.id')
+      .addGroupBy('profile.id');
+
+    const rawStudents = await qb.getRawMany();
+
+    return rawStudents.map((row) => ({
+      id: row.id,
+      email: row.email,
+      role: row.role,
+      profile: {
+        firstName: row.firstName,
+        lastName: row.lastName,
+        photoUrl: row.photoUrl,
+      },
+      numberOfCourses: Number(row.numberOfCourses) || 0,
+    }));
   }
 }
