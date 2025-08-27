@@ -29,6 +29,7 @@ import { cookieOptions } from '../auth/auth.controller';
 import { AuthService } from 'src/auth/auth.service';
 import { Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
+import { UpdateSecuritySettingsDto } from './dto/security-settings.dto';
 
 @ApiTags('Users')
 @Controller('users')
@@ -183,5 +184,24 @@ export class UserController {
       }
     }
     return this.userService.findStudentsByInstructor(instructorId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Patch('account/update/security-settings')
+  @ApiOperation({
+    summary: 'Update security settings details',
+    description:
+      'Allows the logged-in user to update their email, phone number (from profile), and password.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Account Security Settings updated successfully.',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Validation failed or incorrect current password.',
+  })
+  async updateAccount(@Req() req, @Body() dto: UpdateSecuritySettingsDto) {
+    return this.userService.updateSecuritySettings(req.user.sub, dto);
   }
 }

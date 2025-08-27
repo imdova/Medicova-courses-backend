@@ -14,6 +14,8 @@ import { QueryFailedError, Repository } from 'typeorm';
 import { ProfileService } from 'src/profile/profile.service';
 import { AcademyService } from 'src/academy/academy.service';
 import { Course } from 'src/course/entities/course.entity';
+import { UpdateSecuritySettingsDto } from './dto/security-settings.dto';
+import { Profile } from 'src/profile/entities/profile.entity';
 
 @Injectable()
 export class UserService {
@@ -24,6 +26,8 @@ export class UserService {
     private readonly academyService: AcademyService,
     @InjectRepository(Course)
     private courseRepository: Repository<Course>,
+    @InjectRepository(Profile)
+    private profileRepository: Repository<Profile>,
   ) {}
 
   async register(createUserDto: CreateUserDto): Promise<User> {
@@ -179,5 +183,60 @@ export class UserService {
       },
       numberOfCourses: Number(row.numberOfCourses) || 0,
     }));
+  }
+
+  async updateSecuritySettings(
+    userId: string,
+    dto: UpdateSecuritySettingsDto,
+  ): Promise<User> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['profile'],
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // ✅ Update email
+    if (dto.email) {
+      user.email = dto.email.trim().toLowerCase();
+    }
+
+    // ✅ Update phone (via profile)
+    if (dto.phoneNumber) {
+      if (!user.profile) {
+        throw new NotFoundException('Profile not found for user');
+      }
+      user.profile.phoneNumber = dto.phoneNumber;
+    }
+
+    // ✅ Update password
+    if (dto.currentPassword || dto.newPassword || dto.confirmNewPassword) {
+      if (!dto.currentPassword || !dto.newPassword || !dto.confirmNewPassword) {
+        throw new BadRequestException(
+          'Current password, new password, and confirm password are all required',
+        );
+      }
+
+      const isMatch = await bcrypt.compare(dto.currentPassword, user.password);
+      if (!isMatch) {
+        throw new BadRequestException('Current password is incorrect');
+      }
+
+      if (dto.newPassword !== dto.confirmNewPassword) {
+        throw new BadRequestException('New passwords do not match');
+      }
+
+      user.password = await bcrypt.hash(dto.newPassword, 10);
+    }
+
+    // Save both User and Profile
+    await this.userRepository.save(user);
+    if (user.profile) {
+      await this.profileRepository.save(user.profile); // ✅ save directly
+    }
+
+    return user;
   }
 }
