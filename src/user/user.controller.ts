@@ -9,6 +9,8 @@ import {
   UseGuards,
   HttpStatus,
   Res,
+  Req,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -34,7 +36,7 @@ export class UserController {
   constructor(
     private readonly userService: UserService,
     private readonly authService: AuthService,
-  ) { }
+  ) {}
 
   @Post('register')
   @ApiOperation({
@@ -150,5 +152,36 @@ export class UserController {
   })
   remove(@Param('userId') userId: string) {
     return this.userService.remove(userId);
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN)
+  @Get(':userId/students')
+  @ApiOperation({
+    summary: 'Get all students for an instructor',
+    description:
+      'Fetch all students enrolled in courses created by the given instructor.',
+  })
+  @ApiParam({
+    name: 'userId',
+    type: String,
+    description: 'UUID of the instructor',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'List of students enrolled in instructor’s courses.',
+  })
+  async getStudentsForInstructor(
+    @Param('userId') instructorId: string,
+    @Req() req,
+  ) {
+    if (req.user.role === UserRole.INSTRUCTOR) {
+      if (req.user.sub !== instructorId) {
+        throw new ForbiddenException(
+          'You are not allowed to view students for this user',
+        );
+      }
+    }
+    return this.userService.findStudentsByInstructor(instructorId);
   }
 }

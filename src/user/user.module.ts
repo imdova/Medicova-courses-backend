@@ -7,10 +7,11 @@ import { RolesGuard } from 'src/auth/roles.guard';
 import { AuthModule } from '../auth/auth.module';
 import { ProfileModule } from 'src/profile/profile.module';
 import { AcademyModule } from 'src/academy/academy.module';
+import { Course } from 'src/course/entities/course.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User, Course]),
     forwardRef(() => AuthModule),
     forwardRef(() => ProfileModule),
     forwardRef(() => AcademyModule),
