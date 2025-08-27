@@ -30,6 +30,7 @@ import { AuthService } from 'src/auth/auth.service';
 import { Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 import { UpdateSecuritySettingsDto } from './dto/security-settings.dto';
+import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
 
 @ApiTags('Users')
 @Controller('users')
@@ -173,9 +174,10 @@ export class UserController {
     description: 'List of students enrolled in instructor’s courses.',
   })
   async getStudentsForInstructor(
+    @Paginate() query: PaginateQuery,
     @Param('userId') instructorId: string,
     @Req() req,
-  ) {
+  ): Promise<Paginated<any>> {
     if (req.user.role === UserRole.INSTRUCTOR) {
       if (req.user.sub !== instructorId) {
         throw new ForbiddenException(
@@ -183,7 +185,7 @@ export class UserController {
         );
       }
     }
-    return this.userService.findStudentsByInstructor(instructorId);
+    return this.userService.findStudentsByInstructor(query, instructorId);
   }
 
   @UseGuards(AuthGuard('jwt'))
