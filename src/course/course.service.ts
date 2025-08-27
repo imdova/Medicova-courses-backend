@@ -112,6 +112,7 @@ export class CourseService {
     const qb = this.courseRepository.createQueryBuilder('course');
     qb.leftJoinAndSelect('course.category', 'category')
       .leftJoinAndSelect('course.subCategory', 'subCategory')
+      .loadRelationCountAndMap('course.studentCount', 'course.enrollments') // ✅ count enrollments
       .andWhere('course.deleted_at IS NULL'); // filter out soft-deleted
 
     // 🔑 Role-based restrictions
