@@ -8,10 +8,11 @@ import { AuthModule } from '../auth/auth.module';
 import { ProfileModule } from 'src/profile/profile.module';
 import { AcademyModule } from 'src/academy/academy.module';
 import { Course } from 'src/course/entities/course.entity';
+import { Profile } from 'src/profile/entities/profile.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Course]),
+    TypeOrmModule.forFeature([User, Course, Profile]),
     forwardRef(() => AuthModule),
     forwardRef(() => ProfileModule),
     forwardRef(() => AcademyModule),
