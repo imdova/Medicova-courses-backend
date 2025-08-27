@@ -4,9 +4,13 @@ import { AcademyService } from './academy.service';
 import { AcademyController } from './academy.controller';
 import { Academy } from './entities/academy.entity';
 import { UserModule } from 'src/user/user.module';
+import { AcademyInstructor } from './entities/academy-instructors.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Academy]), forwardRef(() => UserModule)],
+  imports: [
+    TypeOrmModule.forFeature([Academy, AcademyInstructor]),
+    forwardRef(() => UserModule),
+  ],
   controllers: [AcademyController],
   providers: [AcademyService],
   exports: [AcademyService],

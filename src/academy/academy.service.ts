@@ -13,12 +13,16 @@ import { CreateAcademyDto } from './dto/create-academy.dto';
 import { UpdateAcademyDto } from './dto/update-academy.dto';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
 import { UserService } from 'src/user/user.service';
+import { CreateAcademyInstructorDto } from './dto/create-academy-instructor.dto';
+import { AcademyInstructor } from './entities/academy-instructors.entity';
 
 @Injectable()
 export class AcademyService {
   constructor(
     @InjectRepository(Academy)
     private academyRepository: Repository<Academy>,
+    @InjectRepository(AcademyInstructor)
+    private academyInstructorRepository: Repository<AcademyInstructor>,
     @Inject(forwardRef(() => UserService))
     private userService: UserService,
   ) {}
@@ -83,5 +87,28 @@ export class AcademyService {
 
     // Use UserService to fetch users
     return this.userService.findByAcademy(academyId);
+  }
+
+  async addTeacherToAcademy(
+    academyId: string,
+    createAcademyInstructorDto: CreateAcademyInstructorDto,
+  ): Promise<{ message: string }> {
+    const academy = await this.findOne(academyId);
+    if (!academy) throw new NotFoundException('Academy not found');
+
+    const teacher = this.academyInstructorRepository.create({
+      ...createAcademyInstructorDto,
+      academy,
+    });
+
+    await this.academyInstructorRepository.save(teacher);
+
+    return { message: 'Instructor profile created successfully' };
+  }
+
+  async findTeachers(academyId: string): Promise<AcademyInstructor[]> {
+    return this.academyInstructorRepository.find({
+      where: { academy: { id: academyId } },
+    });
   }
 }

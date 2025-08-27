@@ -26,12 +26,13 @@ import { AuthGuard } from '@nestjs/passport';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { UserRole } from 'src/user/entities/user.entity';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
+import { CreateAcademyInstructorDto } from './dto/create-academy-instructor.dto';
 
 @ApiTags('Academies')
 @Controller('academies')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 export class AcademyController {
-  constructor(private readonly academyService: AcademyService) { }
+  constructor(private readonly academyService: AcademyService) {}
 
   @Post()
   @Roles(UserRole.ADMIN)
@@ -166,5 +167,58 @@ export class AcademyController {
       }
     }
     return this.academyService.getUsersInAcademy(academyId);
+  }
+
+  // ---------- New endpoint to add academy instructor ----------
+  @Post(':id/instructors')
+  @Roles(UserRole.ADMIN, UserRole.ACADEMY_ADMIN)
+  @ApiOperation({
+    summary: 'Add an instructor profile under a specific academy (non-user)',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'ID of the academy' })
+  @ApiBody({
+    description: 'Instructor details',
+    type: CreateAcademyInstructorDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Instructor successfully added to academy',
+  })
+  addTeacherToAcademy(
+    @Param('id') academyId: string,
+    @Body() createAcademyInstructorDto: CreateAcademyInstructorDto,
+    @Req() req,
+  ) {
+    if (req.user.role === UserRole.ACADEMY_ADMIN) {
+      if (req.user.academyId !== academyId) {
+        throw new ForbiddenException(
+          'You are not allowed to add instructors to this academy',
+        );
+      }
+    }
+    return this.academyService.addTeacherToAcademy(
+      academyId,
+      createAcademyInstructorDto,
+    );
+  }
+
+  // ---------- New endpoint to get all instructors under an academy ----------
+  @Get(':id/instructors')
+  @Roles(UserRole.ADMIN, UserRole.ACADEMY_ADMIN, UserRole.ACADEMY_USER)
+  @ApiOperation({
+    summary: 'Get all instructor profiles under a specific academy (non-users)',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'ID of the academy' })
+  async getTeachersByAcademy(@Param('id') academyId: string, @Req() req) {
+    if (
+      [UserRole.ACADEMY_ADMIN, UserRole.ACADEMY_USER].includes(req.user.role)
+    ) {
+      if (req.user.academyId !== academyId) {
+        throw new ForbiddenException(
+          'You are not allowed to get instructors from this academy',
+        );
+      }
+    }
+    return this.academyService.findTeachers(academyId);
   }
 }
