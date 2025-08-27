@@ -106,9 +106,30 @@ export class AcademyService {
     return { message: 'Instructor profile created successfully' };
   }
 
-  async findTeachers(academyId: string): Promise<AcademyInstructor[]> {
+  async findInstructors(academyId: string): Promise<AcademyInstructor[]> {
     return this.academyInstructorRepository.find({
       where: { academy: { id: academyId } },
     });
+  }
+
+  async findOneInstructor(
+    academyId: string,
+    instructorId: string,
+  ): Promise<AcademyInstructor> {
+    const instructor = await this.academyInstructorRepository.findOne({
+      where: {
+        id: instructorId,
+        academy: { id: academyId },
+      },
+      relations: ['academy'], // optional, only if you want academy info
+    });
+
+    if (!instructor) {
+      throw new NotFoundException(
+        `Instructor with ID ${instructorId} not found in this academy`,
+      );
+    }
+
+    return instructor;
   }
 }

@@ -184,7 +184,7 @@ export class AcademyController {
     status: HttpStatus.CREATED,
     description: 'Instructor successfully added to academy',
   })
-  addTeacherToAcademy(
+  addInstructorToAcademy(
     @Param('id') academyId: string,
     @Body() createAcademyInstructorDto: CreateAcademyInstructorDto,
     @Req() req,
@@ -209,7 +209,7 @@ export class AcademyController {
     summary: 'Get all instructor profiles under a specific academy (non-users)',
   })
   @ApiParam({ name: 'id', type: String, description: 'ID of the academy' })
-  async getTeachersByAcademy(@Param('id') academyId: string, @Req() req) {
+  async getInstructorsByAcademy(@Param('id') academyId: string, @Req() req) {
     if (
       [UserRole.ACADEMY_ADMIN, UserRole.ACADEMY_USER].includes(req.user.role)
     ) {
@@ -219,6 +219,35 @@ export class AcademyController {
         );
       }
     }
-    return this.academyService.findTeachers(academyId);
+    return this.academyService.findInstructors(academyId);
+  }
+
+  // ---------- New endpoint to get one instructor under an academy ----------
+  @Get(':id/instructors/:instructorId')
+  @Roles(UserRole.ADMIN, UserRole.ACADEMY_ADMIN, UserRole.ACADEMY_USER)
+  @ApiOperation({
+    summary: 'Get One instructor profiles under a specific academy (non-users)',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'ID of the academy' })
+  @ApiParam({
+    name: 'instructorId',
+    type: String,
+    description: 'ID of the instructor',
+  })
+  async getInstructorByAcademy(
+    @Param('id') academyId: string,
+    @Param('instructorId') instructorId: string,
+    @Req() req,
+  ) {
+    if (
+      [UserRole.ACADEMY_ADMIN, UserRole.ACADEMY_USER].includes(req.user.role)
+    ) {
+      if (req.user.academyId !== academyId) {
+        throw new ForbiddenException(
+          'You are not allowed to get instructors from this academy',
+        );
+      }
+    }
+    return this.academyService.findOneInstructor(academyId, instructorId);
   }
 }
