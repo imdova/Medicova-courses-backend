@@ -27,6 +27,7 @@ import { Roles } from 'src/auth/decorator/roles.decorator';
 import { UserRole } from 'src/user/entities/user.entity';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
 import { CreateAcademyInstructorDto } from './dto/create-academy-instructor.dto';
+import { UpdateAcademyInstructorDto } from './dto/update-academy-instructor.dto';
 
 @ApiTags('Academies')
 @Controller('academies')
@@ -249,5 +250,45 @@ export class AcademyController {
       }
     }
     return this.academyService.findOneInstructor(academyId, instructorId);
+  }
+
+  // ---------- New endpoint to update academy instructor ----------
+  @Patch(':id/instructors/:instructorId')
+  @Roles(UserRole.ADMIN, UserRole.ACADEMY_ADMIN)
+  @ApiOperation({
+    summary: 'Update an instructor profile under a specific academy (non-user)',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'ID of the academy' })
+  @ApiParam({
+    name: 'instructorId',
+    type: String,
+    description: 'ID of the instructor',
+  })
+  @ApiBody({
+    description: 'Instructor update details',
+    type: UpdateAcademyInstructorDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Instructor successfully updated',
+  })
+  async updateInstructorInAcademy(
+    @Param('id') academyId: string,
+    @Param('instructorId') instructorId: string,
+    @Body() updateAcademyInstructorDto: UpdateAcademyInstructorDto,
+    @Req() req,
+  ) {
+    if (req.user.role === UserRole.ACADEMY_ADMIN) {
+      if (req.user.academyId !== academyId) {
+        throw new ForbiddenException(
+          'You are not allowed to update instructors in this academy',
+        );
+      }
+    }
+    return this.academyService.updateInstructor(
+      academyId,
+      instructorId,
+      updateAcademyInstructorDto,
+    );
   }
 }

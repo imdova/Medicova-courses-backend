@@ -17,6 +17,7 @@ import { UserService } from 'src/user/user.service';
 import { CreateAcademyInstructorDto } from './dto/create-academy-instructor.dto';
 import { AcademyInstructor } from './entities/academy-instructors.entity';
 import { UserRole } from 'src/user/entities/user.entity';
+import { UpdateAcademyInstructorDto } from './dto/update-academy-instructor.dto';
 
 @Injectable()
 export class AcademyService {
@@ -146,5 +147,23 @@ export class AcademyService {
     }
 
     return instructor;
+  }
+
+  async updateInstructor(
+    academyId: string,
+    instructorId: string,
+    updateAcademyInstructorDto: UpdateAcademyInstructorDto,
+  ) {
+    const instructor = await this.academyInstructorRepository.findOne({
+      where: { id: instructorId, academy: { id: academyId } },
+    });
+
+    if (!instructor) {
+      throw new NotFoundException('Instructor not found in this academy');
+    }
+
+    Object.assign(instructor, updateAcademyInstructorDto);
+
+    return this.academyInstructorRepository.save(instructor);
   }
 }
