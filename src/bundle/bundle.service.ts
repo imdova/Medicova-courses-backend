@@ -1,4 +1,8 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Bundle } from './entities/bundle.entity';
@@ -24,6 +28,8 @@ export const BUNDLE_PAGINATION_CONFIG: QueryConfig<Bundle> = {
     status: [FilterOperator.EQ],
     is_free: [FilterOperator.EQ],
     active: [FilterOperator.EQ],
+    'pricings.sale_price': [FilterOperator.GTE, FilterOperator.LTE],
+    'pricings.currency_code': [FilterOperator.EQ],
   },
   relations: ['pricings', 'courseBundles', 'courseBundles.course'],
 };
@@ -42,11 +48,15 @@ export class BundleService {
 
     @InjectRepository(Course)
     private readonly courseRepository: Repository<Course>,
-  ) { }
+  ) {}
 
   // All methods are checked for performance
 
-  async createBundle(dto: CreateBundleDto, userId: string, academyId?: string): Promise<Bundle> {
+  async createBundle(
+    dto: CreateBundleDto,
+    userId: string,
+    academyId?: string,
+  ): Promise<Bundle> {
     // 1️⃣ Validate all courses exist
     const courses = await this.courseRepository.find({
       where: { id: In(dto.courseIds), deleted_at: null },
@@ -95,7 +105,12 @@ export class BundleService {
     });
   }
 
-  async findAll(query: PaginateQuery, userId: string, academyId?: string, role?: UserRole): Promise<Paginated<Bundle>> {
+  async findAll(
+    query: PaginateQuery,
+    userId: string,
+    academyId?: string,
+    role?: UserRole,
+  ): Promise<Paginated<Bundle>> {
     const qb = this.bundleRepository
       .createQueryBuilder('bundle')
       .leftJoinAndSelect('bundle.pricings', 'pricings')
@@ -114,10 +129,20 @@ export class BundleService {
     return paginate(query, qb, BUNDLE_PAGINATION_CONFIG);
   }
 
-  async findOne(id: string, userId: string, academyId?: string, role?: UserRole): Promise<Bundle> {
+  async findOne(
+    id: string,
+    userId: string,
+    academyId?: string,
+    role?: UserRole,
+  ): Promise<Bundle> {
     const bundle = await this.bundleRepository.findOne({
       where: { id, deleted_at: null },
-      relations: ['pricings', 'courseBundles', 'courseBundles.course', 'academy'],
+      relations: [
+        'pricings',
+        'courseBundles',
+        'courseBundles.course',
+        'academy',
+      ],
     });
     if (!bundle) throw new NotFoundException('Bundle not found');
 
@@ -125,7 +150,13 @@ export class BundleService {
     return bundle;
   }
 
-  async updateBundle(id: string, dto: UpdateBundleDto, userId: string, academyId?: string, role?: UserRole): Promise<Bundle> {
+  async updateBundle(
+    id: string,
+    dto: UpdateBundleDto,
+    userId: string,
+    academyId?: string,
+    role?: UserRole,
+  ): Promise<Bundle> {
     const bundle = await this.bundleRepository.findOne({
       where: { id, deleted_at: null },
       relations: ['pricings', 'courseBundles', 'academy'],
@@ -183,7 +214,12 @@ export class BundleService {
     return this.findOne(id, userId, academyId, role);
   }
 
-  async remove(id: string, userId: string, academyId?: string, role?: UserRole): Promise<{ message: string }> {
+  async remove(
+    id: string,
+    userId: string,
+    academyId?: string,
+    role?: UserRole,
+  ): Promise<{ message: string }> {
     const bundle = await this.bundleRepository.findOne({
       where: { id, deleted_at: null },
       relations: ['academy'],
