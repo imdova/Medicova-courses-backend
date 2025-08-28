@@ -18,6 +18,7 @@ import {
   ApiResponse,
   ApiBody,
   ApiParam,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { Course } from './entities/course.entity';
 import { RolesGuard } from 'src/auth/roles.guard';
@@ -29,9 +30,14 @@ import { AuthGuard } from '@nestjs/passport';
 @ApiTags('Courses')
 @Controller('courses')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_ADMIN, UserRole.ACADEMY_USER)
+@Roles(
+  UserRole.INSTRUCTOR,
+  UserRole.ADMIN,
+  UserRole.ACADEMY_ADMIN,
+  UserRole.ACADEMY_USER,
+)
 export class CourseController {
-  constructor(private readonly courseService: CourseService) { }
+  constructor(private readonly courseService: CourseService) {}
 
   @Post()
   @ApiOperation({ summary: 'Create a new course' })
@@ -56,6 +62,51 @@ export class CourseController {
     description: 'Paginated list of courses',
     type: [Course], // you may want to create a PaginatedCourseDto for better Swagger docs
   })
+  @ApiQuery({
+    name: 'filter.name',
+    required: false,
+    description: 'Search by course name (ILIKE). Example value: `$ilike:math`',
+    example: '$ilike:math',
+  })
+  @ApiQuery({
+    name: 'filter.category.name',
+    required: false,
+    description:
+      'Search by category name (ILIKE). Example value: `$ilike:science`',
+    example: '$ilike:science',
+  })
+  @ApiQuery({
+    name: 'filter.status',
+    required: false,
+    description: 'Filter by course status (EQ). Example value: `$eq:draft`',
+    example: '$eq:draft',
+  })
+  @ApiQuery({
+    name: 'filter.isActive',
+    required: false,
+    description:
+      'Filter by active flag (EQ). Example value: `$eq:true` or `$eq:false`',
+    example: '$eq:true',
+  })
+  @ApiQuery({
+    name: 'filter.isCourseFree',
+    required: false,
+    description: 'Filter by free/paid flag (EQ). Example value: `$eq:true`',
+    example: '$eq:true',
+  })
+  @ApiQuery({
+    name: 'filter.pricings.salePrice',
+    required: false,
+    description:
+      'Filter by sale price (GTE/LTE). Example values: `$gte:100`, `$lte:500`',
+    example: '$gte:100',
+  })
+  @ApiQuery({
+    name: 'filter.pricings.currencyCode',
+    required: false,
+    description: 'Filter by currency code (EQ). Example value: `$eq:USD`',
+    example: '$eq:USD',
+  })
   findAll(
     @Paginate() query: PaginateQuery,
     @Req() req,
@@ -63,7 +114,12 @@ export class CourseController {
     const userId = req.user.sub;
     const academyId = req.user.academyId;
     const role = req.user.role;
-    return this.courseService.getPaginatedCourses(query, userId, academyId, role);
+    return this.courseService.getPaginatedCourses(
+      query,
+      userId,
+      academyId,
+      role,
+    );
   }
 
   @Get('tags')
@@ -87,7 +143,12 @@ export class CourseController {
   })
   @ApiResponse({ status: 404, description: 'Course not found' })
   findOne(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
-    return this.courseService.findOne(id, req.user.sub, req.user.academyId, req.user.role);
+    return this.courseService.findOne(
+      id,
+      req.user.sub,
+      req.user.academyId,
+      req.user.role,
+    );
   }
 
   @Get(':courseId/students/progress')
@@ -115,9 +176,15 @@ export class CourseController {
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateData: Partial<CreateCourseDto>,
-    @Req() req
+    @Req() req,
   ) {
-    return this.courseService.update(id, updateData, req.user.sub, req.user.academyId, req.user.role);
+    return this.courseService.update(
+      id,
+      updateData,
+      req.user.sub,
+      req.user.academyId,
+      req.user.role,
+    );
   }
 
   @Delete(':id')
@@ -126,6 +193,11 @@ export class CourseController {
   @ApiResponse({ status: 204, description: 'Course soft deleted successfully' })
   @ApiResponse({ status: 404, description: 'Course not found' })
   async softDelete(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
-    await this.courseService.softDelete(id, req.user.sub, req.user.academyId, req.user.role);
+    await this.courseService.softDelete(
+      id,
+      req.user.sub,
+      req.user.academyId,
+      req.user.role,
+    );
   }
 }

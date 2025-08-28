@@ -17,6 +17,7 @@ import {
   ApiResponse,
   ApiParam,
   ApiBody,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { BundleService } from './bundle.service';
 import { CreateBundleDto } from './dto/create-bundle.dto';
@@ -31,9 +32,14 @@ import { AuthGuard } from '@nestjs/passport';
 @ApiTags('Bundles')
 @Controller('bundles')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_USER, UserRole.ACADEMY_ADMIN)
+@Roles(
+  UserRole.INSTRUCTOR,
+  UserRole.ADMIN,
+  UserRole.ACADEMY_USER,
+  UserRole.ACADEMY_ADMIN,
+)
 export class BundleController {
-  constructor(private readonly bundleService: BundleService) { }
+  constructor(private readonly bundleService: BundleService) {}
 
   @Post()
   @ApiOperation({ summary: 'Create a new bundle with courses and pricing' })
@@ -44,17 +50,64 @@ export class BundleController {
     type: Bundle,
   })
   async createBundle(@Body() dto: CreateBundleDto, @Req() req) {
-    return this.bundleService.createBundle(dto, req.user.sub, req.user.academyId);
+    return this.bundleService.createBundle(
+      dto,
+      req.user.sub,
+      req.user.academyId,
+    );
   }
 
   @Get()
   @ApiOperation({ summary: 'Get all bundles with pagination' })
   @ApiResponse({ status: 200, description: 'Paginated list of bundles' })
+  @ApiQuery({
+    name: 'filter.title',
+    required: false,
+    description:
+      'Search by bundle title (ILIKE). Example value: `$ilike:starter`',
+    example: '$ilike:starter',
+  })
+  @ApiQuery({
+    name: 'filter.status',
+    required: false,
+    description: 'Filter by bundle status (EQ). Example value: `$eq:published`',
+    example: '$eq:published',
+  })
+  @ApiQuery({
+    name: 'filter.is_free',
+    required: false,
+    description: 'Filter by free/paid flag (EQ). Example value: `$eq:true`',
+    example: '$eq:true',
+  })
+  @ApiQuery({
+    name: 'filter.active',
+    required: false,
+    description: 'Filter by active flag (EQ). Example value: `$eq:true`',
+    example: '$eq:true',
+  })
+  @ApiQuery({
+    name: 'filter.pricings.sale_price',
+    required: false,
+    description:
+      'Filter by sale price (GTE/LTE). Example values: `$gte:100`, `$lte:500`',
+    example: '$gte:100',
+  })
+  @ApiQuery({
+    name: 'filter.pricings.currency_code',
+    required: false,
+    description: 'Filter by currency code (EQ). Example value: `$eq:USD`',
+    example: '$eq:USD',
+  })
   async findAll(
     @Paginate() query: PaginateQuery,
     @Req() req,
   ): Promise<Paginated<Bundle>> {
-    return this.bundleService.findAll(query, req.user.sub, req.user.academyId, req.user.role);
+    return this.bundleService.findAll(
+      query,
+      req.user.sub,
+      req.user.academyId,
+      req.user.role,
+    );
   }
 
   @Get(':id')
@@ -62,7 +115,12 @@ export class BundleController {
   @ApiParam({ name: 'id', description: 'UUID of the bundle' })
   @ApiResponse({ status: 200, description: 'Bundle details', type: Bundle })
   async findOne(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
-    const bundle = await this.bundleService.findOne(id, req.user.sub, req.user.academyId, req.user.role);
+    const bundle = await this.bundleService.findOne(
+      id,
+      req.user.sub,
+      req.user.academyId,
+      req.user.role,
+    );
     if (!bundle) throw new NotFoundException('Bundle not found');
     return bundle;
   }
@@ -74,15 +132,26 @@ export class BundleController {
   async updateBundle(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateBundleDto,
-    @Req() req
+    @Req() req,
   ) {
-    return this.bundleService.updateBundle(id, dto, req.user.sub, req.user.academyId, req.user.role);
+    return this.bundleService.updateBundle(
+      id,
+      dto,
+      req.user.sub,
+      req.user.academyId,
+      req.user.role,
+    );
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Soft delete a bundle and its relations' })
   @ApiParam({ name: 'id', description: 'UUID of the bundle' })
   async remove(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
-    return this.bundleService.remove(id, req.user.sub, req.user.academyId, req.user.role);
+    return this.bundleService.remove(
+      id,
+      req.user.sub,
+      req.user.academyId,
+      req.user.role,
+    );
   }
 }
