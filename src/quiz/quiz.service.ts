@@ -10,12 +10,7 @@ import { AttemptMode, Quiz } from './entities/quiz.entity';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { QueryConfig } from '../common/utils/query-options';
-import {
-  FilterOperator,
-  paginate,
-  Paginated,
-  PaginateQuery,
-} from 'nestjs-paginate';
+import { FilterOperator, paginate, PaginateQuery } from 'nestjs-paginate';
 import { Question } from './entities/question.entity';
 import { SubmitQuizDto } from './dto/submit-quiz.dto';
 import { QuizAttempt } from './entities/quiz-attempts.entity';
@@ -40,16 +35,19 @@ export class QuizService {
     private readonly quizRepo: Repository<Quiz>,
     @InjectRepository(QuizAttempt)
     private attemptRepo: Repository<QuizAttempt>,
-  ) { }
+  ) {}
 
   // All methods are checked for performance
 
-  async create(dto: CreateQuizDto, userId: string, academyId?: string): Promise<Quiz> {
+  async create(
+    dto: CreateQuizDto,
+    userId: string,
+    academyId?: string,
+  ): Promise<Quiz> {
     const quiz = this.quizRepo.create({
       ...dto,
       created_by: userId,
       academy: { id: academyId },
-
     });
     return this.quizRepo.save(quiz);
   }
@@ -58,29 +56,68 @@ export class QuizService {
     query: PaginateQuery,
     userId: string,
     role: string,
-    academyId: string
-  ): Promise<Paginated<Quiz>> {
+    academyId: string,
+  ) {
     const qb = this.quizRepo
       .createQueryBuilder('quiz')
       .loadRelationCountAndMap('quiz.questionCount', 'quiz.quizQuestions')
-      .where('quiz.deleted_at IS NULL')
+      .where('quiz.deleted_at IS NULL');
 
-    // 🔑 Role-based restrictions
+    // Role restrictions
     if (role === UserRole.ADMIN) {
-      // no extra filter → see all courses
+      // all
     } else if (role === UserRole.ACADEMY_ADMIN) {
       qb.andWhere('quiz.academy_id = :academyId', { academyId });
     } else {
-      // INSTRUCTOR, ACADEMY_USER, etc.
       qb.andWhere('quiz.created_by = :userId', { userId });
     }
 
-    return paginate(query, qb, QUIZ_PAGINATION_CONFIG);
+    // Add stats (aggregate subqueries)
+    qb.addSelect(
+      (sub) =>
+        sub
+          .select('AVG(attempt.score)')
+          .from(QuizAttempt, 'attempt')
+          .where('attempt.quiz_id = quiz.id'),
+      'average_score',
+    );
+
+    qb.addSelect(
+      (sub) =>
+        sub
+          .select(
+            `CASE WHEN COUNT(*) = 0 
+          THEN 0 
+          ELSE (SUM(CASE WHEN attempt.passed = true THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) 
+        END`,
+          )
+          .from(QuizAttempt, 'attempt')
+          .where('attempt.quiz_id = quiz.id'),
+      'success_rate',
+    );
+
+    // Run the query with paginate (entities only)
+    const paginated = await paginate(query, qb, QUIZ_PAGINATION_CONFIG);
+
+    // Run query manually to also fetch raw stats
+    const { raw } = await qb.getRawAndEntities();
+
+    // Merge stats into the paginated data
+    const data = paginated.data.map((quiz, i) => ({
+      ...quiz,
+      average_score: raw[i]?.average_score ? Number(raw[i].average_score) : 0,
+      success_rate: raw[i]?.success_rate ? Number(raw[i].success_rate) : 0,
+    }));
+
+    return { ...paginated, data };
   }
 
-  async findOne(id: string, userId: string,
+  async findOne(
+    id: string,
+    userId: string,
     role: string,
-    academyId: string): Promise<Quiz> {
+    academyId: string,
+  ): Promise<Quiz> {
     const quiz = await this.quizRepo.findOne({
       where: { id, deleted_at: null },
       relations: ['quizQuestions', 'quizQuestions.question'],
@@ -112,9 +149,13 @@ export class QuizService {
     return quiz;
   }
 
-  async update(id: string, dto: UpdateQuizDto, userId: string,
+  async update(
+    id: string,
+    dto: UpdateQuizDto,
+    userId: string,
     role: string,
-    academyId: string): Promise<Quiz> {
+    academyId: string,
+  ): Promise<Quiz> {
     const quiz = await this.findOne(id, userId, role, academyId);
     Object.assign(quiz, dto);
     return this.quizRepo.save(quiz);
@@ -243,9 +284,7 @@ export class QuizService {
       await manager.save(quiz);
 
       // 2. Create all questions in one go
-      const questions = dto.questions.map((q) =>
-        manager.create(Question, q),
-      );
+      const questions = dto.questions.map((q) => manager.create(Question, q));
       await manager.save(questions);
 
       // 3. Create all quizQuestions in one go
@@ -266,16 +305,25 @@ export class QuizService {
     });
   }
 
-  private checkOwnership(quiz: Quiz, userId: string, academyId: string, role: string) {
+  private checkOwnership(
+    quiz: Quiz,
+    userId: string,
+    academyId: string,
+    role: string,
+  ) {
     if (role === UserRole.ADMIN) return; // full access
     if (role === UserRole.ACADEMY_ADMIN) {
       if (quiz.academy?.id !== academyId) {
-        throw new ForbiddenException('You cannot access courses outside your academy');
+        throw new ForbiddenException(
+          'You cannot access courses outside your academy',
+        );
       }
     } else {
       // instructor / academy_user
       if (quiz.created_by !== userId) {
-        throw new ForbiddenException('You are not allowed to access this course');
+        throw new ForbiddenException(
+          'You are not allowed to access this course',
+        );
       }
     }
   }
