@@ -31,8 +31,11 @@ export const COURSE_PAGINATION_CONFIG: QueryConfig<Course> = {
     status: [FilterOperator.EQ],
     isActive: [FilterOperator.EQ],
     createdBy: [FilterOperator.EQ],
+    isCourseFree: [FilterOperator.EQ],
+    'pricings.salePrice': [FilterOperator.GTE, FilterOperator.LTE],
+    'pricings.currencyCode': [FilterOperator.EQ],
   },
-  relations: [], // add relations if needed
+  relations: ['pricings'], // add relations if needed
 };
 
 @Injectable()
