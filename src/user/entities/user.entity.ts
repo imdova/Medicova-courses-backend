@@ -5,6 +5,7 @@ import { Profile } from 'src/profile/entities/profile.entity';
 import { Academy } from 'src/academy/entities/academy.entity';
 import { Exclude } from 'class-transformer';
 import { CourseStudent } from 'src/course/entities/course-student.entity';
+import { Payment } from 'src/payment/entities/payment.entity';
 
 export enum UserRole {
   STUDENT = 'student',
@@ -59,4 +60,7 @@ export class User extends BasicEntity {
 
   @OneToMany(() => CourseStudent, (cs) => cs.student)
   enrollments: CourseStudent[];
+
+  @OneToMany(() => Payment, (payment) => payment.user)
+  payments: Payment[];
 }

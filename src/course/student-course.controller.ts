@@ -7,8 +7,15 @@ import {
   Req,
   Post,
   Delete,
+  Body,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiBody,
+} from '@nestjs/swagger';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { UserRole } from 'src/user/entities/user.entity';
 import { Roles } from 'src/auth/decorator/roles.decorator';
@@ -17,13 +24,19 @@ import { AuthGuard } from '@nestjs/passport';
 import { StudentCourseService } from './student-course.service';
 import { Course } from './entities/course.entity';
 import { CourseStudent } from './entities/course-student.entity';
+import { CreatePaymentDto } from 'src/payment/dto/create-payment.dto';
+import { PaymentService } from 'src/payment/payment.service';
+import { OrderType } from 'src/payment/entities/payment.entity';
 
 @ApiTags('Student Courses')
 @Controller('student/courses')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @Roles(UserRole.STUDENT)
 export class StudentCourseController {
-  constructor(private readonly studentCourseService: StudentCourseService) {}
+  constructor(
+    private readonly studentCourseService: StudentCourseService,
+    private readonly paymentService: PaymentService,
+  ) {}
 
   @Post(':id/enroll')
   @ApiOperation({
@@ -50,6 +63,24 @@ export class StudentCourseController {
   @ApiResponse({ status: 403, description: 'Forbidden' })
   enroll(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
     return this.studentCourseService.enroll(id, req.user.sub);
+  }
+
+  @Post(':id/purchase')
+  @ApiOperation({ summary: 'Purchase a course' })
+  @ApiBody({ type: CreatePaymentDto })
+  @ApiResponse({ status: 201, description: 'Payment request created' })
+  @ApiResponse({ status: 400, description: 'Invalid purchase request' })
+  purchaseCourse(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req,
+    @Body() body: CreatePaymentDto,
+  ) {
+    return this.paymentService.createPayment({
+      ...body,
+      userId: req.user.sub,
+      orderId: id, // overwrite orderId from the route param
+      orderType: OrderType.COURSE,
+    });
   }
 
   @Get('enrolled')
