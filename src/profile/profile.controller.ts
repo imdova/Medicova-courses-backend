@@ -41,7 +41,7 @@ export class ProfileController {
   constructor(
     private readonly profileService: ProfileService,
     private readonly userService: UserService,
-  ) { }
+  ) {}
 
   @Post()
   @ApiOperation({
@@ -73,7 +73,11 @@ export class ProfileController {
       throw new ForbiddenException();
     }
 
-    return this.profileService.createProfile(userId, createProfileDto);
+    return this.profileService.createProfile(
+      userId,
+      createProfileDto,
+      req.user.role,
+    );
   }
 
   @Patch()
@@ -106,7 +110,11 @@ export class ProfileController {
       throw new ForbiddenException();
     }
 
-    return this.profileService.updateProfile(userId, updateProfileDto);
+    return this.profileService.updateProfile(
+      userId,
+      updateProfileDto,
+      req.user.role,
+    );
   }
 
   @Get()

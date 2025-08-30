@@ -1,8 +1,17 @@
 import { User } from 'src/user/entities/user.entity';
-import { Entity, Column, OneToOne, JoinColumn, Unique } from 'typeorm';
+import {
+  Entity,
+  Column,
+  OneToOne,
+  JoinColumn,
+  Unique,
+  ManyToOne,
+} from 'typeorm';
 import { BasicEntity } from '../../common/entities/basic.entity';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ProfileMetadataDto } from '../dto/profile-metadata.dto';
+import { ProfileCategory } from '../profile-category/entities/profile-category.entity';
+import { ProfileSpeciality } from '../profile-category/entities/profile-specaility.entity';
 
 export enum Gender {
   MALE = 'male',
@@ -115,4 +124,20 @@ export class Profile extends BasicEntity {
   })
   @Column({ name: 'is_public', default: false })
   isPublic: boolean;
+
+  @ApiPropertyOptional({
+    description: 'The main category this profile belongs to',
+    type: () => ProfileCategory,
+  })
+  @ManyToOne(() => ProfileCategory, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'category_id' })
+  category?: ProfileCategory | null;
+
+  @ApiPropertyOptional({
+    description: 'The main speciality this profile belongs to',
+    type: () => ProfileSpeciality,
+  })
+  @ManyToOne(() => ProfileSpeciality, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'speciality_id' })
+  speciality?: ProfileSpeciality | null;
 }

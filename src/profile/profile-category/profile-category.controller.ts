@@ -43,6 +43,7 @@ export class ProfileCategoryController {
   }
 
   @Get()
+  @Roles(UserRole.ADMIN, UserRole.INSTRUCTOR)
   @ApiOperation({ summary: 'Get all categories with specialities' })
   @ApiResponse({ status: HttpStatus.OK })
   findAll() {
