@@ -38,8 +38,7 @@ import { CourseStudent } from './course/entities/course-student.entity';
 import { CourseProgress } from './course/course-progress/entities/course-progress.entity';
 import { QuizAttempt } from './quiz/entities/quiz-attempts.entity';
 import { AssignmentSubmission } from './assignment/entities/assignment-submission.entity';
-import { CategoryModule } from './category/category.module';
-import { Category } from './category/entities/category.entity';
+import { CourseCategory } from './course/course-category/entities/course-category.entity';
 import { AcademyInstructor } from './academy/entities/academy-instructors.entity';
 
 @Module({
@@ -77,7 +76,7 @@ import { AcademyInstructor } from './academy/entities/academy-instructors.entity
         CourseProgress,
         QuizAttempt,
         AssignmentSubmission,
-        Category,
+        CourseCategory,
         AcademyInstructor,
       ],
       synchronize: true,
@@ -95,7 +94,6 @@ import { AcademyInstructor } from './academy/entities/academy-instructors.entity
     AcademyModule,
     ChatModule,
     AssignmentModule,
-    CategoryModule,
   ],
   controllers: [AppController],
   providers: [AppService, DatabaseService],

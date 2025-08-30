@@ -11,20 +11,20 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
-import { CategoryService } from './category.service';
-import { CreateCategoryDto } from './dto/create-category.dto';
-import { UpdateCategoryDto } from './dto/update-category.dto';
+import { CourseCategoryService } from './course-category.service';
+import { CreateCourseCategoryDto } from './dto/create-course-category.dto';
+import { UpdateCourseCategoryDto } from './dto/update-course-category.dto';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { AuthGuard } from '@nestjs/passport';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { UserRole } from 'src/user/entities/user.entity';
 
-@ApiTags('Categories')
-@Controller('categories')
+@ApiTags('Course Categories')
+@Controller('course-categories')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @Roles(UserRole.ADMIN)
-export class CategoryController {
-  constructor(private readonly categoryService: CategoryService) {}
+export class CourseCategoryController {
+  constructor(private readonly courseCategoryService: CourseCategoryService) {}
 
   @Post()
   @ApiOperation({ summary: 'Create a new category or subcategory' })
@@ -32,8 +32,8 @@ export class CategoryController {
     status: HttpStatus.CREATED,
     description: 'Category created successfully',
   })
-  async create(@Body() dto: CreateCategoryDto, @Req() req) {
-    return this.categoryService.create(dto, req.user.sub);
+  async create(@Body() dto: CreateCourseCategoryDto, @Req() req) {
+    return this.courseCategoryService.create(dto, req.user.sub);
   }
 
   @Get()
@@ -44,7 +44,7 @@ export class CategoryController {
     description: 'List of categories',
   })
   async findAll() {
-    return this.categoryService.findAll();
+    return this.courseCategoryService.findAll();
   }
 
   @Get(':id')
@@ -59,7 +59,7 @@ export class CategoryController {
     description: 'Category not found',
   })
   async findOne(@Param('id') id: string) {
-    return this.categoryService.findOne(id);
+    return this.courseCategoryService.findOne(id);
   }
 
   @Patch(':id')
@@ -69,8 +69,8 @@ export class CategoryController {
     status: HttpStatus.OK,
     description: 'Category updated successfully',
   })
-  async update(@Param('id') id: string, @Body() dto: UpdateCategoryDto) {
-    return this.categoryService.update(id, dto);
+  async update(@Param('id') id: string, @Body() dto: UpdateCourseCategoryDto) {
+    return this.courseCategoryService.update(id, dto);
   }
 
   @Delete(':id')
@@ -81,6 +81,6 @@ export class CategoryController {
     description: 'Category soft-deleted successfully',
   })
   async remove(@Param('id') id: string) {
-    return this.categoryService.remove(id);
+    return this.courseCategoryService.remove(id);
   }
 }

@@ -1,6 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  IsBoolean,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -8,7 +7,7 @@ import {
   IsUUID,
 } from 'class-validator';
 
-export class CreateCategoryDto {
+export class CreateCourseCategoryDto {
   @ApiProperty({
     description: 'Name of the category',
     maxLength: 255,

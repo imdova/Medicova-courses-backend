@@ -5,7 +5,7 @@ import { CoursePricing } from '../course-pricing/entities/course-pricing.entity'
 import { CourseMetadataDto } from '../dto/course-metadata.dto';
 import { CourseSection } from '../course-section/entities/course-section.entity';
 import { CourseStudent } from './course-student.entity';
-import { Category } from 'src/category/entities/category.entity';
+import { CourseCategory } from 'src/course/course-category/entities/course-category.entity';
 import { Academy } from 'src/academy/entities/academy.entity';
 
 export enum CourseType {
@@ -215,16 +215,16 @@ export class Course extends BasicEntity {
   @OneToMany(() => CourseStudent, (cs) => cs.course)
   enrollments: CourseStudent[];
 
-  @ManyToOne(() => Category, (category) => category.courses, {
+  @ManyToOne(() => CourseCategory, (category) => category.courses, {
     nullable: true,
     onDelete: 'SET NULL',
   })
   @JoinColumn({ name: 'category_id' })
-  category: Category;
+  category: CourseCategory;
 
-  @ManyToOne(() => Category, { nullable: true, onDelete: 'SET NULL' })
+  @ManyToOne(() => CourseCategory, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'subcategory_id' })
-  subCategory?: Category;
+  subCategory?: CourseCategory;
 
   @ManyToOne(() => Academy, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'academy_id' })

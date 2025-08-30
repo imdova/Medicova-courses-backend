@@ -19,7 +19,7 @@ import { CoursePricing } from './course-pricing/entities/course-pricing.entity';
 import { CourseSectionItem } from './course-section/entities/course-section-item.entity';
 import { CourseProgress } from './course-progress/entities/course-progress.entity';
 import { CourseStudent } from './entities/course-student.entity';
-import { Category } from 'src/category/entities/category.entity';
+import { CourseCategory } from 'src/course/course-category/entities/course-category.entity';
 import { UserRole } from 'src/user/entities/user.entity';
 
 export const COURSE_PAGINATION_CONFIG: QueryConfig<Course> = {
@@ -49,8 +49,8 @@ export class CourseService {
     private readonly coursePricingRepository: Repository<CoursePricing>,
     @InjectRepository(CourseSectionItem)
     private courseSectionItemRepo: Repository<CourseSectionItem>,
-    @InjectRepository(Category)
-    private categoryRepository: Repository<Category>,
+    @InjectRepository(CourseCategory)
+    private courseCategoryRepository: Repository<CourseCategory>,
   ) {}
 
   // All methods are checked for performance
@@ -286,10 +286,10 @@ export class CourseService {
   private async getCategoryAndSubcategory(
     categoryId: string,
     subCategoryId?: string,
-  ): Promise<{ category: Category; subcategory?: Category }> {
+  ): Promise<{ category: CourseCategory; subcategory?: CourseCategory }> {
     const ids = [categoryId, subCategoryId].filter(Boolean);
 
-    const categories = await this.categoryRepository.find({
+    const categories = await this.courseCategoryRepository.find({
       where: { id: In(ids) },
       relations: ['parent'],
     });

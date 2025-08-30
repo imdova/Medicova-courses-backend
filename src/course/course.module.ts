@@ -15,7 +15,8 @@ import { Profile } from 'src/profile/entities/profile.entity';
 import { CourseStudent } from './entities/course-student.entity';
 import { CourseProgressModule } from './course-progress/course-progress.module';
 import { CourseSectionItem } from './course-section/entities/course-section-item.entity';
-import { Category } from 'src/category/entities/category.entity';
+import { CourseCategory } from 'src/course/course-category/entities/course-category.entity';
+import { CourseCategoryModule } from './course-category/course-category.module';
 
 @Module({
   imports: [
@@ -26,12 +27,12 @@ import { Category } from 'src/category/entities/category.entity';
       Profile,
       CourseStudent,
       CourseSectionItem,
-      Category,
+      CourseCategory,
     ]),
     CoursePricingModule,
     CourseSectionModule,
     CourseProgressModule,
-    CourseProgressModule,
+    CourseCategoryModule,
   ],
   controllers: [CourseController, StudentCourseController],
   providers: [CourseService, RolesGuard, JwtService, StudentCourseService],
