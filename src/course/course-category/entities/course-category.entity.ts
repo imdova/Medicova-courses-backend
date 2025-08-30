@@ -6,7 +6,7 @@ import { Course } from '../../entities/course.entity';
 @Entity('course_categories')
 export class CourseCategory extends BasicEntity {
   @ApiProperty({
-    description: 'User ID of the teacher/admin who created the course',
+    description: 'User ID of the admin who created the course-category',
     format: 'uuid',
   })
   @Column({ type: 'uuid', name: 'created_by' })

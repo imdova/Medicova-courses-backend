@@ -40,6 +40,8 @@ import { QuizAttempt } from './quiz/entities/quiz-attempts.entity';
 import { AssignmentSubmission } from './assignment/entities/assignment-submission.entity';
 import { CourseCategory } from './course/course-category/entities/course-category.entity';
 import { AcademyInstructor } from './academy/entities/academy-instructors.entity';
+import { ProfileCategory } from './profile/profile-category/entities/profile-category.entity';
+import { ProfileSpeciality } from './profile/profile-category/entities/profile-specaility.entity';
 
 @Module({
   imports: [
@@ -78,6 +80,8 @@ import { AcademyInstructor } from './academy/entities/academy-instructors.entity
         AssignmentSubmission,
         CourseCategory,
         AcademyInstructor,
+        ProfileCategory,
+        ProfileSpeciality,
       ],
       synchronize: true,
       extra: {
