@@ -42,6 +42,8 @@ import { CourseCategory } from './course/course-category/entities/course-categor
 import { AcademyInstructor } from './academy/entities/academy-instructors.entity';
 import { ProfileCategory } from './profile/profile-category/entities/profile-category.entity';
 import { ProfileSpeciality } from './profile/profile-category/entities/profile-specaility.entity';
+import { PaymentModule } from './payment/payment.module';
+import { Payment } from './payment/entities/payment.entity';
 
 @Module({
   imports: [
@@ -82,6 +84,7 @@ import { ProfileSpeciality } from './profile/profile-category/entities/profile-s
         AcademyInstructor,
         ProfileCategory,
         ProfileSpeciality,
+        Payment,
       ],
       synchronize: true,
       extra: {
@@ -98,6 +101,7 @@ import { ProfileSpeciality } from './profile/profile-category/entities/profile-s
     AcademyModule,
     ChatModule,
     AssignmentModule,
+    PaymentModule,
   ],
   controllers: [AppController],
   providers: [AppService, DatabaseService],
