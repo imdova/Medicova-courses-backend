@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CourseService } from './course.service';
 import { CourseController } from './course.controller';
@@ -17,6 +17,7 @@ import { CourseProgressModule } from './course-progress/course-progress.module';
 import { CourseSectionItem } from './course-section/entities/course-section-item.entity';
 import { CourseCategory } from 'src/course/course-category/entities/course-category.entity';
 import { CourseCategoryModule } from './course-category/course-category.module';
+import { PaymentModule } from 'src/payment/payment.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { CourseCategoryModule } from './course-category/course-category.module';
     CourseSectionModule,
     CourseProgressModule,
     CourseCategoryModule,
+    forwardRef(() => PaymentModule),
   ],
   controllers: [CourseController, StudentCourseController],
   providers: [CourseService, RolesGuard, JwtService, StudentCourseService],
