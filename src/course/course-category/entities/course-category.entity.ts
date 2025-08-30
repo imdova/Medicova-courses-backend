@@ -1,12 +1,12 @@
 import { Entity, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { BasicEntity } from '../../common/entities/basic.entity';
-import { Course } from '../../course/entities/course.entity';
+import { BasicEntity } from '../../../common/entities/basic.entity';
+import { Course } from '../../entities/course.entity';
 
-@Entity('categories')
-export class Category extends BasicEntity {
+@Entity('course_categories')
+export class CourseCategory extends BasicEntity {
   @ApiProperty({
-    description: 'User ID of the teacher/admin who created the course',
+    description: 'User ID of the admin who created the course-category',
     format: 'uuid',
   })
   @Column({ type: 'uuid', name: 'created_by' })
@@ -29,15 +29,15 @@ export class Category extends BasicEntity {
   image?: string;
 
   // ✅ Self-referencing relationship
-  @ManyToOne(() => Category, (category) => category.subcategories, {
+  @ManyToOne(() => CourseCategory, (category) => category.subcategories, {
     nullable: true,
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'parent_id' })
-  parent?: Category;
+  parent?: CourseCategory;
 
-  @OneToMany(() => Category, (category) => category.parent)
-  subcategories?: Category[];
+  @OneToMany(() => CourseCategory, (category) => category.parent)
+  subcategories?: CourseCategory[];
 
   @OneToMany(() => Course, (course) => course.category)
   courses: Course[];

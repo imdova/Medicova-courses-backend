@@ -8,6 +8,7 @@ import {
   IsEmail,
   IsUrl,
   ValidateNested,
+  IsUUID,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -170,4 +171,20 @@ export class CreateProfileDto {
   @IsOptional()
   @IsBoolean()
   isPublic?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'ID of the category',
+    example: 'e13fb4e6-a585-40fa-a0a4-c61a4761adbe',
+  })
+  @IsOptional()
+  @IsUUID()
+  categoryId?: string;
+
+  @ApiPropertyOptional({
+    description: 'ID of the speciality',
+    example: '6aefc0e6-9ead-410b-a296-a0263b9f867a',
+  })
+  @IsOptional()
+  @IsUUID()
+  specialityId?: string;
 }

@@ -8,11 +8,13 @@ import { JwtService } from '@nestjs/jwt';
 import { PublicProfileController } from './public-profile.controller';
 import { Profile } from './entities/profile.entity';
 import { UserModule } from 'src/user/user.module';
+import { ProfileCategoryModule } from './profile-category/profile-category.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, Profile]),
     forwardRef(() => UserModule),
+    ProfileCategoryModule,
   ],
   controllers: [ProfileController, PublicProfileController],
   providers: [ProfileService, RolesGuard, JwtService],

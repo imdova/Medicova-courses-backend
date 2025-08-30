@@ -21,7 +21,11 @@ export class ProfileService {
     private profileRepository: Repository<Profile>,
   ) {}
 
-  async createProfile(userId: string, createProfileDto: CreateProfileDto) {
+  async createProfile(
+    userId: string,
+    createProfileDto: CreateProfileDto,
+    role?: string,
+  ) {
     const user = await this.userRepository.findOne({
       where: { id: userId },
       relations: ['profile'],
@@ -31,7 +35,8 @@ export class ProfileService {
     if (user.profile)
       throw new BadRequestException('User already has a profile');
 
-    let { firstName, lastName, userName, ...rest } = createProfileDto;
+    let { firstName, lastName, userName, categoryId, specialityId, ...rest } =
+      createProfileDto;
 
     // ✅ Auto-generate username if not provided
     if (!userName) {
@@ -45,10 +50,18 @@ export class ProfileService {
       }
     }
 
+    // ✅ Only instructors can have category/speciality
+    if (role !== UserRole.INSTRUCTOR) {
+      categoryId = null;
+      specialityId = null;
+    }
+
     const profile = this.profileRepository.create({
       firstName,
       lastName,
       userName,
+      category: categoryId ? { id: categoryId } : null,
+      speciality: specialityId ? { id: specialityId } : null,
       ...rest,
     });
 
@@ -60,7 +73,11 @@ export class ProfileService {
     return profile;
   }
 
-  async updateProfile(userId: string, updateProfileDto: UpdateProfileDto) {
+  async updateProfile(
+    userId: string,
+    updateProfileDto: UpdateProfileDto,
+    role?: string,
+  ) {
     const user = await this.userRepository.findOne({
       where: { id: userId },
       relations: ['profile'],
@@ -70,21 +87,32 @@ export class ProfileService {
       throw new NotFoundException('Profile not found for this user');
     }
 
-    if (!updateProfileDto.userName) {
-      updateProfileDto.userName = await this.generateUsername(
-        updateProfileDto.firstName,
-        updateProfileDto.lastName,
-      );
-    } else {
+    // ✅ Handle username properly
+    if (updateProfileDto.userName) {
       const existing = await this.profileRepository.findOne({
         where: { userName: updateProfileDto.userName },
       });
-      if (existing) {
+      if (existing && existing.id !== user.profile.id) {
         throw new BadRequestException('Username already taken');
       }
+    } else {
+      updateProfileDto.userName = user.profile.userName; // keep old one
     }
 
-    const updatedProfile = Object.assign(user.profile, updateProfileDto);
+    // ✅ Only instructors can update category/speciality
+    let { categoryId, specialityId, ...rest } = updateProfileDto;
+    if (role !== UserRole.INSTRUCTOR) {
+      categoryId = null;
+      specialityId = null;
+    }
+
+    const updatedProfile = Object.assign(user.profile, {
+      ...rest,
+      userName: updateProfileDto.userName,
+      category: categoryId ? { id: categoryId } : null,
+      speciality: specialityId ? { id: specialityId } : null,
+    });
+
     await this.profileRepository.save(updatedProfile);
     return updatedProfile;
   }
@@ -92,7 +120,7 @@ export class ProfileService {
   async getProfileByUserId(userId: string) {
     const profile = await this.profileRepository.findOne({
       where: { user: { id: userId } },
-      relations: ['user'],
+      relations: ['user', 'category', 'speciality'],
     });
 
     if (!profile) {
@@ -142,7 +170,7 @@ export class ProfileService {
         userName,
         user: { role: UserRole.INSTRUCTOR }, // ✅ filter by instructor role
       },
-      relations: ['user'], // ✅ ensure user is loaded
+      relations: ['user', 'category', 'speciality'], // ✅ ensure user is loaded
     });
 
     if (!profile) {
