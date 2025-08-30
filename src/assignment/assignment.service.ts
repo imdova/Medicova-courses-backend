@@ -3,8 +3,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { Assignment } from './entities/assignment.entity';
 import { CreateAssignmentDto } from './dto/create-assignment.dto';
 import { UpdateAssignmentDto } from './dto/update-assignment.dto';
@@ -21,15 +21,17 @@ export class AssignmentService {
   constructor(
     @InjectRepository(Assignment)
     private readonly assignmentRepo: Repository<Assignment>,
-    @InjectRepository(CourseProgress)
-    private progressRepo: Repository<CourseProgress>,
     @InjectRepository(CourseSectionItem)
     private courseSectionItemRepo: Repository<CourseSectionItem>,
-    @InjectRepository(AssignmentSubmission)
-    private submissionRepo: Repository<AssignmentSubmission>,
-  ) { }
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
+  ) {}
 
-  async create(dto: CreateAssignmentDto, creatorId: string, academyId?: string) {
+  async create(
+    dto: CreateAssignmentDto,
+    creatorId: string,
+    academyId?: string,
+  ) {
     const assignment = this.assignmentRepo.create({
       ...dto,
       createdBy: creatorId,
@@ -39,7 +41,11 @@ export class AssignmentService {
     return this.toResponse(saved);
   }
 
-  async findAllForUser(requesterId: string, role: UserRole, academyId?: string) {
+  async findAllForUser(
+    requesterId: string,
+    role: UserRole,
+    academyId?: string,
+  ) {
     let assignments: Assignment[];
 
     if (role === UserRole.ADMIN) {
@@ -64,7 +70,12 @@ export class AssignmentService {
     return assignments.map(this.toResponse);
   }
 
-  async findOneForUser(id: string, requesterId: string, role: UserRole, academyId?: string) {
+  async findOneForUser(
+    id: string,
+    requesterId: string,
+    role: UserRole,
+    academyId?: string,
+  ) {
     let assignment: Assignment | null = null;
 
     if (role === UserRole.ADMIN) {
@@ -118,7 +129,12 @@ export class AssignmentService {
     return this.toResponse(saved);
   }
 
-  async removeForUser(id: string, requesterId: string, role: UserRole, academyId?: string) {
+  async removeForUser(
+    id: string,
+    requesterId: string,
+    role: UserRole,
+    academyId?: string,
+  ) {
     let assignment: Assignment | null = null;
 
     if (role === UserRole.ADMIN) {
@@ -178,66 +194,69 @@ export class AssignmentService {
     return assignmentItems.map((item) => item.assignment).filter(Boolean); // just in case some items have no assignment
   }
 
+  // Refactored
   async updateSubmissionScore(
     assignmentId: string,
     submissionId: string,
     teacherId: string,
     score: number,
   ): Promise<AssignmentSubmission> {
-    // Verify assignment exists and belongs to the teacher
-    const assignment = await this.assignmentRepo.findOne({
-      where: { id: assignmentId },
-    });
-    if (!assignment) throw new NotFoundException('Assignment not found');
-    if (assignment.createdBy !== teacherId) {
-      throw new ForbiddenException(
-        'You are not allowed to grade this assignment',
-      );
-    }
-
-    // Fetch the submission
-    const submission = await this.submissionRepo.findOne({
-      where: { id: submissionId },
-      relations: ['courseStudent'],
-    });
-    if (!submission) throw new NotFoundException('Submission not found');
-
-    // Update the score and mark as graded
-    submission.score = score;
-    submission.graded = true;
-    await this.submissionRepo.save(submission);
-
-    // Fetch existing course progress for this assignment & student
-    const progress = await this.progressRepo
-      .createQueryBuilder('progress')
-      .innerJoinAndSelect('progress.item', 'item')
-      .where('item.assignment_id = :assignmentId', { assignmentId })
-      .andWhere('progress.course_student_id = :studentId', {
-        studentId: submission.courseStudent.id,
-      })
-      .getOne();
-
-    if (progress) {
-      // Update existing progress
-      progress.score = score;
-      progress.completed = true;
-      await this.progressRepo.save(progress);
-    } else {
-      // Optional: only create if you want to handle missing progress
-      const item = await this.courseSectionItemRepo.findOne({
-        where: { assignment: { id: assignmentId } },
+    return this.dataSource.transaction(async (manager) => {
+      // Verify assignment exists AND belongs to teacher
+      const assignment = await manager.getRepository(Assignment).findOne({
+        where: { id: assignmentId, createdBy: teacherId },
       });
-      if (item) {
-        const newProgress = this.progressRepo.create({
-          courseStudent: submission.courseStudent,
-          item,
-          completed: true,
-          score,
-        });
-        await this.progressRepo.save(newProgress);
+      if (!assignment) {
+        throw new ForbiddenException(
+          'Assignment not found or not owned by you',
+        );
       }
-    }
 
-    return submission;
+      // Update submission score directly
+      const result = await manager
+        .getRepository(AssignmentSubmission)
+        .update({ id: submissionId }, { score, graded: true });
+      if (!result.affected) throw new NotFoundException('Submission not found');
+
+      // Fetch submission with relations (for return + progress creation)
+      const submission = await manager
+        .getRepository(AssignmentSubmission)
+        .findOne({
+          where: { id: submissionId },
+          relations: ['courseStudent'],
+        });
+
+      // Check progress
+      let progress = await manager
+        .getRepository(CourseProgress)
+        .createQueryBuilder('progress')
+        .innerJoinAndSelect('progress.item', 'item')
+        .where('item.assignment_id = :assignmentId', { assignmentId })
+        .andWhere('progress.course_student_id = :studentId', {
+          studentId: submission.courseStudent.id,
+        })
+        .getOne();
+
+      if (progress) {
+        progress.score = score;
+        progress.completed = true;
+        await manager.getRepository(CourseProgress).save(progress);
+      } else {
+        const item = await manager.getRepository(CourseSectionItem).findOne({
+          where: { assignment: { id: assignmentId } },
+        });
+        if (item) {
+          progress = manager.getRepository(CourseProgress).create({
+            courseStudent: submission.courseStudent,
+            item,
+            completed: true,
+            score,
+          });
+          await manager.getRepository(CourseProgress).save(progress);
+        }
+      }
+
+      return submission;
+    });
   }
 }

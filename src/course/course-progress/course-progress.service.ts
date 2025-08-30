@@ -182,17 +182,20 @@ export class CourseProgressService {
     return this.submissionRepo.save(submission);
   }
 
-  /** ✅ Optimized course progress retrieval */
+  // Refactored
   async getCourseProgress(courseId: string, studentId: string) {
     // 1️⃣ Validate enrollment
     const courseStudent = await this.courseStudentRepo.findOne({
       where: { course: { id: courseId }, student: { id: studentId } },
     });
-    if (!courseStudent) throw new NotFoundException('Student not enrolled');
+    if (!courseStudent) {
+      throw new NotFoundException('Student not enrolled');
+    }
 
     // 2️⃣ Get all items in course
     const items = await this.courseSectionItemRepo.find({
       where: { section: { course: { id: courseId } } },
+      select: ['id', 'curriculumType'], // only fetch what we need
     });
 
     if (items.length === 0) {
@@ -211,11 +214,15 @@ export class CourseProgressService {
       .andWhere('course.id = :courseId', { courseId })
       .getMany();
 
+    // 🔄 Convert to a Map for O(1) lookups
+    const progressMap = new Map(progressRecords.map((p) => [p.item.id, p]));
+
     // 4️⃣ Compute counts
     const completedCount = progressRecords.filter((p) => p.completed).length;
     const totalCount = items.length;
     const percentage = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
 
+    // 5️⃣ Build response
     return {
       courseId,
       studentId,
@@ -223,7 +230,7 @@ export class CourseProgressService {
       completedItems: completedCount,
       progressPercentage: percentage,
       items: items.map((item) => {
-        const record = progressRecords.find((p) => p.item.id === item.id);
+        const record = progressMap.get(item.id);
         return {
           id: item.id,
           type: item.curriculumType,
