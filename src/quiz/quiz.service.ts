@@ -10,20 +10,27 @@ import { AttemptMode, Quiz } from './entities/quiz.entity';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { QueryConfig } from '../common/utils/query-options';
-import { FilterOperator, paginate, PaginateQuery } from 'nestjs-paginate';
+import {
+  FilterOperator,
+  paginate,
+  Paginated,
+  PaginateQuery,
+} from 'nestjs-paginate';
 import { Question } from './entities/question.entity';
 import { SubmitQuizDto } from './dto/submit-quiz.dto';
 import { QuizAttempt } from './entities/quiz-attempts.entity';
 import { UserRole } from 'src/user/entities/user.entity';
 import { CreateQuizWithQuestionsDto } from './dto/create-quiz-with-questions.dto';
 import { QuizQuestion } from './entities/quiz-question.entity';
+import { QuizWithStats } from './interface/quiz-with-stats.interface';
 
 export const QUIZ_PAGINATION_CONFIG: QueryConfig<Quiz> = {
   sortableColumns: ['created_at', 'title'],
   defaultSortBy: [['created_at', 'DESC']],
   filterableColumns: {
     title: [FilterOperator.ILIKE], // case-insensitive search by title
-    created_by: [FilterOperator.EQ], // filter by owner
+    status: [FilterOperator.EQ],
+    retakes: [FilterOperator.GTE, FilterOperator.LTE],
   },
   relations: [], // add relations if you want eager joins
 };
@@ -57,59 +64,96 @@ export class QuizService {
     userId: string,
     role: string,
     academyId: string,
-  ) {
+  ): Promise<Paginated<QuizWithStats>> {
+    // Scalar subqueries for aggregates (no JOIN/GROUP BY needed)
+    const QUESTION_COUNT = `(SELECT COUNT(*) FROM quiz_questions qq WHERE qq.quiz_id = quiz.id)`;
+    const AVG_SCORE = `(SELECT COALESCE(AVG(qa.score), 0) FROM quiz_attempts qa WHERE qa.quiz_id = quiz.id)`;
+    const SUCCESS_RATE = `
+    (SELECT COALESCE(
+      CASE WHEN COUNT(*) = 0 THEN 0
+           ELSE (SUM(CASE WHEN qa.passed = true THEN 1 ELSE 0 END) * 100.0 / COUNT(*))
+      END
+    , 0)
+     FROM quiz_attempts qa
+     WHERE qa.quiz_id = quiz.id)
+  `;
+
     const qb = this.quizRepo
       .createQueryBuilder('quiz')
-      .loadRelationCountAndMap('quiz.questionCount', 'quiz.quizQuestions')
       .where('quiz.deleted_at IS NULL');
 
     // Role restrictions
     if (role === UserRole.ADMIN) {
-      // all
+      // all quizzes
     } else if (role === UserRole.ACADEMY_ADMIN) {
       qb.andWhere('quiz.academy_id = :academyId', { academyId });
     } else {
       qb.andWhere('quiz.created_by = :userId', { userId });
     }
 
-    // Add stats (aggregate subqueries)
-    qb.addSelect(
-      (sub) =>
-        sub
-          .select('AVG(attempt.score)')
-          .from(QuizAttempt, 'attempt')
-          .where('attempt.quiz_id = quiz.id'),
-      'average_score',
-    );
+    // Select aggregates as extra columns
+    qb.addSelect(QUESTION_COUNT, 'questionCount')
+      .addSelect(AVG_SCORE, 'average_score')
+      .addSelect(SUCCESS_RATE, 'success_rate');
 
-    qb.addSelect(
-      (sub) =>
-        sub
-          .select(
-            `CASE WHEN COUNT(*) = 0 
-          THEN 0 
-          ELSE (SUM(CASE WHEN attempt.passed = true THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) 
-        END`,
-          )
-          .from(QuizAttempt, 'attempt')
-          .where('attempt.quiz_id = quiz.id'),
-      'success_rate',
-    );
+    // Computed-field filters (in WHERE so the count query sees them)
+    const { filter } = query;
+    if (filter?.minQuestionCount !== undefined) {
+      qb.andWhere(`${QUESTION_COUNT} >= :minQuestionCount`, {
+        minQuestionCount: Number(filter.minQuestionCount),
+      });
+    }
+    if (filter?.maxQuestionCount !== undefined) {
+      qb.andWhere(`${QUESTION_COUNT} <= :maxQuestionCount`, {
+        maxQuestionCount: Number(filter.maxQuestionCount),
+      });
+    }
+    if (filter?.minAverageScore !== undefined) {
+      qb.andWhere(`${AVG_SCORE} >= :minAverageScore`, {
+        minAverageScore: Number(filter.minAverageScore),
+      });
+    }
+    if (filter?.maxAverageScore !== undefined) {
+      qb.andWhere(`${AVG_SCORE} <= :maxAverageScore`, {
+        maxAverageScore: Number(filter.maxAverageScore),
+      });
+    }
+    if (filter?.minSuccessRate !== undefined) {
+      qb.andWhere(`${SUCCESS_RATE} >= :minSuccessRate`, {
+        minSuccessRate: Number(filter.minSuccessRate),
+      });
+    }
+    if (filter?.maxSuccessRate !== undefined) {
+      qb.andWhere(`${SUCCESS_RATE} <= :maxSuccessRate`, {
+        maxSuccessRate: Number(filter.maxSuccessRate),
+      });
+    }
 
-    // Run the query with paginate (entities only)
-    const paginated = await paginate(query, qb, QUIZ_PAGINATION_CONFIG);
+    // 1) Use nestjs-paginate to apply built-in filters/sort + compute totalItems
+    const paginated = await paginate<Quiz>(query, qb, QUIZ_PAGINATION_CONFIG);
 
-    // Run query manually to also fetch raw stats
-    const { raw } = await qb.getRawAndEntities();
+    // 2) Fetch raw+entities for the current page (to read our aggregate columns)
+    const offset =
+      (paginated.meta.currentPage - 1) * paginated.meta.itemsPerPage;
+    const limit = paginated.meta.itemsPerPage;
 
-    // Merge stats into the paginated data
-    const data = paginated.data.map((quiz, i) => ({
+    const { entities, raw } = await qb
+      .skip(offset)
+      .take(limit)
+      .getRawAndEntities();
+
+    // 3) Merge aggregates into entity objects
+    const data: QuizWithStats[] = entities.map((quiz, i) => ({
       ...quiz,
-      average_score: raw[i]?.average_score ? Number(raw[i].average_score) : 0,
-      success_rate: raw[i]?.success_rate ? Number(raw[i].success_rate) : 0,
+      questionCount: Number(raw[i]?.questionCount ?? 0),
+      average_score: Number(raw[i]?.average_score ?? 0),
+      success_rate: Number(raw[i]?.success_rate ?? 0),
     }));
 
-    return { ...paginated, data };
+    return {
+      ...paginated,
+      data,
+    };
   }
 
   async findOne(

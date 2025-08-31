@@ -9,7 +9,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { QuizService } from './quiz.service';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
@@ -17,7 +17,6 @@ import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { UserRole } from 'src/user/entities/user.entity';
 import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
-import { Quiz } from './entities/quiz.entity';
 import { AuthGuard } from '@nestjs/passport';
 import { QuizAttempt } from './entities/quiz-attempts.entity';
 import { SubmitQuizDto } from './dto/submit-quiz.dto';
@@ -97,6 +96,71 @@ export class QuizController {
   }
 
   @Get()
+  // Regular filterable columns (nestjs-paginate style)
+  @ApiQuery({
+    name: 'filter.title',
+    required: false,
+    description:
+      'Search quizzes by title (ILIKE). Example value: `$ilike:quiz`',
+    example: '$ilike:quiz',
+  })
+  @ApiQuery({
+    name: 'filter.status',
+    required: false,
+    description: 'Filter by quiz status (EQ). Example value: `$eq:published`',
+    example: '$eq:published',
+  })
+  @ApiQuery({
+    name: 'filter.retakes',
+    required: false,
+    description:
+      'Filter by number of allowed retakes (GTE/LTE). Example values: `$gte:2`, `$lte:5`',
+    example: '$gte:2',
+  })
+
+  // Computed columns (manual range filters)
+  @ApiQuery({
+    name: 'filter.minQuestionCount',
+    required: false,
+    description:
+      'Filter by minimum number of questions (>=). Example: `?filter.minQuestionCount=5`',
+    example: 5,
+  })
+  @ApiQuery({
+    name: 'filter.maxQuestionCount',
+    required: false,
+    description:
+      'Filter by maximum number of questions (<=). Example: `?filter.maxQuestionCount=10`',
+    example: 10,
+  })
+  @ApiQuery({
+    name: 'filter.minAverageScore',
+    required: false,
+    description:
+      'Filter by minimum average score (>=). Example: `?filter.minAverageScore=40`',
+    example: 40,
+  })
+  @ApiQuery({
+    name: 'filter.maxAverageScore',
+    required: false,
+    description:
+      'Filter by maximum average score (<=). Example: `?filter.maxAverageScore=80`',
+    example: 80,
+  })
+  @ApiQuery({
+    name: 'filter.minSuccessRate',
+    required: false,
+    description:
+      'Filter by minimum success rate percentage (>=). Example: `?filter.minSuccessRate=20`',
+    example: 20,
+  })
+  @ApiQuery({
+    name: 'filter.maxSuccessRate',
+    required: false,
+    description:
+      'Filter by maximum success rate percentage (<=). Example: `?filter.maxSuccessRate=60`',
+    example: 60,
+  })
   @ApiOperation({ summary: 'List all quizzes' })
   @ApiResponse({ status: 200, description: 'List of quizzes' })
   findAll(
