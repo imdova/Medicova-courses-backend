@@ -119,27 +119,48 @@ export class QuizController {
     example: '$gte:2',
   })
 
-  // Computed columns (handled manually on the server)
+  // Computed columns (manual range filters)
   @ApiQuery({
-    name: 'filter.questionCount',
+    name: 'filter.minQuestionCount',
     required: false,
     description:
-      'Filter by number of questions (exact match). Pass a plain integer. Example: `?filter.questionCount=3`',
-    example: 3,
+      'Filter by minimum number of questions. Example: `?filter.minQuestionCount=5`',
+    example: 5,
   })
   @ApiQuery({
-    name: 'filter.average_score',
+    name: 'filter.maxQuestionCount',
     required: false,
     description:
-      'Filter by minimum average score (>=). Pass a numeric value (0-100). Example: `?filter.average_score=50` (returns quizzes with avg >= 50).',
-    example: 50,
+      'Filter by maximum number of questions. Example: `?filter.maxQuestionCount=10`',
+    example: 10,
   })
   @ApiQuery({
-    name: 'filter.success_rate',
+    name: 'filter.minAverageScore',
     required: false,
     description:
-      'Filter by minimum success rate percentage (>=). Pass a numeric value (0-100). Example: `?filter.success_rate=70` (returns quizzes with success rate >= 70%).',
-    example: 70,
+      'Filter by minimum average score (>=). Example: `?filter.minAverageScore=40`',
+    example: 40,
+  })
+  @ApiQuery({
+    name: 'filter.maxAverageScore',
+    required: false,
+    description:
+      'Filter by maximum average score (<=). Example: `?filter.maxAverageScore=80`',
+    example: 80,
+  })
+  @ApiQuery({
+    name: 'filter.minSuccessRate',
+    required: false,
+    description:
+      'Filter by minimum success rate percentage (>=). Example: `?filter.minSuccessRate=20`',
+    example: 20,
+  })
+  @ApiQuery({
+    name: 'filter.maxSuccessRate',
+    required: false,
+    description:
+      'Filter by maximum success rate percentage (<=). Example: `?filter.maxSuccessRate=60`',
+    example: 60,
   })
   @ApiOperation({ summary: 'List all quizzes' })
   @ApiResponse({ status: 200, description: 'List of quizzes' })

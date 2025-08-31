@@ -117,20 +117,43 @@ export class QuizService {
       success_rate: raw[i]?.success_rate ? Number(raw[i].success_rate) : 0,
     }));
 
-    // Apply manual filters for computed fields
+    // Apply manual filters for computed fields (range support)
     const { filter } = query;
-    if (filter?.questionCount) {
+
+    // Question Count
+    if (filter?.minQuestionCount) {
       data = data.filter(
-        (q) => q.questionCount === Number(filter.questionCount),
+        (q) => q.questionCount >= Number(filter.minQuestionCount),
       );
     }
-    if (filter?.average_score) {
+    if (filter?.maxQuestionCount) {
       data = data.filter(
-        (q) => q.average_score >= Number(filter.average_score),
+        (q) => q.questionCount <= Number(filter.maxQuestionCount),
       );
     }
-    if (filter?.success_rate) {
-      data = data.filter((q) => q.success_rate >= Number(filter.success_rate));
+
+    // Average Score
+    if (filter?.minAverageScore) {
+      data = data.filter(
+        (q) => q.average_score >= Number(filter.minAverageScore),
+      );
+    }
+    if (filter?.maxAverageScore) {
+      data = data.filter(
+        (q) => q.average_score <= Number(filter.maxAverageScore),
+      );
+    }
+
+    // Success Rate
+    if (filter?.minSuccessRate) {
+      data = data.filter(
+        (q) => q.success_rate >= Number(filter.minSuccessRate),
+      );
+    }
+    if (filter?.maxSuccessRate) {
+      data = data.filter(
+        (q) => q.success_rate <= Number(filter.maxSuccessRate),
+      );
     }
 
     // Adjust pagination metadata
