@@ -79,48 +79,45 @@ export class QuizService {
       qb.andWhere('quiz.created_by = :userId', { userId });
     }
 
-    // Stats (subqueries)
+    // Stats - optimized subqueries with COALESCE
     qb.addSelect(
-      (sub) =>
-        sub
-          .select('AVG(attempt.score)')
-          .from(QuizAttempt, 'attempt')
-          .where('attempt.quiz_id = quiz.id'),
+      `COALESCE((SELECT AVG(score) FROM quiz_attempts WHERE quiz_id = quiz.id), 0)`,
       'average_score',
     );
 
     qb.addSelect(
-      (sub) =>
-        sub
-          .select(
-            `CASE WHEN COUNT(*) = 0 
-           THEN 0 
-           ELSE (SUM(CASE WHEN attempt.passed = true THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) 
-          END`,
-          )
-          .from(QuizAttempt, 'attempt')
-          .where('attempt.quiz_id = quiz.id'),
+      `COALESCE((SELECT 
+        CASE WHEN COUNT(*) = 0 THEN 0 
+        ELSE (SUM(CASE WHEN passed = true THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) 
+        END 
+      FROM quiz_attempts WHERE quiz_id = quiz.id), 0)`,
       'success_rate',
     );
 
-    // Run query with paginate
+    // Single execution - get both paginated entities and raw data
     const paginated = await paginate(query, qb, QUIZ_PAGINATION_CONFIG);
 
-    // Extract raw stats
-    const { raw } = await qb.getRawAndEntities();
+    // Get the raw data for the current page only
+    const rawResults = await qb
+      .skip((paginated.meta.currentPage - 1) * paginated.meta.itemsPerPage)
+      .take(paginated.meta.itemsPerPage)
+      .getRawMany();
 
     // Merge stats into results
     let data: QuizWithStats[] = paginated.data.map((quiz, i) => ({
       ...quiz,
       questionCount: (quiz as any).questionCount ?? 0,
-      average_score: raw[i]?.average_score ? Number(raw[i].average_score) : 0,
-      success_rate: raw[i]?.success_rate ? Number(raw[i].success_rate) : 0,
+      average_score: rawResults[i]?.average_score
+        ? Number(rawResults[i].average_score)
+        : 0,
+      success_rate: rawResults[i]?.success_rate
+        ? Number(rawResults[i].success_rate)
+        : 0,
     }));
 
-    // Apply manual filters for computed fields (range support)
+    // Apply manual filters for computed fields
     const { filter } = query;
 
-    // Question Count
     if (filter?.minQuestionCount) {
       data = data.filter(
         (q) => q.questionCount >= Number(filter.minQuestionCount),
@@ -131,8 +128,6 @@ export class QuizService {
         (q) => q.questionCount <= Number(filter.maxQuestionCount),
       );
     }
-
-    // Average Score
     if (filter?.minAverageScore) {
       data = data.filter(
         (q) => q.average_score >= Number(filter.minAverageScore),
@@ -143,8 +138,6 @@ export class QuizService {
         (q) => q.average_score <= Number(filter.maxAverageScore),
       );
     }
-
-    // Success Rate
     if (filter?.minSuccessRate) {
       data = data.filter(
         (q) => q.success_rate >= Number(filter.minSuccessRate),
@@ -156,7 +149,6 @@ export class QuizService {
       );
     }
 
-    // Adjust pagination metadata
     return {
       ...paginated,
       data,
