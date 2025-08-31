@@ -10,20 +10,27 @@ import { AttemptMode, Quiz } from './entities/quiz.entity';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { QueryConfig } from '../common/utils/query-options';
-import { FilterOperator, paginate, PaginateQuery } from 'nestjs-paginate';
+import {
+  FilterOperator,
+  paginate,
+  Paginated,
+  PaginateQuery,
+} from 'nestjs-paginate';
 import { Question } from './entities/question.entity';
 import { SubmitQuizDto } from './dto/submit-quiz.dto';
 import { QuizAttempt } from './entities/quiz-attempts.entity';
 import { UserRole } from 'src/user/entities/user.entity';
 import { CreateQuizWithQuestionsDto } from './dto/create-quiz-with-questions.dto';
 import { QuizQuestion } from './entities/quiz-question.entity';
+import { QuizWithStats } from './interface/quiz-with-stats.interface';
 
 export const QUIZ_PAGINATION_CONFIG: QueryConfig<Quiz> = {
   sortableColumns: ['created_at', 'title'],
   defaultSortBy: [['created_at', 'DESC']],
   filterableColumns: {
     title: [FilterOperator.ILIKE], // case-insensitive search by title
-    created_by: [FilterOperator.EQ], // filter by owner
+    status: [FilterOperator.EQ],
+    retakes: [FilterOperator.GTE, FilterOperator.LTE],
   },
   relations: [], // add relations if you want eager joins
 };
@@ -57,7 +64,7 @@ export class QuizService {
     userId: string,
     role: string,
     academyId: string,
-  ) {
+  ): Promise<Paginated<QuizWithStats>> {
     const qb = this.quizRepo
       .createQueryBuilder('quiz')
       .loadRelationCountAndMap('quiz.questionCount', 'quiz.quizQuestions')
@@ -65,14 +72,14 @@ export class QuizService {
 
     // Role restrictions
     if (role === UserRole.ADMIN) {
-      // all
+      // all quizzes
     } else if (role === UserRole.ACADEMY_ADMIN) {
       qb.andWhere('quiz.academy_id = :academyId', { academyId });
     } else {
       qb.andWhere('quiz.created_by = :userId', { userId });
     }
 
-    // Add stats (aggregate subqueries)
+    // Stats (subqueries)
     qb.addSelect(
       (sub) =>
         sub
@@ -87,29 +94,55 @@ export class QuizService {
         sub
           .select(
             `CASE WHEN COUNT(*) = 0 
-          THEN 0 
-          ELSE (SUM(CASE WHEN attempt.passed = true THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) 
-        END`,
+           THEN 0 
+           ELSE (SUM(CASE WHEN attempt.passed = true THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) 
+          END`,
           )
           .from(QuizAttempt, 'attempt')
           .where('attempt.quiz_id = quiz.id'),
       'success_rate',
     );
 
-    // Run the query with paginate (entities only)
+    // Run query with paginate
     const paginated = await paginate(query, qb, QUIZ_PAGINATION_CONFIG);
 
-    // Run query manually to also fetch raw stats
+    // Extract raw stats
     const { raw } = await qb.getRawAndEntities();
 
-    // Merge stats into the paginated data
-    const data = paginated.data.map((quiz, i) => ({
+    // Merge stats into results
+    let data: QuizWithStats[] = paginated.data.map((quiz, i) => ({
       ...quiz,
+      questionCount: (quiz as any).questionCount ?? 0,
       average_score: raw[i]?.average_score ? Number(raw[i].average_score) : 0,
       success_rate: raw[i]?.success_rate ? Number(raw[i].success_rate) : 0,
     }));
 
-    return { ...paginated, data };
+    // Apply manual filters for computed fields
+    const { filter } = query;
+    if (filter?.questionCount) {
+      data = data.filter(
+        (q) => q.questionCount === Number(filter.questionCount),
+      );
+    }
+    if (filter?.average_score) {
+      data = data.filter(
+        (q) => q.average_score >= Number(filter.average_score),
+      );
+    }
+    if (filter?.success_rate) {
+      data = data.filter((q) => q.success_rate >= Number(filter.success_rate));
+    }
+
+    // Adjust pagination metadata
+    return {
+      ...paginated,
+      data,
+      meta: {
+        ...paginated.meta,
+        totalItems: data.length,
+        totalPages: Math.ceil(data.length / paginated.meta.itemsPerPage),
+      },
+    };
   }
 
   async findOne(

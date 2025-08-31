@@ -9,7 +9,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { QuizService } from './quiz.service';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
@@ -97,6 +97,50 @@ export class QuizController {
   }
 
   @Get()
+  // Regular filterable columns (nestjs-paginate style)
+  @ApiQuery({
+    name: 'filter.title',
+    required: false,
+    description:
+      'Search quizzes by title (ILIKE). Example value: `$ilike:quiz`',
+    example: '$ilike:quiz',
+  })
+  @ApiQuery({
+    name: 'filter.status',
+    required: false,
+    description: 'Filter by quiz status (EQ). Example value: `$eq:published`',
+    example: '$eq:published',
+  })
+  @ApiQuery({
+    name: 'filter.retakes',
+    required: false,
+    description:
+      'Filter by number of allowed retakes (GTE/LTE). Example values: `$gte:2`, `$lte:5`',
+    example: '$gte:2',
+  })
+
+  // Computed columns (handled manually on the server)
+  @ApiQuery({
+    name: 'filter.questionCount',
+    required: false,
+    description:
+      'Filter by number of questions (exact match). Pass a plain integer. Example: `?filter.questionCount=3`',
+    example: 3,
+  })
+  @ApiQuery({
+    name: 'filter.average_score',
+    required: false,
+    description:
+      'Filter by minimum average score (>=). Pass a numeric value (0-100). Example: `?filter.average_score=50` (returns quizzes with avg >= 50).',
+    example: 50,
+  })
+  @ApiQuery({
+    name: 'filter.success_rate',
+    required: false,
+    description:
+      'Filter by minimum success rate percentage (>=). Pass a numeric value (0-100). Example: `?filter.success_rate=70` (returns quizzes with success rate >= 70%).',
+    example: 70,
+  })
   @ApiOperation({ summary: 'List all quizzes' })
   @ApiResponse({ status: 200, description: 'List of quizzes' })
   findAll(
