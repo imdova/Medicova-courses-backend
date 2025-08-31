@@ -17,6 +17,10 @@ export class Academy extends BasicEntity {
   @Column({ nullable: true })
   description?: string;
 
+  @ApiProperty({ description: 'Slug for SEO-friendly URLs' })
+  @Column({ length: 255, unique: true })
+  slug: string;
+
   @OneToMany(() => User, (user) => user.academy)
   users: User[];
 
