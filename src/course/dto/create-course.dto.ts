@@ -32,6 +32,14 @@ export class CreateCourseDto {
   @IsEnum(CourseType)
   type: CourseType;
 
+  @ApiProperty({
+    description: 'Slug for SEO-friendly URLs',
+    example: 'web-development',
+  })
+  @IsString()
+  @MaxLength(255)
+  slug: string;
+
   @ApiPropertyOptional({
     description: 'Difficulty level of the course',
     enum: CourseLevel,

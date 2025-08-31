@@ -151,6 +151,26 @@ export class CourseController {
     );
   }
 
+  @Roles(
+    UserRole.INSTRUCTOR,
+    UserRole.ADMIN,
+    UserRole.ACADEMY_ADMIN,
+    UserRole.ACADEMY_USER,
+    UserRole.STUDENT,
+  )
+  @Get('slug/:slug')
+  @ApiOperation({ summary: 'Get a course by Slug' })
+  @ApiParam({ name: 'slug', description: 'Slug of course' })
+  @ApiResponse({
+    status: 200,
+    description: 'Course found',
+    type: CreateCourseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Course not found' })
+  findOneBySlug(@Param('slug') slug: string) {
+    return this.courseService.findOneBySlug(slug);
+  }
+
   @Get(':courseId/students/progress')
   @ApiOperation({
     summary: 'Get progress of all students in a course (teacher view)',

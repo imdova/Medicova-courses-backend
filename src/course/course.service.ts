@@ -1,5 +1,7 @@
 import {
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -65,6 +67,7 @@ export class CourseService {
       pricings = [],
       category: categoryId,
       subcategory: subCategoryId,
+      slug,
       ...rest
     } = createCourseDto;
 
@@ -101,9 +104,20 @@ export class CourseService {
       tags,
       pricings,
       academy: { id: academyId },
+      slug,
     });
 
-    return this.courseRepository.save(course);
+    try {
+      return await this.courseRepository.save(course);
+    } catch (err) {
+      if (err.code === '23505' && err.detail.includes('slug')) {
+        throw new HttpException(
+          `Slug "${slug}" already exists`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      throw err;
+    }
   }
 
   async getPaginatedCourses(
@@ -144,6 +158,17 @@ export class CourseService {
     if (!course) throw new NotFoundException('Course not found');
 
     this.checkOwnership(course, userId, academyId, role);
+
+    return course;
+  }
+
+  async findOneBySlug(slug: string): Promise<Course> {
+    const course = await this.courseRepository.findOne({
+      where: { slug, deleted_at: null },
+      relations: ['pricings', 'category', 'subCategory', 'academy'],
+    });
+
+    if (!course) throw new NotFoundException('Course not found');
 
     return course;
   }
@@ -215,10 +240,22 @@ export class CourseService {
       }
     }
 
+    course.slug = updateData.slug ?? course.slug;
+
     // Update other fields
     Object.assign(course, rest);
 
-    return this.courseRepository.save(course);
+    try {
+      return await this.courseRepository.save(course);
+    } catch (err: any) {
+      if (err.code === '23505' && err.detail.includes('slug')) {
+        throw new HttpException(
+          `Slug "${course.slug}" already exists`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      throw err;
+    }
   }
 
   async softDelete(
