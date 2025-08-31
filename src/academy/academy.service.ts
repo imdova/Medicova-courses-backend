@@ -36,7 +36,9 @@ export class AcademyService {
       return await this.academyRepository.save(academy);
     } catch (error) {
       if ((error as any).code === '23505') {
-        throw new ConflictException('Academy already exists.');
+        throw new ConflictException(
+          'Academy with this name or slug already exists.',
+        );
       }
       throw new InternalServerErrorException('Failed to create academy.');
     }
@@ -50,9 +52,28 @@ export class AcademyService {
     return this.academyRepository.findOne({ where: { id } });
   }
 
+  async findOneBySlug(slug: string): Promise<Academy> {
+    const course = await this.academyRepository.findOne({
+      where: { slug, deleted_at: null },
+    });
+
+    if (!course) throw new NotFoundException('Academy not found');
+
+    return course;
+  }
+
   async update(id: string, updateAcademyDto: UpdateAcademyDto) {
-    await this.academyRepository.update(id, updateAcademyDto);
-    return this.findOne(id);
+    try {
+      await this.academyRepository.update(id, updateAcademyDto);
+      return this.findOne(id); // fetch the updated entity
+    } catch (error) {
+      if ((error as any).code === '23505') {
+        throw new ConflictException(
+          'Academy with this name or slug already exists.',
+        );
+      }
+      throw new InternalServerErrorException('Failed to update academy.');
+    }
   }
 
   async remove(id: string) {

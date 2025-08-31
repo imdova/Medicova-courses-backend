@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional } from 'class-validator';
+import { IsString, IsOptional, MaxLength } from 'class-validator';
 
 export class CreateAcademyDto {
   @ApiProperty({
@@ -16,4 +16,12 @@ export class CreateAcademyDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @ApiProperty({
+    description: 'Slug for SEO-friendly URLs',
+    example: 'web-development',
+  })
+  @IsString()
+  @MaxLength(255)
+  slug: string;
 }

@@ -6,6 +6,7 @@ import {
   IsEnum,
   IsNotEmpty,
   IsUrl,
+  ValidateNested,
 } from 'class-validator';
 import {
   ApiHideProperty,
@@ -14,6 +15,7 @@ import {
 } from '@nestjs/swagger';
 import { UserRole } from '../entities/user.entity';
 import { CreateAcademyDto } from 'src/academy/dto/create-academy.dto';
+import { Type } from 'class-transformer';
 
 export class CreateUserDto {
   @ApiProperty({
@@ -64,7 +66,18 @@ export class CreateUserDto {
   @IsOptional()
   photoUrl?: string;
 
-  @ApiHideProperty()
+  @ApiPropertyOptional({
+    description:
+      'Optional nested academy object (used when embedding academy details)',
+    type: () => CreateAcademyDto,
+    example: {
+      name: 'Nested Academy',
+      description: 'Optional academy details for reference',
+      slug: 'nested-academy',
+    },
+  })
   @IsOptional()
+  @ValidateNested()
+  @Type(() => CreateAcademyDto)
   academy?: CreateAcademyDto;
 }
