@@ -245,7 +245,7 @@ export class Course extends BasicEntity {
   })
   academyInstructorIds?: string[];
 
-  @ApiPropertyOptional({ description: 'Slug for SEO-friendly URLs' })
+  @ApiProperty({ description: 'Slug for SEO-friendly URLs' })
   @Column({ length: 255, unique: true })
   slug: string;
 }

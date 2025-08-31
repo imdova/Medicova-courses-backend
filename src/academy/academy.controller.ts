@@ -28,6 +28,7 @@ import { UserRole } from 'src/user/entities/user.entity';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
 import { CreateAcademyInstructorDto } from './dto/create-academy-instructor.dto';
 import { UpdateAcademyInstructorDto } from './dto/update-academy-instructor.dto';
+import { Academy } from './entities/academy.entity';
 
 @ApiTags('Academies')
 @Controller('academies')
@@ -80,6 +81,26 @@ export class AcademyController {
       }
     }
     return this.academyService.findOne(id);
+  }
+
+  @Roles(
+    UserRole.INSTRUCTOR,
+    UserRole.ADMIN,
+    UserRole.ACADEMY_ADMIN,
+    UserRole.ACADEMY_USER,
+    UserRole.STUDENT,
+  )
+  @Get('slug/:slug')
+  @ApiOperation({ summary: 'Get an academy by Slug' })
+  @ApiParam({ name: 'slug', description: 'Slug of academy' })
+  @ApiResponse({
+    status: 200,
+    description: 'academy found',
+    type: Academy,
+  })
+  @ApiResponse({ status: 404, description: 'Academy not found' })
+  findOneBySlug(@Param('slug') slug: string) {
+    return this.academyService.findOneBySlug(slug);
   }
 
   @Patch(':id')
