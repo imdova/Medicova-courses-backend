@@ -17,7 +17,6 @@ import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { UserRole } from 'src/user/entities/user.entity';
 import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
-import { Quiz } from './entities/quiz.entity';
 import { AuthGuard } from '@nestjs/passport';
 import { QuizAttempt } from './entities/quiz-attempts.entity';
 import { SubmitQuizDto } from './dto/submit-quiz.dto';
@@ -124,14 +123,14 @@ export class QuizController {
     name: 'filter.minQuestionCount',
     required: false,
     description:
-      'Filter by minimum number of questions. Example: `?filter.minQuestionCount=5`',
+      'Filter by minimum number of questions (>=). Example: `?filter.minQuestionCount=5`',
     example: 5,
   })
   @ApiQuery({
     name: 'filter.maxQuestionCount',
     required: false,
     description:
-      'Filter by maximum number of questions. Example: `?filter.maxQuestionCount=10`',
+      'Filter by maximum number of questions (<=). Example: `?filter.maxQuestionCount=10`',
     example: 10,
   })
   @ApiQuery({

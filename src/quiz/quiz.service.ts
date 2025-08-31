@@ -65,9 +65,21 @@ export class QuizService {
     role: string,
     academyId: string,
   ): Promise<Paginated<QuizWithStats>> {
+    // Scalar subqueries for aggregates (no JOIN/GROUP BY needed)
+    const QUESTION_COUNT = `(SELECT COUNT(*) FROM quiz_questions qq WHERE qq.quiz_id = quiz.id)`;
+    const AVG_SCORE = `(SELECT COALESCE(AVG(qa.score), 0) FROM quiz_attempts qa WHERE qa.quiz_id = quiz.id)`;
+    const SUCCESS_RATE = `
+    (SELECT COALESCE(
+      CASE WHEN COUNT(*) = 0 THEN 0
+           ELSE (SUM(CASE WHEN qa.passed = true THEN 1 ELSE 0 END) * 100.0 / COUNT(*))
+      END
+    , 0)
+     FROM quiz_attempts qa
+     WHERE qa.quiz_id = quiz.id)
+  `;
+
     const qb = this.quizRepo
       .createQueryBuilder('quiz')
-      .loadRelationCountAndMap('quiz.questionCount', 'quiz.quizQuestions')
       .where('quiz.deleted_at IS NULL');
 
     // Role restrictions
@@ -79,84 +91,68 @@ export class QuizService {
       qb.andWhere('quiz.created_by = :userId', { userId });
     }
 
-    // Stats - optimized subqueries with COALESCE
-    qb.addSelect(
-      `COALESCE((SELECT AVG(score) FROM quiz_attempts WHERE quiz_id = quiz.id), 0)`,
-      'average_score',
-    );
+    // Select aggregates as extra columns
+    qb.addSelect(QUESTION_COUNT, 'questionCount')
+      .addSelect(AVG_SCORE, 'average_score')
+      .addSelect(SUCCESS_RATE, 'success_rate');
 
-    qb.addSelect(
-      `COALESCE((SELECT 
-        CASE WHEN COUNT(*) = 0 THEN 0 
-        ELSE (SUM(CASE WHEN passed = true THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) 
-        END 
-      FROM quiz_attempts WHERE quiz_id = quiz.id), 0)`,
-      'success_rate',
-    );
-
-    // Single execution - get both paginated entities and raw data
-    const paginated = await paginate(query, qb, QUIZ_PAGINATION_CONFIG);
-
-    // Get the raw data for the current page only
-    const rawResults = await qb
-      .skip((paginated.meta.currentPage - 1) * paginated.meta.itemsPerPage)
-      .take(paginated.meta.itemsPerPage)
-      .getRawMany();
-
-    // Merge stats into results
-    let data: QuizWithStats[] = paginated.data.map((quiz, i) => ({
-      ...quiz,
-      questionCount: (quiz as any).questionCount ?? 0,
-      average_score: rawResults[i]?.average_score
-        ? Number(rawResults[i].average_score)
-        : 0,
-      success_rate: rawResults[i]?.success_rate
-        ? Number(rawResults[i].success_rate)
-        : 0,
-    }));
-
-    // Apply manual filters for computed fields
+    // Computed-field filters (in WHERE so the count query sees them)
     const { filter } = query;
+    if (filter?.minQuestionCount !== undefined) {
+      qb.andWhere(`${QUESTION_COUNT} >= :minQuestionCount`, {
+        minQuestionCount: Number(filter.minQuestionCount),
+      });
+    }
+    if (filter?.maxQuestionCount !== undefined) {
+      qb.andWhere(`${QUESTION_COUNT} <= :maxQuestionCount`, {
+        maxQuestionCount: Number(filter.maxQuestionCount),
+      });
+    }
+    if (filter?.minAverageScore !== undefined) {
+      qb.andWhere(`${AVG_SCORE} >= :minAverageScore`, {
+        minAverageScore: Number(filter.minAverageScore),
+      });
+    }
+    if (filter?.maxAverageScore !== undefined) {
+      qb.andWhere(`${AVG_SCORE} <= :maxAverageScore`, {
+        maxAverageScore: Number(filter.maxAverageScore),
+      });
+    }
+    if (filter?.minSuccessRate !== undefined) {
+      qb.andWhere(`${SUCCESS_RATE} >= :minSuccessRate`, {
+        minSuccessRate: Number(filter.minSuccessRate),
+      });
+    }
+    if (filter?.maxSuccessRate !== undefined) {
+      qb.andWhere(`${SUCCESS_RATE} <= :maxSuccessRate`, {
+        maxSuccessRate: Number(filter.maxSuccessRate),
+      });
+    }
 
-    if (filter?.minQuestionCount) {
-      data = data.filter(
-        (q) => q.questionCount >= Number(filter.minQuestionCount),
-      );
-    }
-    if (filter?.maxQuestionCount) {
-      data = data.filter(
-        (q) => q.questionCount <= Number(filter.maxQuestionCount),
-      );
-    }
-    if (filter?.minAverageScore) {
-      data = data.filter(
-        (q) => q.average_score >= Number(filter.minAverageScore),
-      );
-    }
-    if (filter?.maxAverageScore) {
-      data = data.filter(
-        (q) => q.average_score <= Number(filter.maxAverageScore),
-      );
-    }
-    if (filter?.minSuccessRate) {
-      data = data.filter(
-        (q) => q.success_rate >= Number(filter.minSuccessRate),
-      );
-    }
-    if (filter?.maxSuccessRate) {
-      data = data.filter(
-        (q) => q.success_rate <= Number(filter.maxSuccessRate),
-      );
-    }
+    // 1) Use nestjs-paginate to apply built-in filters/sort + compute totalItems
+    const paginated = await paginate<Quiz>(query, qb, QUIZ_PAGINATION_CONFIG);
+
+    // 2) Fetch raw+entities for the current page (to read our aggregate columns)
+    const offset =
+      (paginated.meta.currentPage - 1) * paginated.meta.itemsPerPage;
+    const limit = paginated.meta.itemsPerPage;
+
+    const { entities, raw } = await qb
+      .skip(offset)
+      .take(limit)
+      .getRawAndEntities();
+
+    // 3) Merge aggregates into entity objects
+    const data: QuizWithStats[] = entities.map((quiz, i) => ({
+      ...quiz,
+      questionCount: Number(raw[i]?.questionCount ?? 0),
+      average_score: Number(raw[i]?.average_score ?? 0),
+      success_rate: Number(raw[i]?.success_rate ?? 0),
+    }));
 
     return {
       ...paginated,
       data,
-      meta: {
-        ...paginated.meta,
-        totalItems: data.length,
-        totalPages: Math.ceil(data.length / paginated.meta.itemsPerPage),
-      },
     };
   }
 
