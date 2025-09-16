@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../user/entities/user.entity';
@@ -6,6 +6,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { ConfigService } from '@nestjs/config';
 import { v4 as uuidv4 } from 'uuid';
+import { Role } from 'src/user/entities/roles.entity';
 
 @Injectable()
 export class AuthService {
@@ -14,6 +15,8 @@ export class AuthService {
     private userRepository: Repository<User>,
     private jwtService: JwtService, // Access JWT service to create tokens
     private configService: ConfigService,
+    @InjectRepository(Role)
+    private roleRepository: Repository<Role>,
   ) { }
 
   async validateUser(email: string, password: string): Promise<User> {
@@ -87,11 +90,20 @@ export class AuthService {
 
     let user = await this.userRepository.findOne({ where: { email } });
 
+    //Get role entity
+    const roleEntity = await this.roleRepository.findOne({
+      where: { name: 'academy_admin' }, // or whatever role name
+    });
+
+    if (!roleEntity) {
+      throw new NotFoundException('Role academy_admin not found');
+    }
+
     if (!user) {
       user = this.userRepository.create({
         email,
         password: '', // No password for OAuth
-        role: 'student',
+        role: roleEntity,
       });
 
       await this.userRepository.save(user);

@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { User, UserRole } from './entities/user.entity';
+import { User } from './entities/user.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { QueryFailedError, Repository } from 'typeorm';
@@ -23,6 +23,7 @@ import {
   PaginateQuery,
 } from 'nestjs-paginate';
 import { QueryConfig } from 'src/common/utils/query-options';
+import { Role } from './entities/roles.entity';
 
 export const STUDENT_PAGINATION_CONFIG: QueryConfig<User> = {
   sortableColumns: [
@@ -49,11 +50,11 @@ export class UserService {
     private userRepository: Repository<User>,
     private readonly profileService: ProfileService,
     private readonly academyService: AcademyService,
-    @InjectRepository(Course)
-    private courseRepository: Repository<Course>,
+    @InjectRepository(Role)
+    private roleRepository: Repository<Role>,
     @InjectRepository(Profile)
     private profileRepository: Repository<Profile>,
-  ) {}
+  ) { }
 
   async register(createUserDto: CreateUserDto): Promise<User> {
     const { password, firstName, lastName, photoUrl, role, email, ...rest } =
@@ -62,11 +63,20 @@ export class UserService {
     const normalizedEmail = email.trim().toLowerCase();
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    //Get role entity
+    const roleEntity = await this.roleRepository.findOne({
+      where: { name: createUserDto.role }, // or whatever role name
+    });
+
+    if (!roleEntity) {
+      throw new NotFoundException('Role academy_admin not found');
+    }
+
     const user = this.userRepository.create({
       ...rest,
       email: normalizedEmail,
       password: hashedPassword,
-      role: role || UserRole.STUDENT,
+      role: roleEntity,
     });
 
     try {
@@ -116,13 +126,22 @@ export class UserService {
     // 2. Hash password for the user
     const hashedPassword = await bcrypt.hash(userData.password, 10);
 
+    //Get role entity
+    const roleEntity = await this.roleRepository.findOne({
+      where: { name: 'academy_admin' }, // or whatever role name
+    });
+
+    if (!roleEntity) {
+      throw new NotFoundException('Role academy_admin not found');
+    }
+
     // 3. Create user and link to academy
     const user = this.userRepository.create({
       ...userData,
       email: normalizedEmail,
       password: hashedPassword,
-      role: UserRole.ACADEMY_ADMIN,
-      academy: newAcademy, // link user to academy
+      role: roleEntity, // ✅ correct
+      academy: newAcademy,
     });
 
     const savedUser = await this.userRepository.save(user);

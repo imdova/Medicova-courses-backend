@@ -24,7 +24,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/decorator/roles.decorator';
-import { User, UserRole } from './entities/user.entity';
+import { User } from './entities/user.entity';
 import { cookieOptions } from '../auth/auth.controller';
 import { AuthService } from 'src/auth/auth.service';
 import { Response } from 'express';
@@ -38,7 +38,7 @@ export class UserController {
   constructor(
     private readonly userService: UserService,
     private readonly authService: AuthService,
-  ) {}
+  ) { }
 
   @Post('register')
   @ApiOperation({
@@ -86,7 +86,7 @@ export class UserController {
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(UserRole.ADMIN)
+  //@Roles(UserRole.ADMIN)
   @Get()
   @ApiOperation({
     summary: 'List all users',
@@ -101,7 +101,7 @@ export class UserController {
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(UserRole.ADMIN)
+  //@Roles(UserRole.ADMIN)
   @Get(':userId')
   @ApiOperation({
     summary: 'Get user by ID',
@@ -121,7 +121,7 @@ export class UserController {
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(UserRole.ADMIN)
+  //@Roles(UserRole.ADMIN)
   @Patch(':userId')
   @ApiOperation({
     summary: 'Update user by ID',
@@ -141,7 +141,7 @@ export class UserController {
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(UserRole.ADMIN)
+  //@Roles(UserRole.ADMIN)
   @Delete(':userId')
   @ApiOperation({
     summary: 'Delete user by ID',
@@ -157,7 +157,7 @@ export class UserController {
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN)
+  //@Roles(UserRole.INSTRUCTOR, UserRole.ADMIN)
   @Get(':userId/students')
   @ApiOperation({
     summary: 'Get all students for an instructor',
@@ -178,7 +178,7 @@ export class UserController {
     @Param('userId') instructorId: string,
     @Req() req,
   ): Promise<Paginated<any>> {
-    if (req.user.role === UserRole.INSTRUCTOR) {
+    if (req.user.role === 'instructor') {
       if (req.user.sub !== instructorId) {
         throw new ForbiddenException(
           'You are not allowed to view students for this user',
