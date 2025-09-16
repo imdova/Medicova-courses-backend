@@ -86,7 +86,7 @@ import { Payment } from './payment/entities/payment.entity';
         ProfileSpeciality,
         Payment,
       ],
-      synchronize: true,
+      synchronize: false,
       extra: {
         max: 5, // small pool for serverless
       },
@@ -106,4 +106,4 @@ import { Payment } from './payment/entities/payment.entity';
   controllers: [AppController],
   providers: [AppService, DatabaseService],
 })
-export class AppModule {}
+export class AppModule { }

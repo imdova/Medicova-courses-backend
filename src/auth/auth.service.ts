@@ -1,7 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User, UserRole } from '../user/entities/user.entity';
+import { User } from '../user/entities/user.entity';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { ConfigService } from '@nestjs/config';
@@ -14,12 +14,12 @@ export class AuthService {
     private userRepository: Repository<User>,
     private jwtService: JwtService, // Access JWT service to create tokens
     private configService: ConfigService,
-  ) {}
+  ) { }
 
   async validateUser(email: string, password: string): Promise<User> {
     const user = await this.userRepository.findOne({
       where: { email },
-      relations: ['academy'],
+      relations: ['academy', 'role', 'role.rolePermissions', 'role.rolePermissions.permission', 'profile'],
     });
 
     if (!user) {
@@ -39,8 +39,9 @@ export class AuthService {
   async generateToken(user: User) {
     const payload = {
       sub: user.id,
-      role: user.role,
+      role: user.role.name,
       academyId: user.academy?.id,
+      permissions: user.role.rolePermissions.map(rp => rp.permission.name),
     };
 
     const accessToken = this.jwtService.sign(payload, {
@@ -90,7 +91,7 @@ export class AuthService {
       user = this.userRepository.create({
         email,
         password: '', // No password for OAuth
-        role: UserRole.STUDENT,
+        role: 'student',
       });
 
       await this.userRepository.save(user);
