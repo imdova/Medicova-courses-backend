@@ -9,10 +9,11 @@ import { ProfileModule } from 'src/profile/profile.module';
 import { AcademyModule } from 'src/academy/academy.module';
 import { Course } from 'src/course/entities/course.entity';
 import { Profile } from 'src/profile/entities/profile.entity';
+import { Role } from './entities/roles.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Course, Profile]),
+    TypeOrmModule.forFeature([User, Course, Profile, Role]),
     forwardRef(() => AuthModule),
     forwardRef(() => ProfileModule),
     forwardRef(() => AcademyModule),
@@ -21,4 +22,4 @@ import { Profile } from 'src/profile/entities/profile.entity';
   providers: [UserService, RolesGuard],
   exports: [UserService],
 })
-export class UserModule {}
+export class UserModule { }
