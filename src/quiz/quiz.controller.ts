@@ -15,7 +15,6 @@ import { CreateQuizDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/decorator/roles.decorator';
-import { UserRole } from 'src/user/entities/user.entity';
 import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
 import { AuthGuard } from '@nestjs/passport';
 import { QuizAttempt } from './entities/quiz-attempts.entity';
@@ -25,14 +24,14 @@ import { CreateQuizWithQuestionsDto } from './dto/create-quiz-with-questions.dto
 @ApiTags('Quizzes')
 @Controller('quizzes')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(
-  UserRole.INSTRUCTOR,
-  UserRole.ADMIN,
-  UserRole.ACADEMY_ADMIN,
-  UserRole.ACADEMY_USER,
-)
+// @Roles(
+//   UserRole.INSTRUCTOR,
+//   UserRole.ADMIN,
+//   UserRole.ACADEMY_ADMIN,
+//   UserRole.ACADEMY_USER,
+// )
 export class QuizController {
-  constructor(private readonly quizService: QuizService) {}
+  constructor(private readonly quizService: QuizService) { }
 
   @Post()
   @ApiOperation({ summary: 'Create a new quiz' })
@@ -55,7 +54,7 @@ export class QuizController {
     );
   }
 
-  @Roles(UserRole.STUDENT)
+  //@Roles(UserRole.STUDENT)
   @Post(':quizId/attempts')
   @ApiOperation({ summary: 'Submit a standalone quiz attempt' })
   @ApiResponse({
@@ -77,7 +76,7 @@ export class QuizController {
     );
   }
 
-  @Roles(UserRole.STUDENT)
+  //@Roles(UserRole.STUDENT)
   @Get(':quizId/score')
   @ApiOperation({
     summary: 'Get all quiz attempts scores for current student',
@@ -176,13 +175,13 @@ export class QuizController {
   }
 
   @Get(':id')
-  @Roles(
-    UserRole.STUDENT,
-    UserRole.INSTRUCTOR,
-    UserRole.ADMIN,
-    UserRole.ACADEMY_ADMIN,
-    UserRole.ACADEMY_USER,
-  )
+  // @Roles(
+  //   UserRole.STUDENT,
+  //   UserRole.INSTRUCTOR,
+  //   UserRole.ADMIN,
+  //   UserRole.ACADEMY_ADMIN,
+  //   UserRole.ACADEMY_USER,
+  // )
   @ApiOperation({ summary: 'Get quiz by ID (instructor or student)' })
   @ApiResponse({ status: 200, description: 'Quiz found' })
   @ApiResponse({ status: 404, description: 'Quiz not found' })

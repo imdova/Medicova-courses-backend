@@ -17,14 +17,13 @@ import { UpdateCourseCategoryDto } from './dto/update-course-category.dto';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { AuthGuard } from '@nestjs/passport';
 import { Roles } from 'src/auth/decorator/roles.decorator';
-import { UserRole } from 'src/user/entities/user.entity';
 
 @ApiTags('Course Categories')
 @Controller('course-categories')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(UserRole.ADMIN)
+//@Roles(UserRole.ADMIN)
 export class CourseCategoryController {
-  constructor(private readonly courseCategoryService: CourseCategoryService) {}
+  constructor(private readonly courseCategoryService: CourseCategoryService) { }
 
   @Post()
   @ApiOperation({ summary: 'Create a new category or subcategory' })
@@ -37,7 +36,7 @@ export class CourseCategoryController {
   }
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.INSTRUCTOR)
+  //@Roles(UserRole.ADMIN, UserRole.INSTRUCTOR)
   @ApiOperation({ summary: 'Get all categories with subcategories' })
   @ApiResponse({
     status: HttpStatus.OK,

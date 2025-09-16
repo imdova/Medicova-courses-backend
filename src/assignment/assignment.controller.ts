@@ -23,7 +23,6 @@ import { CreateAssignmentDto } from './dto/create-assignment.dto';
 import { UpdateAssignmentDto } from './dto/update-assignment.dto';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { RolesGuard } from 'src/auth/roles.guard';
-import { UserRole } from 'src/user/entities/user.entity';
 
 @ApiTags('Assignments')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
@@ -32,7 +31,7 @@ export class AssignmentController {
   constructor(private readonly assignmentService: AssignmentService) { }
 
   @Post()
-  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_USER, UserRole.ACADEMY_ADMIN)
+  //@Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_USER, UserRole.ACADEMY_ADMIN)
   @ApiOperation({
     summary: 'Create a new assignment (instructors, academy content creator & admins)',
   })
@@ -46,7 +45,7 @@ export class AssignmentController {
   }
 
   @Get()
-  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_USER, UserRole.ACADEMY_ADMIN)
+  //@Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_USER, UserRole.ACADEMY_ADMIN)
   @ApiOperation({
     summary:
       'List assignments (instructors: their own; academy content creators: their academy; admins: all)',
@@ -57,7 +56,7 @@ export class AssignmentController {
   }
 
   @Get(':id')
-  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_USER, UserRole.ACADEMY_ADMIN)
+  //@Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_USER, UserRole.ACADEMY_ADMIN)
   @ApiOperation({
     summary:
       'Get assignment by ID (instructors: only their own; academy content creators: same academy; admins: any)',
@@ -75,7 +74,7 @@ export class AssignmentController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_USER, UserRole.ACADEMY_ADMIN)
+  //@Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_USER, UserRole.ACADEMY_ADMIN)
   @ApiOperation({
     summary:
       'Update assignment (instructors: only their own; academy content creators: same academy; admins: any',
@@ -99,7 +98,7 @@ export class AssignmentController {
   }
 
   @Delete(':id')
-  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_USER, UserRole.ACADEMY_ADMIN)
+  //@Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_USER, UserRole.ACADEMY_ADMIN)
   @ApiOperation({
     summary:
       'Delete assignment (instructors: only their own; academy content creators: same academy; admins: any',

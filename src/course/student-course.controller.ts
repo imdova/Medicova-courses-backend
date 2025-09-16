@@ -17,7 +17,6 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { RolesGuard } from 'src/auth/roles.guard';
-import { UserRole } from 'src/user/entities/user.entity';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { Paginate, PaginateQuery } from 'nestjs-paginate';
 import { AuthGuard } from '@nestjs/passport';
@@ -31,12 +30,12 @@ import { OrderType } from 'src/payment/entities/payment.entity';
 @ApiTags('Student Courses')
 @Controller('student/courses')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(UserRole.STUDENT)
+//@Roles(UserRole.STUDENT)
 export class StudentCourseController {
   constructor(
     private readonly studentCourseService: StudentCourseService,
     private readonly paymentService: PaymentService,
-  ) {}
+  ) { }
 
   @Post(':id/enroll')
   @ApiOperation({

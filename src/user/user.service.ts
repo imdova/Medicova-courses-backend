@@ -176,7 +176,21 @@ export class UserService {
       updateUserDto.password = await bcrypt.hash(updateUserDto.password, 10);
     }
 
-    await this.userRepository.update(userId, updateUserDto);
+    const updatePayload: any = { ...updateUserDto };
+
+    // If role is provided, fetch role entity
+    if (updateUserDto.role) {
+      const roleEntity = await this.roleRepository.findOne({
+        where: { name: updateUserDto.role },
+      });
+
+      if (!roleEntity) {
+        throw new NotFoundException(`Role ${updateUserDto.role} not found`);
+      }
+      updatePayload.role = roleEntity; // ✅ convert string to Role entity
+    }
+
+    await this.userRepository.update(userId, updatePayload);
     return this.findOne(userId);
   }
 

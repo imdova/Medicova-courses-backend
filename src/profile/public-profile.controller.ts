@@ -8,7 +8,6 @@ import {
 import { ProfileService } from './profile.service';
 import { Profile } from 'src/profile/entities/profile.entity';
 import { AuthGuard } from '@nestjs/passport';
-import { UserRole } from 'src/user/entities/user.entity';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { RolesGuard } from 'src/auth/roles.guard';
 
@@ -16,7 +15,7 @@ import { RolesGuard } from 'src/auth/roles.guard';
 @Controller('public/profiles')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 export class PublicProfileController {
-  constructor(private readonly profileService: ProfileService) {}
+  constructor(private readonly profileService: ProfileService) { }
 
   @Get('instructor/username/:userName')
   @ApiOperation({
@@ -29,7 +28,7 @@ export class PublicProfileController {
     return this.profileService.getInstructorProfileByUsername(userName);
   }
 
-  @Roles(UserRole.ADMIN)
+  //@Roles(UserRole.ADMIN)
   @Patch('instructor/make-all-private')
   @ApiOperation({
     summary: 'Set all instructor profiles to private',

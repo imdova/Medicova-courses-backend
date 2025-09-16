@@ -20,16 +20,15 @@ import {
 } from '@nestjs/swagger';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/decorator/roles.decorator';
-import { UserRole } from 'src/user/entities/user.entity';
 import { CourseSectionItem } from './entities/course-section-item.entity';
 import { AuthGuard } from '@nestjs/passport';
 
 @ApiTags('Course Section Items')
 @Controller('course-sections/:sectionId/items')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(UserRole.INSTRUCTOR, UserRole.ADMIN)
+//@Roles(UserRole.INSTRUCTOR, UserRole.ADMIN)
 export class CourseSectionItemController {
-  constructor(private readonly service: CourseSectionItemService) {}
+  constructor(private readonly service: CourseSectionItemService) { }
 
   @Post()
   @ApiOperation({

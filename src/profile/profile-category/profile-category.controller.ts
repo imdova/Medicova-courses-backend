@@ -23,16 +23,15 @@ import { UpdateProfileCategoryDto } from './dto/update-profile-category.dto';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { AuthGuard } from '@nestjs/passport';
 import { Roles } from 'src/auth/decorator/roles.decorator';
-import { UserRole } from 'src/user/entities/user.entity';
 
 @ApiTags('Profile Categories')
 @Controller('profile-categories')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(UserRole.ADMIN) // ✅ Only admins can use these endpoints
+//@Roles(UserRole.ADMIN) // ✅ Only admins can use these endpoints
 export class ProfileCategoryController {
   constructor(
     private readonly profileCategoryService: ProfileCategoryService,
-  ) {}
+  ) { }
 
   @Post()
   @ApiOperation({ summary: 'Create a new profile category with specialities' })
@@ -43,7 +42,7 @@ export class ProfileCategoryController {
   }
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.INSTRUCTOR)
+  //@Roles(UserRole.ADMIN, UserRole.INSTRUCTOR)
   @ApiOperation({ summary: 'Get all categories with specialities' })
   @ApiResponse({ status: HttpStatus.OK })
   findAll() {

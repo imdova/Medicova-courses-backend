@@ -25,7 +25,6 @@ import { CreateCouponDto } from './dto/create-coupon.dto';
 import { UpdateCouponDto } from './dto/update-coupon.dto';
 import { Coupon } from './entities/coupon.entity';
 import { RolesGuard } from 'src/auth/roles.guard';
-import { UserRole } from 'src/user/entities/user.entity';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
 import { AuthGuard } from '@nestjs/passport';
@@ -33,9 +32,9 @@ import { AuthGuard } from '@nestjs/passport';
 @ApiTags('Coupons')
 @Controller('coupons')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(UserRole.INSTRUCTOR)
+//@Roles(UserRole.INSTRUCTOR)
 export class CouponController {
-  constructor(private readonly couponService: CouponService) {}
+  constructor(private readonly couponService: CouponService) { }
 
   @Post()
   @ApiOperation({ summary: 'Create a new coupon' })

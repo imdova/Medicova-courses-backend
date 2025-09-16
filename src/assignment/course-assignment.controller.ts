@@ -11,7 +11,6 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/decorator/roles.decorator';
-import { UserRole } from 'src/user/entities/user.entity';
 import { AssignmentService } from './assignment.service';
 import { AssignmentSubmission } from './entities/assignment-submission.entity';
 
@@ -22,7 +21,7 @@ export class CourseAssignmentController {
   constructor(private readonly assignmentService: AssignmentService) { }
 
   @Get()
-  @Roles(UserRole.INSTRUCTOR)
+  //@Roles(UserRole.INSTRUCTOR)
   @ApiOperation({
     summary: 'Get all assignments for a course with student info (instructor)',
   })

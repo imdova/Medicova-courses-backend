@@ -14,13 +14,12 @@ import { CreateQuestionDto } from './dto/create-question.dto';
 import { UpdateQuestionDto } from './dto/update-question.dto';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/decorator/roles.decorator';
-import { UserRole } from 'src/user/entities/user.entity';
 import { AuthGuard } from '@nestjs/passport';
 
 @ApiTags('Quiz Questions')
 @Controller('quizzes/:quizId/questions')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_ADMIN, UserRole.ACADEMY_USER)
+//@Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_ADMIN, UserRole.ACADEMY_USER)
 export class QuizQuestionsController {
   constructor(private readonly quizQuestionsService: QuizQuestionsService) { }
 

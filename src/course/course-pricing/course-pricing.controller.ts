@@ -16,15 +16,14 @@ import { CreateCoursePricingDto } from './dto/create-course-pricing.dto';
 import { UpdateCoursePricingDto } from './dto/update-course-pricing.dto';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/decorator/roles.decorator';
-import { UserRole } from 'src/user/entities/user.entity';
 import { AuthGuard } from '@nestjs/passport';
 
 @ApiTags('Course Pricing')
 @Controller('courses/:courseId/pricing')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(UserRole.INSTRUCTOR, UserRole.ADMIN)
+//@Roles(UserRole.INSTRUCTOR, UserRole.ADMIN)
 export class CoursePricingController {
-  constructor(private readonly pricingService: CoursePricingService) {}
+  constructor(private readonly pricingService: CoursePricingService) { }
 
   @Post()
   @ApiOperation({ summary: 'Add pricing for a course' })

@@ -22,7 +22,6 @@ import {
 } from '@nestjs/swagger';
 import { Course } from './entities/course.entity';
 import { RolesGuard } from 'src/auth/roles.guard';
-import { UserRole } from 'src/user/entities/user.entity';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
 import { AuthGuard } from '@nestjs/passport';
@@ -30,14 +29,14 @@ import { AuthGuard } from '@nestjs/passport';
 @ApiTags('Courses')
 @Controller('courses')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(
-  UserRole.INSTRUCTOR,
-  UserRole.ADMIN,
-  UserRole.ACADEMY_ADMIN,
-  UserRole.ACADEMY_USER,
-)
+// @Roles(
+//   UserRole.INSTRUCTOR,
+//   UserRole.ADMIN,
+//   UserRole.ACADEMY_ADMIN,
+//   UserRole.ACADEMY_USER,
+// )
 export class CourseController {
-  constructor(private readonly courseService: CourseService) {}
+  constructor(private readonly courseService: CourseService) { }
 
   @Post()
   @ApiOperation({ summary: 'Create a new course' })
@@ -151,13 +150,13 @@ export class CourseController {
     );
   }
 
-  @Roles(
-    UserRole.INSTRUCTOR,
-    UserRole.ADMIN,
-    UserRole.ACADEMY_ADMIN,
-    UserRole.ACADEMY_USER,
-    UserRole.STUDENT,
-  )
+  // @Roles(
+  //   UserRole.INSTRUCTOR,
+  //   UserRole.ADMIN,
+  //   UserRole.ACADEMY_ADMIN,
+  //   UserRole.ACADEMY_USER,
+  //   UserRole.STUDENT,
+  // )
   @Get('slug/:slug')
   @ApiOperation({ summary: 'Get a course by Slug' })
   @ApiParam({ name: 'slug', description: 'Slug of course' })

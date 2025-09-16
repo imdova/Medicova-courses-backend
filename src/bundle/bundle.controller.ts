@@ -24,7 +24,6 @@ import { CreateBundleDto } from './dto/create-bundle.dto';
 import { UpdateBundleDto } from './dto/update-bundle.dto';
 import { Bundle } from './entities/bundle.entity';
 import { RolesGuard } from 'src/auth/roles.guard';
-import { UserRole } from 'src/user/entities/user.entity';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
 import { AuthGuard } from '@nestjs/passport';
@@ -32,14 +31,14 @@ import { AuthGuard } from '@nestjs/passport';
 @ApiTags('Bundles')
 @Controller('bundles')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(
-  UserRole.INSTRUCTOR,
-  UserRole.ADMIN,
-  UserRole.ACADEMY_USER,
-  UserRole.ACADEMY_ADMIN,
-)
+// @Roles(
+//   UserRole.INSTRUCTOR,
+//   UserRole.ADMIN,
+//   UserRole.ACADEMY_USER,
+//   UserRole.ACADEMY_ADMIN,
+// )
 export class BundleController {
-  constructor(private readonly bundleService: BundleService) {}
+  constructor(private readonly bundleService: BundleService) { }
 
   @Post()
   @ApiOperation({ summary: 'Create a new bundle with courses and pricing' })

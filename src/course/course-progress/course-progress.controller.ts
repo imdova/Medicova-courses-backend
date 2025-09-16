@@ -12,16 +12,15 @@ import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/decorator/roles.decorator';
-import { UserRole } from 'src/user/entities/user.entity';
 import { CourseProgress } from './entities/course-progress.entity';
 import { SubmitCourseItemDto } from './dto/submit-course-item.dto';
 
 @ApiTags('Course Progress')
 @Controller('courses/:courseId/items')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(UserRole.STUDENT)
+//@Roles(UserRole.STUDENT)
 export class CourseProgressController {
-  constructor(private readonly courseProgressService: CourseProgressService) {}
+  constructor(private readonly courseProgressService: CourseProgressService) { }
 
   @Post(':itemId/progress')
   @ApiOperation({

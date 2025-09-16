@@ -8,7 +8,6 @@ import { DataSource, Repository } from 'typeorm';
 import { Assignment } from './entities/assignment.entity';
 import { CreateAssignmentDto } from './dto/create-assignment.dto';
 import { UpdateAssignmentDto } from './dto/update-assignment.dto';
-import { User, UserRole } from 'src/user/entities/user.entity';
 import { AssignmentSubmission } from './entities/assignment-submission.entity';
 import { CourseProgress } from 'src/course/course-progress/entities/course-progress.entity';
 import {
@@ -25,7 +24,7 @@ export class AssignmentService {
     private courseSectionItemRepo: Repository<CourseSectionItem>,
     @InjectDataSource()
     private readonly dataSource: DataSource,
-  ) {}
+  ) { }
 
   async create(
     dto: CreateAssignmentDto,
@@ -43,17 +42,17 @@ export class AssignmentService {
 
   async findAllForUser(
     requesterId: string,
-    role: UserRole,
+    role: string,
     academyId?: string,
   ) {
     let assignments: Assignment[];
 
-    if (role === UserRole.ADMIN) {
+    if (role === 'admin') {
       // Admin → all assignments
       assignments = await this.assignmentRepo.find({
         order: { created_at: 'DESC' },
       });
-    } else if (role === UserRole.ACADEMY_ADMIN) {
+    } else if (role === 'academy_admin') {
       // Academy admin → all assignments in their academy
       assignments = await this.assignmentRepo.find({
         where: { academy: { id: academyId } },
@@ -73,14 +72,14 @@ export class AssignmentService {
   async findOneForUser(
     id: string,
     requesterId: string,
-    role: UserRole,
+    role: string,
     academyId?: string,
   ) {
     let assignment: Assignment | null = null;
 
-    if (role === UserRole.ADMIN) {
+    if (role === 'admin') {
       assignment = await this.assignmentRepo.findOne({ where: { id } });
-    } else if (role === UserRole.ACADEMY_ADMIN) {
+    } else if (role === 'academy_admin') {
       assignment = await this.assignmentRepo.findOne({
         where: { id, academy: { id: academyId } },
       });
@@ -101,14 +100,14 @@ export class AssignmentService {
     id: string,
     dto: UpdateAssignmentDto,
     requesterId: string,
-    role: UserRole,
+    role: string,
     academyId?: string,
   ) {
     let assignment: Assignment | null = null;
 
-    if (role === UserRole.ADMIN) {
+    if (role === 'admin') {
       assignment = await this.assignmentRepo.findOne({ where: { id } });
-    } else if (role === UserRole.ACADEMY_ADMIN) {
+    } else if (role === 'academy_admin') {
       assignment = await this.assignmentRepo.findOne({
         where: { id, academy: { id: academyId } },
       });
@@ -132,14 +131,14 @@ export class AssignmentService {
   async removeForUser(
     id: string,
     requesterId: string,
-    role: UserRole,
+    role: string,
     academyId?: string,
   ) {
     let assignment: Assignment | null = null;
 
-    if (role === UserRole.ADMIN) {
+    if (role === 'admin') {
       assignment = await this.assignmentRepo.findOne({ where: { id } });
-    } else if (role === UserRole.ACADEMY_ADMIN) {
+    } else if (role === 'academy_admin') {
       assignment = await this.assignmentRepo.findOne({
         where: { id, academy: { id: academyId } },
       });

@@ -21,7 +21,6 @@ import {
 } from '@nestjs/swagger';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/decorator/roles.decorator';
-import { UserRole } from 'src/user/entities/user.entity';
 import { CourseSection } from './entities/course-section.entity';
 import { CreateMultipleSectionsWithItemsDto } from './dto/create-sections-with-items.dto';
 import { AuthGuard } from '@nestjs/passport';
@@ -29,7 +28,7 @@ import { AuthGuard } from '@nestjs/passport';
 @ApiTags('Course Sections')
 @Controller('courses/:courseId/course-sections')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_USER, UserRole.ACADEMY_ADMIN)
+//@Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_USER, UserRole.ACADEMY_ADMIN)
 export class CourseSectionController {
   constructor(private readonly service: CourseSectionService) { }
 

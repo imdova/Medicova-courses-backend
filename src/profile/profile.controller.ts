@@ -23,7 +23,6 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ProfileService } from './profile.service';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/decorator/roles.decorator';
-import { UserRole } from 'src/user/entities/user.entity';
 import { Profile } from './entities/profile.entity';
 import { AuthGuard } from '@nestjs/passport';
 import { UserService } from 'src/user/user.service';
@@ -31,17 +30,17 @@ import { UserService } from 'src/user/user.service';
 @ApiTags('Profile')
 @Controller('users/:userId/profile')
 @UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(
-  UserRole.INSTRUCTOR,
-  UserRole.ADMIN,
-  UserRole.STUDENT,
-  UserRole.ACADEMY_ADMIN,
-)
+// @Roles(
+//   UserRole.INSTRUCTOR,
+//   UserRole.ADMIN,
+//   UserRole.STUDENT,
+//   UserRole.ACADEMY_ADMIN,
+// )
 export class ProfileController {
   constructor(
     private readonly profileService: ProfileService,
     private readonly userService: UserService,
-  ) {}
+  ) { }
 
   @Post()
   @ApiOperation({
@@ -151,10 +150,10 @@ export class ProfileController {
     if (userId === currentUserId) return true;
 
     // ✅ allow if user is ADMIN
-    if (role === UserRole.ADMIN) return true;
+    if (role === 'academy_admin') return true;
 
     // ✅ allow if user is ACCOUNT_ADMIN but only within same academy
-    if (role === UserRole.ACADEMY_ADMIN) {
+    if (role === 'academy_admin') {
       const targetUser = await this.userService.findOne(userId);
 
       if (!targetUser) return false;

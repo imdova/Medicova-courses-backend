@@ -8,7 +8,7 @@ import { CreateProfileDto } from './dto/create-profile.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User, UserRole } from 'src/user/entities/user.entity';
+import { User } from 'src/user/entities/user.entity';
 import { Profile } from './entities/profile.entity';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -19,7 +19,7 @@ export class ProfileService {
     private userRepository: Repository<User>,
     @InjectRepository(Profile)
     private profileRepository: Repository<Profile>,
-  ) {}
+  ) { }
 
   async createProfile(
     userId: string,
@@ -51,7 +51,7 @@ export class ProfileService {
     }
 
     // ✅ Only instructors can have category/speciality
-    if (role !== UserRole.INSTRUCTOR) {
+    if (role !== 'instructor') {
       categoryId = null;
       specialityId = null;
     }
@@ -101,7 +101,7 @@ export class ProfileService {
 
     // ✅ Only instructors can update category/speciality
     let { categoryId, specialityId, ...rest } = updateProfileDto;
-    if (role !== UserRole.INSTRUCTOR) {
+    if (role !== 'instructor') {
       categoryId = null;
       specialityId = null;
     }
@@ -168,7 +168,7 @@ export class ProfileService {
     const profile = await this.profileRepository.findOne({
       where: {
         userName,
-        user: { role: UserRole.INSTRUCTOR }, // ✅ filter by instructor role
+        user: { role: { name: 'instructor' } }, // ✅ filter by role name
       },
       relations: ['user', 'category', 'speciality'], // ✅ ensure user is loaded
     });
@@ -184,6 +184,7 @@ export class ProfileService {
     return profile;
   }
 
+
   async makeAllInstructorProfilesPrivate(): Promise<void> {
     await this.profileRepository
       .createQueryBuilder()
@@ -194,7 +195,7 @@ export class ProfileService {
         SELECT id FROM "user" WHERE role = :role
     )`,
       )
-      .setParameter('role', UserRole.INSTRUCTOR)
+      .setParameter('role', 'instructor')
       .execute();
   }
 }
