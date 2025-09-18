@@ -14,18 +14,18 @@ import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { CourseCategoryService } from './course-category.service';
 import { CreateCourseCategoryDto } from './dto/create-course-category.dto';
 import { UpdateCourseCategoryDto } from './dto/update-course-category.dto';
-import { RolesGuard } from 'src/auth/roles.guard';
 import { AuthGuard } from '@nestjs/passport';
-import { Roles } from 'src/auth/decorator/roles.decorator';
+import { PermissionsGuard } from 'src/auth/permission.guard';
+import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Course Categories')
 @Controller('course-categories')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
-//@Roles(UserRole.ADMIN)
+@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class CourseCategoryController {
   constructor(private readonly courseCategoryService: CourseCategoryService) { }
 
   @Post()
+  @RequirePermissions('category:create')
   @ApiOperation({ summary: 'Create a new category or subcategory' })
   @ApiResponse({
     status: HttpStatus.CREATED,
@@ -36,7 +36,7 @@ export class CourseCategoryController {
   }
 
   @Get()
-  //@Roles(UserRole.ADMIN, UserRole.INSTRUCTOR)
+  @RequirePermissions('category:list')
   @ApiOperation({ summary: 'Get all categories with subcategories' })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -47,6 +47,7 @@ export class CourseCategoryController {
   }
 
   @Get(':id')
+  @RequirePermissions('category:get')
   @ApiOperation({ summary: 'Get category by ID with subcategories' })
   @ApiParam({ name: 'id', description: 'Category ID' })
   @ApiResponse({
@@ -62,6 +63,7 @@ export class CourseCategoryController {
   }
 
   @Patch(':id')
+  @RequirePermissions('category:update')
   @ApiOperation({ summary: 'Update a category' })
   @ApiParam({ name: 'id', description: 'Category ID' })
   @ApiResponse({
@@ -73,6 +75,7 @@ export class CourseCategoryController {
   }
 
   @Delete(':id')
+  @RequirePermissions('category:delete')
   @ApiOperation({ summary: 'Soft delete a category' })
   @ApiParam({ name: 'id', description: 'Category ID' })
   @ApiResponse({

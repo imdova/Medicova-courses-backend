@@ -19,20 +19,20 @@ import {
   ApiBody,
   ApiResponse,
 } from '@nestjs/swagger';
-import { RolesGuard } from 'src/auth/roles.guard';
-import { Roles } from 'src/auth/decorator/roles.decorator';
 import { CourseSection } from './entities/course-section.entity';
 import { CreateMultipleSectionsWithItemsDto } from './dto/create-sections-with-items.dto';
 import { AuthGuard } from '@nestjs/passport';
+import { PermissionsGuard } from 'src/auth/permission.guard';
+import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Course Sections')
 @Controller('courses/:courseId/course-sections')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
-//@Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_USER, UserRole.ACADEMY_ADMIN)
+@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class CourseSectionController {
   constructor(private readonly service: CourseSectionService) { }
 
   @Post()
+  @RequirePermissions('section:create')
   @ApiOperation({ summary: 'Create a new course section' })
   @ApiParam({ name: 'courseId', description: 'UUID of the course' })
   @ApiBody({ type: CreateCourseSectionDto })
@@ -49,6 +49,7 @@ export class CourseSectionController {
   }
 
   @Post('with-items/bulk')
+  @RequirePermissions('section:create_multiple')
   @ApiOperation({ summary: 'Create multiple course sections with items' })
   @ApiBody({ type: CreateMultipleSectionsWithItemsDto })
   async createMultipleSectionsWithItems(
@@ -59,6 +60,7 @@ export class CourseSectionController {
   }
 
   @Get()
+  @RequirePermissions('section:list')
   @ApiOperation({ summary: 'Get all sections for a course' })
   @ApiParam({ name: 'courseId', description: 'UUID of the course' })
   @ApiResponse({
@@ -71,6 +73,7 @@ export class CourseSectionController {
   }
 
   @Patch(':sectionId')
+  @RequirePermissions('section:update')
   @ApiOperation({ summary: 'Update a course section' })
   @ApiParam({ name: 'sectionId', description: 'UUID of the section' })
   @ApiBody({ type: UpdateCourseSectionDto })
@@ -87,6 +90,7 @@ export class CourseSectionController {
   }
 
   @Delete(':sectionId')
+  @RequirePermissions('section:delete')
   @ApiOperation({ summary: 'Soft delete a course section' })
   @ApiParam({ name: 'sectionId', description: 'UUID of the section' })
   @ApiResponse({ status: 204, description: 'Section deleted successfully' })

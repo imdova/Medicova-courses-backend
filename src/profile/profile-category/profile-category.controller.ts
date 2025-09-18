@@ -20,20 +20,20 @@ import {
 import { ProfileCategoryService } from './profile-category.service';
 import { CreateProfileCategoryDto } from './dto/create-profile-category.dto';
 import { UpdateProfileCategoryDto } from './dto/update-profile-category.dto';
-import { RolesGuard } from 'src/auth/roles.guard';
 import { AuthGuard } from '@nestjs/passport';
-import { Roles } from 'src/auth/decorator/roles.decorator';
+import { PermissionsGuard } from 'src/auth/permission.guard';
+import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Profile Categories')
 @Controller('profile-categories')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
-//@Roles(UserRole.ADMIN) // ✅ Only admins can use these endpoints
+@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class ProfileCategoryController {
   constructor(
     private readonly profileCategoryService: ProfileCategoryService,
   ) { }
 
   @Post()
+  @RequirePermissions('profile_category:create')
   @ApiOperation({ summary: 'Create a new profile category with specialities' })
   @ApiBody({ type: CreateProfileCategoryDto })
   @ApiResponse({ status: HttpStatus.CREATED, description: 'Category created' })
@@ -42,7 +42,7 @@ export class ProfileCategoryController {
   }
 
   @Get()
-  //@Roles(UserRole.ADMIN, UserRole.INSTRUCTOR)
+  @RequirePermissions('profile_category:list')
   @ApiOperation({ summary: 'Get all categories with specialities' })
   @ApiResponse({ status: HttpStatus.OK })
   findAll() {
@@ -50,6 +50,7 @@ export class ProfileCategoryController {
   }
 
   @Get(':id')
+  @RequirePermissions('profile_category:get')
   @ApiOperation({ summary: 'Get one category with its specialities' })
   @ApiParam({ name: 'id', description: 'Category ID' })
   @ApiResponse({ status: HttpStatus.OK })
@@ -58,6 +59,7 @@ export class ProfileCategoryController {
   }
 
   @Patch(':id')
+  @RequirePermissions('profile_category:update')
   @ApiBody({ type: CreateProfileCategoryDto })
   @ApiOperation({ summary: 'Update a category' })
   update(@Param('id') id: string, @Body() dto: UpdateProfileCategoryDto) {
@@ -65,6 +67,7 @@ export class ProfileCategoryController {
   }
 
   @Delete(':id')
+  @RequirePermissions('profile_category:delete')
   @ApiOperation({ summary: 'Delete a category' })
   remove(@Param('id') id: string) {
     return this.profileCategoryService.remove(id);
@@ -72,6 +75,7 @@ export class ProfileCategoryController {
 
   // ✅ Add speciality to category
   @Post(':id/specialities')
+  @RequirePermissions('speciality:add')
   @ApiBody({
     schema: {
       type: 'object',
@@ -96,6 +100,7 @@ export class ProfileCategoryController {
 
   // ✅ Remove speciality from category
   @Delete(':id/specialities')
+  @RequirePermissions('speciality:remove')
   @ApiBody({
     schema: {
       type: 'object',

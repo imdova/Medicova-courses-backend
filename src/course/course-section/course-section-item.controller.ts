@@ -22,15 +22,17 @@ import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { CourseSectionItem } from './entities/course-section-item.entity';
 import { AuthGuard } from '@nestjs/passport';
+import { PermissionsGuard } from 'src/auth/permission.guard';
+import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Course Section Items')
 @Controller('course-sections/:sectionId/items')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
-//@Roles(UserRole.INSTRUCTOR, UserRole.ADMIN)
+@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class CourseSectionItemController {
   constructor(private readonly service: CourseSectionItemService) { }
 
   @Post()
+  @RequirePermissions('section_item:add')
   @ApiOperation({
     summary: 'Add an item (lecture, quiz or assignment) to a section',
   })
@@ -49,6 +51,7 @@ export class CourseSectionItemController {
   }
 
   @Post('bulk')
+  @RequirePermissions('section_item:add_multiple')
   @ApiOperation({
     summary:
       'Add multiple items (lectures, quizzes or assignments) to a section',
@@ -63,6 +66,7 @@ export class CourseSectionItemController {
   }
 
   @Patch(':itemId')
+  @RequirePermissions('section_item:update')
   @ApiOperation({ summary: 'Update a section item (order, etc.)' })
   @ApiParam({ name: 'itemId', description: 'UUID of the section item' })
   @ApiBody({ type: UpdateCourseSectionItemDto })
@@ -79,6 +83,7 @@ export class CourseSectionItemController {
   }
 
   @Delete(':itemId')
+  @RequirePermissions('section_item:delete')
   @ApiOperation({ summary: 'Soft delete a section item' })
   @ApiParam({ name: 'itemId', description: 'UUID of the section item' })
   @ApiResponse({ status: 204, description: 'Item deleted successfully' })

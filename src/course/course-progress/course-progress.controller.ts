@@ -10,19 +10,19 @@ import {
 import { CourseProgressService } from './course-progress.service';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
-import { RolesGuard } from 'src/auth/roles.guard';
-import { Roles } from 'src/auth/decorator/roles.decorator';
 import { CourseProgress } from './entities/course-progress.entity';
 import { SubmitCourseItemDto } from './dto/submit-course-item.dto';
+import { PermissionsGuard } from 'src/auth/permission.guard';
+import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Course Progress')
 @Controller('courses/:courseId/items')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
-//@Roles(UserRole.STUDENT)
+@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class CourseProgressController {
   constructor(private readonly courseProgressService: CourseProgressService) { }
 
   @Post(':itemId/progress')
+  @RequirePermissions('progress:submit')
   @ApiOperation({
     summary: 'Submit progress for a course item (lecture, quiz, assignment)',
   })
@@ -47,6 +47,7 @@ export class CourseProgressController {
   }
 
   @Get('/progress')
+  @RequirePermissions('progress:get')
   @ApiOperation({ summary: 'Get overall progress for a student in a course' })
   @ApiResponse({
     status: 200,

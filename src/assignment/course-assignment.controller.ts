@@ -13,15 +13,17 @@ import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { AssignmentService } from './assignment.service';
 import { AssignmentSubmission } from './entities/assignment-submission.entity';
+import { PermissionsGuard } from 'src/auth/permission.guard';
+import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Course Assignments')
 @Controller('courses/:courseId/assignments')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
+@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class CourseAssignmentController {
   constructor(private readonly assignmentService: AssignmentService) { }
 
   @Get()
-  //@Roles(UserRole.INSTRUCTOR)
+  @RequirePermissions('assignment:list_with_students')
   @ApiOperation({
     summary: 'Get all assignments for a course with student info (instructor)',
   })
@@ -33,6 +35,7 @@ export class CourseAssignmentController {
     return this.assignmentService.getAllAssignmentsWithSubmissions(courseId);
   }
 
+  @RequirePermissions('assignment:update_score')
   @Patch(':assignmentId/submissions/:submissionId/score')
   @ApiOperation({
     summary: 'Update score for an assignment submission (instructor)',

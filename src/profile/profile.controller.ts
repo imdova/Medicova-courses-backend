@@ -21,21 +21,15 @@ import {
 import { CreateProfileDto } from './dto/create-profile.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ProfileService } from './profile.service';
-import { RolesGuard } from 'src/auth/roles.guard';
-import { Roles } from 'src/auth/decorator/roles.decorator';
 import { Profile } from './entities/profile.entity';
 import { AuthGuard } from '@nestjs/passport';
 import { UserService } from 'src/user/user.service';
+import { PermissionsGuard } from 'src/auth/permission.guard';
+import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Profile')
 @Controller('users/:userId/profile')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
-// @Roles(
-//   UserRole.INSTRUCTOR,
-//   UserRole.ADMIN,
-//   UserRole.STUDENT,
-//   UserRole.ACADEMY_ADMIN,
-// )
+@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class ProfileController {
   constructor(
     private readonly profileService: ProfileService,
@@ -43,6 +37,7 @@ export class ProfileController {
   ) { }
 
   @Post()
+  @RequirePermissions('profile:create')
   @ApiOperation({
     summary: 'Create a profile',
     description:
@@ -80,6 +75,7 @@ export class ProfileController {
   }
 
   @Patch()
+  @RequirePermissions('profile:update')
   @ApiOperation({
     summary: 'Update a profile',
     description:
@@ -117,6 +113,7 @@ export class ProfileController {
   }
 
   @Get()
+  @RequirePermissions('profile:get')
   @ApiOperation({
     summary: 'Get a profile',
     description:

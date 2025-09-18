@@ -9,18 +9,18 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 import { StudentBundleService } from './student-bundle.service';
-import { RolesGuard } from 'src/auth/roles.guard';
 import { AuthGuard } from '@nestjs/passport';
-import { Roles } from 'src/auth/decorator/roles.decorator';
+import { PermissionsGuard } from 'src/auth/permission.guard';
+import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Student Bundles')
 @Controller('student/bundles')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
-//@Roles(UserRole.STUDENT)
+@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class StudentBundleController {
   constructor(private readonly bundleService: StudentBundleService) { }
 
   @Get()
+  @RequirePermissions('bundle:list_available')
   @ApiOperation({ summary: 'Get all available bundles for a student' })
   @ApiResponse({ status: 200, description: 'List of bundles' })
   async findAll(@Req() req) {
@@ -28,6 +28,7 @@ export class StudentBundleController {
   }
 
   @Post(':id/enroll')
+  @RequirePermissions('bundle:enroll')
   @ApiOperation({ summary: 'Enroll student into a bundle' })
   @ApiParam({ name: 'id', description: 'Bundle UUID' })
   async enroll(@Param('id', ParseUUIDPipe) id: string, @Req() req) {

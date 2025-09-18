@@ -38,7 +38,7 @@ export class AcademyController {
   constructor(private readonly academyService: AcademyService) { }
 
   @Post()
-  //@Roles(UserRole.ADMIN)
+  @RequirePermissions('academy:create')
   @ApiOperation({ summary: 'Create a new academy (admin only)' })
   @ApiBody({ description: 'Academy details', type: CreateAcademyDto })
   @ApiResponse({
@@ -54,7 +54,7 @@ export class AcademyController {
   }
 
   @Get()
-  //@Roles(UserRole.ADMIN)
+  @RequirePermissions('academy:list')
   @ApiOperation({ summary: 'List all academies (admin only)' })
   @ApiResponse({ status: HttpStatus.OK, description: 'List of all academies' })
   findAll() {
@@ -62,7 +62,7 @@ export class AcademyController {
   }
 
   @Get(':id')
-  //@Roles(UserRole.ADMIN, UserRole.ACADEMY_ADMIN)
+  @RequirePermissions('academy:get_by_id')
   @ApiOperation({ summary: 'Get an academy by ID' })
   @ApiParam({ name: 'id', type: String, description: 'ID of the academy' })
   @ApiResponse({
@@ -99,7 +99,7 @@ export class AcademyController {
   }
 
   @Patch(':id')
-  //@Roles(UserRole.ADMIN, UserRole.ACADEMY_ADMIN)
+  @RequirePermissions('academy:update')
   @ApiOperation({ summary: 'Update an academy by ID' })
   @ApiParam({ name: 'id', type: String, description: 'ID of the academy' })
   @ApiBody({ description: 'Academy update data', type: UpdateAcademyDto })
@@ -123,7 +123,7 @@ export class AcademyController {
   }
 
   @Delete(':id')
-  //@Roles(UserRole.ADMIN, UserRole.ACADEMY_ADMIN)
+  @RequirePermissions('academy:delete')
   @ApiOperation({ summary: 'Delete an academy by ID' })
   @ApiParam({ name: 'id', type: String, description: 'ID of the academy' })
   @ApiResponse({
@@ -143,7 +143,7 @@ export class AcademyController {
 
   // ---------- New endpoint to add academy user under this academy ----------
   @Post(':id/users')
-  //@Roles(UserRole.ADMIN, UserRole.ACADEMY_ADMIN)
+  @RequirePermissions('academy_user:add')
   @ApiOperation({ summary: 'Add a new user under a specific academy' })
   @ApiParam({ name: 'id', type: String, description: 'ID of the academy' })
   @ApiBody({ description: 'User details', type: CreateUserDto })
@@ -168,7 +168,7 @@ export class AcademyController {
 
   // ---------- New endpoint to get all users under an academy ----------
   @Get(':id/users')
-  //@Roles(UserRole.ADMIN, UserRole.ACADEMY_ADMIN)
+  @RequirePermissions('academy_user:list')
   @ApiOperation({ summary: 'Get all users under a specific academy' })
   @ApiParam({ name: 'id', type: String, description: 'ID of the academy' })
   @ApiResponse({
@@ -188,7 +188,7 @@ export class AcademyController {
 
   // ---------- New endpoint to add academy instructor ----------
   @Post(':id/instructors')
-  //@Roles(UserRole.ADMIN, UserRole.ACADEMY_ADMIN)
+  @RequirePermissions('academy_instructor:add')
   @ApiOperation({
     summary: 'Add an instructor profile under a specific academy (non-user)',
   })
@@ -221,7 +221,7 @@ export class AcademyController {
 
   // ---------- New endpoint to get all instructors under an academy ----------
   @Get(':id/instructors')
-  //@Roles(UserRole.ADMIN, UserRole.ACADEMY_ADMIN, UserRole.ACADEMY_USER)
+  @RequirePermissions('academy_instructor:list')
   @ApiOperation({
     summary: 'Get all instructor profiles under a specific academy (non-users)',
   })
@@ -241,7 +241,7 @@ export class AcademyController {
 
   // ---------- New endpoint to get one instructor under an academy ----------
   @Get(':id/instructors/:instructorId')
-  //@Roles(UserRole.ADMIN, UserRole.ACADEMY_ADMIN, UserRole.ACADEMY_USER)
+  @RequirePermissions('academy_instructor:get')
   @ApiOperation({
     summary: 'Get One instructor profiles under a specific academy (non-users)',
   })
@@ -270,7 +270,7 @@ export class AcademyController {
 
   // ---------- New endpoint to update academy instructor ----------
   @Patch(':id/instructors/:instructorId')
-  //@Roles(UserRole.ADMIN, UserRole.ACADEMY_ADMIN)
+  @RequirePermissions('academy_instructor:update')
   @ApiOperation({
     summary: 'Update an instructor profile under a specific academy (non-user)',
   })

@@ -24,19 +24,19 @@ import { CouponService } from './coupon.service';
 import { CreateCouponDto } from './dto/create-coupon.dto';
 import { UpdateCouponDto } from './dto/update-coupon.dto';
 import { Coupon } from './entities/coupon.entity';
-import { RolesGuard } from 'src/auth/roles.guard';
-import { Roles } from 'src/auth/decorator/roles.decorator';
 import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
 import { AuthGuard } from '@nestjs/passport';
+import { PermissionsGuard } from 'src/auth/permission.guard';
+import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Coupons')
 @Controller('coupons')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
-//@Roles(UserRole.INSTRUCTOR)
+@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class CouponController {
   constructor(private readonly couponService: CouponService) { }
 
   @Post()
+  @RequirePermissions('coupon:create')
   @ApiOperation({ summary: 'Create a new coupon' })
   @ApiCreatedResponse({
     description: 'Coupon created successfully',
@@ -56,6 +56,7 @@ export class CouponController {
   }
 
   @Get()
+  @RequirePermissions('coupon:list')
   @ApiOperation({ summary: 'Retrieve paginated list of coupons' })
   @ApiOkResponse({
     description: 'List of coupons retrieved successfully',
@@ -70,6 +71,7 @@ export class CouponController {
   }
 
   @Get(':id')
+  @RequirePermissions('coupon:get')
   @ApiOperation({ summary: 'Get a coupon by ID' })
   @ApiOkResponse({ description: 'Coupon found', type: Coupon })
   @ApiNotFoundResponse({ description: 'Coupon not found' })
@@ -83,6 +85,7 @@ export class CouponController {
   }
 
   @Patch(':id')
+  @RequirePermissions('coupon:update')
   @ApiOperation({ summary: 'Update (partially) a coupon by ID' })
   @ApiOkResponse({
     description: 'Coupon updated successfully',
@@ -103,6 +106,7 @@ export class CouponController {
   }
 
   @Delete(':id')
+  @RequirePermissions('coupon:delete')
   @ApiOperation({ summary: 'Delete a coupon by ID (soft delete)' })
   @ApiNoContentResponse({ description: 'Coupon deleted successfully' })
   @ApiNotFoundResponse({ description: 'Coupon not found' })
