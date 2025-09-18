@@ -10,16 +10,20 @@ import { AcademyModule } from 'src/academy/academy.module';
 import { Course } from 'src/course/entities/course.entity';
 import { Profile } from 'src/profile/entities/profile.entity';
 import { Role } from './entities/roles.entity';
+import { UserRolesController } from './user-roles.controller';
+import { UserRolesService } from './user-role.service';
+import { Permission } from './entities/permission.entity';
+import { RolePermission } from './entities/roles-permission.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Course, Profile, Role]),
+    TypeOrmModule.forFeature([User, Course, Profile, Role, Permission, RolePermission]),
     forwardRef(() => AuthModule),
     forwardRef(() => ProfileModule),
     forwardRef(() => AcademyModule),
   ],
-  controllers: [UserController],
-  providers: [UserService, RolesGuard],
+  controllers: [UserController, UserRolesController],
+  providers: [UserService, RolesGuard, UserRolesService],
   exports: [UserService],
 })
 export class UserModule { }

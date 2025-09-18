@@ -40,11 +40,29 @@ export class AuthService {
   }
 
   async generateToken(user: User) {
+    // Reload user with required relations
+    const fullUser = await this.userRepository.findOne({
+      where: { id: user.id },
+      relations: [
+        'role',
+        'role.rolePermissions',
+        'role.rolePermissions.permission',
+        'profile',
+        'academy',
+      ],
+    });
+
+    if (!fullUser) {
+      throw new NotFoundException('User not found while generating token');
+    }
+
     const payload = {
-      sub: user.id,
-      role: user.role.name,
-      academyId: user.academy?.id,
-      permissions: user.role.rolePermissions.map(rp => rp.permission.name),
+      sub: fullUser.id,
+      role: fullUser.role?.name ?? null,
+      academyId: fullUser.academy?.id ?? null,
+      permissions: fullUser.role?.rolePermissions?.map(
+        (rp) => rp.permission.name,
+      ) ?? [],
     };
 
     const accessToken = this.jwtService.sign(payload, {
@@ -54,13 +72,8 @@ export class AuthService {
     const refreshToken = uuidv4();
     const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
 
-    user.refreshToken = hashedRefreshToken;
-    await this.userRepository.save(user);
-
-    const fullUser = await this.userRepository.findOne({
-      where: { id: user.id },
-      relations: ['profile'],
-    });
+    fullUser.refreshToken = hashedRefreshToken;
+    await this.userRepository.save(fullUser);
 
     return {
       access_token: accessToken,
@@ -73,6 +86,8 @@ export class AuthService {
         lastName: fullUser.profile?.lastName ?? null,
         userName: fullUser.profile?.userName ?? null,
         photo: fullUser.profile?.photoUrl ?? null,
+        permissions:
+          fullUser.role?.rolePermissions?.map((rp) => rp.permission.name) ?? [],
       },
     };
   }

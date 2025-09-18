@@ -28,10 +28,12 @@ import { CreateUserDto } from 'src/user/dto/create-user.dto';
 import { CreateAcademyInstructorDto } from './dto/create-academy-instructor.dto';
 import { UpdateAcademyInstructorDto } from './dto/update-academy-instructor.dto';
 import { Academy } from './entities/academy.entity';
+import { PermissionsGuard } from 'src/auth/permission.guard';
+import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Academies')
 @Controller('academies')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
+@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class AcademyController {
   constructor(private readonly academyService: AcademyService) { }
 
@@ -82,13 +84,7 @@ export class AcademyController {
     return this.academyService.findOne(id);
   }
 
-  // @Roles(
-  //   UserRole.INSTRUCTOR,
-  //   UserRole.ADMIN,
-  //   UserRole.ACADEMY_ADMIN,
-  //   UserRole.ACADEMY_USER,
-  //   UserRole.STUDENT,
-  // )
+  @RequirePermissions('academy:get_by_slug')
   @Get('slug/:slug')
   @ApiOperation({ summary: 'Get an academy by Slug' })
   @ApiParam({ name: 'slug', description: 'Slug of academy' })
