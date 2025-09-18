@@ -12,18 +12,18 @@ import { ApiTags, ApiOperation, ApiParam, ApiBody } from '@nestjs/swagger';
 import { QuizQuestionsService } from './quiz-questions.service';
 import { CreateQuestionDto } from './dto/create-question.dto';
 import { UpdateQuestionDto } from './dto/update-question.dto';
-import { RolesGuard } from 'src/auth/roles.guard';
-import { Roles } from 'src/auth/decorator/roles.decorator';
 import { AuthGuard } from '@nestjs/passport';
+import { PermissionsGuard } from 'src/auth/permission.guard';
+import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Quiz Questions')
 @Controller('quizzes/:quizId/questions')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
-//@Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_ADMIN, UserRole.ACADEMY_USER)
+@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class QuizQuestionsController {
   constructor(private readonly quizQuestionsService: QuizQuestionsService) { }
 
   @Post()
+  @RequirePermissions('question:create')
   @ApiOperation({ summary: 'Create a question and attach it to a quiz' })
   @ApiBody({ description: 'Question Details', type: CreateQuestionDto })
   @ApiParam({ name: 'quizId', type: 'string', description: 'UUID of the quiz' })
@@ -32,6 +32,7 @@ export class QuizQuestionsController {
   }
 
   @Post('bulk')
+  @RequirePermissions('question:create_multiple')
   @ApiOperation({
     summary: 'Create multiple questions and attach them to a quiz',
   })
@@ -49,6 +50,7 @@ export class QuizQuestionsController {
   }
 
   @Get()
+  @RequirePermissions('question:list')
   @ApiOperation({ summary: 'List all questions for a quiz' })
   @ApiParam({ name: 'quizId', type: 'string' })
   listQuestions(@Param('quizId') quizId: string) {
@@ -56,6 +58,7 @@ export class QuizQuestionsController {
   }
 
   @Patch(':quizQuestionId')
+  @RequirePermissions('question:update')
   @ApiOperation({ summary: 'Update a question inside a quiz' })
   @ApiParam({ name: 'quizId', type: 'string', description: 'UUID of the quiz' })
   @ApiParam({
@@ -76,6 +79,7 @@ export class QuizQuestionsController {
   }
 
   @Delete(':quizQuestionId')
+  @RequirePermissions('question:delete')
   @ApiOperation({ summary: 'Remove a question from a quiz' })
   @ApiParam({ name: 'quizId', type: 'string' })
   @ApiParam({ name: 'quizQuestionId', type: 'string' })
