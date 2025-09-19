@@ -81,13 +81,11 @@ export class AuthService {
       user: {
         id: fullUser.id,
         email: fullUser.email,
-        role: fullUser.role,
+        role: fullUser.role.name,
         firstName: fullUser.profile?.firstName ?? null,
         lastName: fullUser.profile?.lastName ?? null,
         userName: fullUser.profile?.userName ?? null,
         photo: fullUser.profile?.photoUrl ?? null,
-        permissions:
-          fullUser.role?.rolePermissions?.map((rp) => rp.permission.name) ?? [],
       },
     };
   }
