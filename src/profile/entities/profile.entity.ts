@@ -12,6 +12,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ProfileMetadataDto } from '../dto/profile-metadata.dto';
 import { ProfileCategory } from '../profile-category/entities/profile-category.entity';
 import { ProfileSpeciality } from '../profile-category/entities/profile-specaility.entity';
+import { CountryOrStateDTO } from '../dto/country-state.dto';
 
 export enum Gender {
   MALE = 'male',
@@ -140,4 +141,29 @@ export class Profile extends BasicEntity {
   @ManyToOne(() => ProfileSpeciality, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'speciality_id' })
   speciality?: ProfileSpeciality | null;
+
+  @ApiProperty({
+    type: () => CountryOrStateDTO,
+    description: 'Country of residence (optional)',
+    required: false,
+  })
+  @Column({ type: 'jsonb', nullable: true })
+  country?: CountryOrStateDTO;
+
+  @ApiProperty({
+    type: () => CountryOrStateDTO,
+    description: 'State of residence (optional)',
+    required: false,
+  })
+  @Column({ type: 'jsonb', nullable: true })
+  state?: CountryOrStateDTO;
+
+  @ApiProperty({
+    type: String,
+    description: 'City of residence (optional)',
+    maxLength: 100,
+    required: false,
+  })
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  city?: string;
 }
