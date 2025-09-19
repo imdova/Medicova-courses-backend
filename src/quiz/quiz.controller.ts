@@ -18,7 +18,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { QuizAttempt } from './entities/quiz-attempts.entity';
 import { SubmitQuizDto } from './dto/submit-quiz.dto';
 import { CreateQuizWithQuestionsDto } from './dto/create-quiz-with-questions.dto';
-import { PermissionsGuard } from 'src/auth/permission.guard';
+import { PermissionsGuard } from '../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Quizzes')

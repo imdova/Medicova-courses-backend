@@ -22,7 +22,7 @@ import {
 import { CourseSection } from './entities/course-section.entity';
 import { CreateMultipleSectionsWithItemsDto } from './dto/create-sections-with-items.dto';
 import { AuthGuard } from '@nestjs/passport';
-import { PermissionsGuard } from 'src/auth/permission.guard';
+import { PermissionsGuard } from '../../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Course Sections')

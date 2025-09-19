@@ -12,7 +12,7 @@ import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { CourseProgress } from './entities/course-progress.entity';
 import { SubmitCourseItemDto } from './dto/submit-course-item.dto';
-import { PermissionsGuard } from 'src/auth/permission.guard';
+import { PermissionsGuard } from '../../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Course Progress')

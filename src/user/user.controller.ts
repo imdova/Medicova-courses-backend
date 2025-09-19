@@ -31,7 +31,7 @@ import { Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 import { UpdateSecuritySettingsDto } from './dto/security-settings.dto';
 import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
-import { PermissionsGuard } from 'src/auth/permission.guard';
+import { PermissionsGuard } from '../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Users')

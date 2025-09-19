@@ -26,7 +26,7 @@ import { CourseStudent } from './entities/course-student.entity';
 import { CreatePaymentDto } from 'src/payment/dto/create-payment.dto';
 import { PaymentService } from 'src/payment/payment.service';
 import { OrderType } from 'src/payment/entities/payment.entity';
-import { PermissionsGuard } from 'src/auth/permission.guard';
+import { PermissionsGuard } from '../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Student Courses')
