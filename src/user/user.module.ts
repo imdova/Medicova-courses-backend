@@ -11,9 +11,10 @@ import { Course } from 'src/course/entities/course.entity';
 import { Profile } from 'src/profile/entities/profile.entity';
 import { Role } from './entities/roles.entity';
 import { UserRolesController } from './user-roles.controller';
-import { UserRolesService } from './user-role.service';
+import { UserRolesPermissionsService } from './user-role-permission.service';
 import { Permission } from './entities/permission.entity';
 import { RolePermission } from './entities/roles-permission.entity';
+import { UserPermissionsController } from './user-permissions.controller';
 
 @Module({
   imports: [
@@ -22,8 +23,8 @@ import { RolePermission } from './entities/roles-permission.entity';
     forwardRef(() => ProfileModule),
     forwardRef(() => AcademyModule),
   ],
-  controllers: [UserController, UserRolesController],
-  providers: [UserService, RolesGuard, UserRolesService],
+  controllers: [UserController, UserRolesController, UserPermissionsController],
+  providers: [UserService, RolesGuard, UserRolesPermissionsService],
   exports: [UserService],
 })
 export class UserModule { }

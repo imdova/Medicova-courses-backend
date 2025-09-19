@@ -6,7 +6,7 @@ import { Permission } from './entities/permission.entity';
 import { RolePermission } from './entities/roles-permission.entity';
 
 @Injectable()
-export class UserRolesService {
+export class UserRolesPermissionsService {
     constructor(
         @InjectRepository(Role)
         private readonly roleRepository: Repository<Role>,
