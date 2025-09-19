@@ -21,7 +21,7 @@ import { ProfileCategoryService } from './profile-category.service';
 import { CreateProfileCategoryDto } from './dto/create-profile-category.dto';
 import { UpdateProfileCategoryDto } from './dto/update-profile-category.dto';
 import { AuthGuard } from '@nestjs/passport';
-import { PermissionsGuard } from 'src/auth/permission.guard';
+import { PermissionsGuard } from '../../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Profile Categories')

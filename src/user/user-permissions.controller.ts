@@ -10,7 +10,7 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { UserRolesPermissionsService } from './user-role-permission.service';
 import { Permission } from './entities/permission.entity';
 import { CreatePermissionsBulkDto } from './dto/roles-and-permissions.dto';
-import { PermissionsGuard } from 'src/auth/permission.guard';
+import { PermissionsGuard } from '../auth/permission.guard';
 import { AuthGuard } from '@nestjs/passport';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 

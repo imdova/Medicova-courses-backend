@@ -22,7 +22,7 @@ import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { CourseSectionItem } from './entities/course-section-item.entity';
 import { AuthGuard } from '@nestjs/passport';
-import { PermissionsGuard } from 'src/auth/permission.guard';
+import { PermissionsGuard } from '../../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Course Section Items')

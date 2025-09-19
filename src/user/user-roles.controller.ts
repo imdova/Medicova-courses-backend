@@ -15,7 +15,7 @@ import { Role } from './entities/roles.entity';
 import { RolePermission } from './entities/roles-permission.entity';
 import { AddPermissionsDto, CreateRolesBulkDto } from './dto/roles-and-permissions.dto';
 import { AuthGuard } from '@nestjs/passport';
-import { PermissionsGuard } from 'src/auth/permission.guard';
+import { PermissionsGuard } from '../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('User - Roles')

@@ -8,7 +8,7 @@ import {
 import { ProfileService } from './profile.service';
 import { Profile } from 'src/profile/entities/profile.entity';
 import { AuthGuard } from '@nestjs/passport';
-import { PermissionsGuard } from 'src/auth/permission.guard';
+import { PermissionsGuard } from '../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Public Instructor Profile')

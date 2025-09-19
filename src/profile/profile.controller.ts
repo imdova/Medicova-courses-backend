@@ -24,7 +24,7 @@ import { ProfileService } from './profile.service';
 import { Profile } from './entities/profile.entity';
 import { AuthGuard } from '@nestjs/passport';
 import { UserService } from 'src/user/user.service';
-import { PermissionsGuard } from 'src/auth/permission.guard';
+import { PermissionsGuard } from '../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Profile')
