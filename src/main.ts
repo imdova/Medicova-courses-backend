@@ -47,7 +47,15 @@ async function bootstrap(): Promise<NestExpressApplication> {
     );
 
     app.setGlobalPrefix('api');
-    app.enableCors();
+    app.enableCors({
+      origin: [
+        'http://localhost:3000',
+      ],
+      methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+      allowedHeaders: ['Content-Type', 'Authorization'],
+      credentials: true,
+    });
+
     app.enableShutdownHooks(); // <-- ensures DB pool closes on exit
 
     // Swagger static assets (optional for local dev)
