@@ -17,7 +17,6 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { RolesGuard } from 'src/auth/roles.guard';
-import { UserRole } from 'src/user/entities/user.entity';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { Paginate, PaginateQuery } from 'nestjs-paginate';
 import { AuthGuard } from '@nestjs/passport';
@@ -27,18 +26,20 @@ import { CourseStudent } from './entities/course-student.entity';
 import { CreatePaymentDto } from 'src/payment/dto/create-payment.dto';
 import { PaymentService } from 'src/payment/payment.service';
 import { OrderType } from 'src/payment/entities/payment.entity';
+import { PermissionsGuard } from 'src/auth/permission.guard';
+import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Student Courses')
 @Controller('student/courses')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(UserRole.STUDENT)
+@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class StudentCourseController {
   constructor(
     private readonly studentCourseService: StudentCourseService,
     private readonly paymentService: PaymentService,
-  ) {}
+  ) { }
 
   @Post(':id/enroll')
+  @RequirePermissions('course:enroll')
   @ApiOperation({
     summary: 'Enroll student into a course',
     description: 'Allows the authenticated student to enroll in a course.',
@@ -66,6 +67,7 @@ export class StudentCourseController {
   }
 
   @Post(':id/purchase')
+  @RequirePermissions('course:purchase')
   @ApiOperation({ summary: 'Purchase a course' })
   @ApiBody({ type: CreatePaymentDto })
   @ApiResponse({ status: 201, description: 'Payment request created' })
@@ -84,6 +86,7 @@ export class StudentCourseController {
   }
 
   @Get('enrolled')
+  @RequirePermissions('course:list_enrolled')
   @ApiOperation({
     summary: 'Get paginated list of courses the student is enrolled in',
     description:
@@ -101,6 +104,7 @@ export class StudentCourseController {
   }
 
   @Get()
+  @RequirePermissions('course:list_available')
   @ApiOperation({
     summary: 'Get paginated list of available courses for students',
     description:
@@ -118,6 +122,7 @@ export class StudentCourseController {
   }
 
   @Get(':id')
+  @RequirePermissions('course:get_for_student')
   @ApiOperation({
     summary: 'Get a course by ID for student view',
     description:
@@ -142,6 +147,7 @@ export class StudentCourseController {
   }
 
   @Delete(':id/drop')
+  @RequirePermissions('course:drop')
   @ApiOperation({
     summary: 'Drop a course',
     description:

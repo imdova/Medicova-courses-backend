@@ -44,6 +44,9 @@ import { ProfileCategory } from './profile/profile-category/entities/profile-cat
 import { ProfileSpeciality } from './profile/profile-category/entities/profile-specaility.entity';
 import { PaymentModule } from './payment/payment.module';
 import { Payment } from './payment/entities/payment.entity';
+import { Permission } from './user/entities/permission.entity';
+import { Role } from './user/entities/roles.entity';
+import { RolePermission } from './user/entities/roles-permission.entity';
 
 @Module({
   imports: [
@@ -85,6 +88,9 @@ import { Payment } from './payment/entities/payment.entity';
         ProfileCategory,
         ProfileSpeciality,
         Payment,
+        Role,
+        Permission,
+        RolePermission
       ],
       synchronize: true,
       extra: {
@@ -106,4 +112,4 @@ import { Payment } from './payment/entities/payment.entity';
   controllers: [AppController],
   providers: [AppService, DatabaseService],
 })
-export class AppModule {}
+export class AppModule { }

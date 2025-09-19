@@ -21,29 +21,23 @@ import {
 import { CreateProfileDto } from './dto/create-profile.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ProfileService } from './profile.service';
-import { RolesGuard } from 'src/auth/roles.guard';
-import { Roles } from 'src/auth/decorator/roles.decorator';
-import { UserRole } from 'src/user/entities/user.entity';
 import { Profile } from './entities/profile.entity';
 import { AuthGuard } from '@nestjs/passport';
 import { UserService } from 'src/user/user.service';
+import { PermissionsGuard } from 'src/auth/permission.guard';
+import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Profile')
 @Controller('users/:userId/profile')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(
-  UserRole.INSTRUCTOR,
-  UserRole.ADMIN,
-  UserRole.STUDENT,
-  UserRole.ACADEMY_ADMIN,
-)
+@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class ProfileController {
   constructor(
     private readonly profileService: ProfileService,
     private readonly userService: UserService,
-  ) {}
+  ) { }
 
   @Post()
+  @RequirePermissions('profile:create')
   @ApiOperation({
     summary: 'Create a profile',
     description:
@@ -81,6 +75,7 @@ export class ProfileController {
   }
 
   @Patch()
+  @RequirePermissions('profile:update')
   @ApiOperation({
     summary: 'Update a profile',
     description:
@@ -118,6 +113,7 @@ export class ProfileController {
   }
 
   @Get()
+  @RequirePermissions('profile:get')
   @ApiOperation({
     summary: 'Get a profile',
     description:
@@ -151,10 +147,10 @@ export class ProfileController {
     if (userId === currentUserId) return true;
 
     // ✅ allow if user is ADMIN
-    if (role === UserRole.ADMIN) return true;
+    if (role === 'academy_admin') return true;
 
     // ✅ allow if user is ACCOUNT_ADMIN but only within same academy
-    if (role === UserRole.ACADEMY_ADMIN) {
+    if (role === 'academy_admin') {
       const targetUser = await this.userService.findOne(userId);
 
       if (!targetUser) return false;

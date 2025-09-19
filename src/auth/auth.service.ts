@@ -1,11 +1,12 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User, UserRole } from '../user/entities/user.entity';
+import { User } from '../user/entities/user.entity';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { ConfigService } from '@nestjs/config';
 import { v4 as uuidv4 } from 'uuid';
+import { Role } from 'src/user/entities/roles.entity';
 
 @Injectable()
 export class AuthService {
@@ -14,12 +15,14 @@ export class AuthService {
     private userRepository: Repository<User>,
     private jwtService: JwtService, // Access JWT service to create tokens
     private configService: ConfigService,
-  ) {}
+    @InjectRepository(Role)
+    private roleRepository: Repository<Role>,
+  ) { }
 
   async validateUser(email: string, password: string): Promise<User> {
     const user = await this.userRepository.findOne({
       where: { email },
-      relations: ['academy'],
+      relations: ['academy', 'role', 'role.rolePermissions', 'role.rolePermissions.permission', 'profile'],
     });
 
     if (!user) {
@@ -37,10 +40,29 @@ export class AuthService {
   }
 
   async generateToken(user: User) {
+    // Reload user with required relations
+    const fullUser = await this.userRepository.findOne({
+      where: { id: user.id },
+      relations: [
+        'role',
+        'role.rolePermissions',
+        'role.rolePermissions.permission',
+        'profile',
+        'academy',
+      ],
+    });
+
+    if (!fullUser) {
+      throw new NotFoundException('User not found while generating token');
+    }
+
     const payload = {
-      sub: user.id,
-      role: user.role,
-      academyId: user.academy?.id,
+      sub: fullUser.id,
+      role: fullUser.role?.name ?? null,
+      academyId: fullUser.academy?.id ?? null,
+      permissions: fullUser.role?.rolePermissions?.map(
+        (rp) => rp.permission.name,
+      ) ?? [],
     };
 
     const accessToken = this.jwtService.sign(payload, {
@@ -50,13 +72,8 @@ export class AuthService {
     const refreshToken = uuidv4();
     const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
 
-    user.refreshToken = hashedRefreshToken;
-    await this.userRepository.save(user);
-
-    const fullUser = await this.userRepository.findOne({
-      where: { id: user.id },
-      relations: ['profile'],
-    });
+    fullUser.refreshToken = hashedRefreshToken;
+    await this.userRepository.save(fullUser);
 
     return {
       access_token: accessToken,
@@ -64,7 +81,7 @@ export class AuthService {
       user: {
         id: fullUser.id,
         email: fullUser.email,
-        role: fullUser.role,
+        role: fullUser.role.name,
         firstName: fullUser.profile?.firstName ?? null,
         lastName: fullUser.profile?.lastName ?? null,
         userName: fullUser.profile?.userName ?? null,
@@ -86,11 +103,20 @@ export class AuthService {
 
     let user = await this.userRepository.findOne({ where: { email } });
 
+    //Get role entity
+    const roleEntity = await this.roleRepository.findOne({
+      where: { name: 'academy_admin' }, // or whatever role name
+    });
+
+    if (!roleEntity) {
+      throw new NotFoundException('Role academy_admin not found');
+    }
+
     if (!user) {
       user = this.userRepository.create({
         email,
         password: '', // No password for OAuth
-        role: UserRole.STUDENT,
+        role: roleEntity,
       });
 
       await this.userRepository.save(user);

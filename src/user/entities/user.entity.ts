@@ -6,14 +6,7 @@ import { Academy } from 'src/academy/entities/academy.entity';
 import { Exclude } from 'class-transformer';
 import { CourseStudent } from 'src/course/entities/course-student.entity';
 import { Payment } from 'src/payment/entities/payment.entity';
-
-export enum UserRole {
-  STUDENT = 'student',
-  INSTRUCTOR = 'instructor',
-  ADMIN = 'admin',
-  ACADEMY_ADMIN = 'academy_admin', // Adds users to academy
-  ACADEMY_USER = 'academy_user', // Can do anything the admin can, but admin can take away from him
-}
+import { Role } from './roles.entity';
 
 @Entity()
 export class User extends BasicEntity {
@@ -36,13 +29,8 @@ export class User extends BasicEntity {
   @Column({ name: 'refresh_token', nullable: true })
   refreshToken?: string;
 
-  @ApiProperty({
-    description: 'Role assigned to the user',
-    enum: UserRole,
-    example: UserRole.STUDENT,
-  })
-  @Column({ type: 'enum', enum: UserRole, default: UserRole.STUDENT })
-  role: UserRole;
+  @ManyToOne(() => Role, (role) => role.users)
+  role: Role; // user inherits permissions via role
 
   @ApiProperty({
     description: 'Associated instructor profile details of the user',
@@ -63,4 +51,10 @@ export class User extends BasicEntity {
 
   @OneToMany(() => Payment, (payment) => payment.user)
   payments: Payment[];
+
+  get permissions(): string[] {
+    return this.role?.rolePermissions?.map(rp => rp.permission.name) || [];
+  }
 }
+
+

@@ -19,7 +19,6 @@ import {
 import { Question } from './entities/question.entity';
 import { SubmitQuizDto } from './dto/submit-quiz.dto';
 import { QuizAttempt } from './entities/quiz-attempts.entity';
-import { UserRole } from 'src/user/entities/user.entity';
 import { CreateQuizWithQuestionsDto } from './dto/create-quiz-with-questions.dto';
 import { QuizQuestion } from './entities/quiz-question.entity';
 import { QuizWithStats } from './interface/quiz-with-stats.interface';
@@ -42,7 +41,7 @@ export class QuizService {
     private readonly quizRepo: Repository<Quiz>,
     @InjectRepository(QuizAttempt)
     private attemptRepo: Repository<QuizAttempt>,
-  ) {}
+  ) { }
 
   // All methods are checked for performance
 
@@ -83,9 +82,9 @@ export class QuizService {
       .where('quiz.deleted_at IS NULL');
 
     // Role restrictions
-    if (role === UserRole.ADMIN) {
+    if (role === 'admin') {
       // all quizzes
-    } else if (role === UserRole.ACADEMY_ADMIN) {
+    } else if (role === 'academy_admin') {
       qb.andWhere('quiz.academy_id = :academyId', { academyId });
     } else {
       qb.andWhere('quiz.created_by = :userId', { userId });
@@ -355,8 +354,8 @@ export class QuizService {
     academyId: string,
     role: string,
   ) {
-    if (role === UserRole.ADMIN) return; // full access
-    if (role === UserRole.ACADEMY_ADMIN) {
+    if (role === 'admin') return; // full access
+    if (role === 'academy_admin') {
       if (quiz.academy?.id !== academyId) {
         throw new ForbiddenException(
           'You cannot access courses outside your academy',

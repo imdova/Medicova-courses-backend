@@ -14,19 +14,18 @@ import { CoursePricingService } from './course-pricing.service';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { CreateCoursePricingDto } from './dto/create-course-pricing.dto';
 import { UpdateCoursePricingDto } from './dto/update-course-pricing.dto';
-import { RolesGuard } from 'src/auth/roles.guard';
-import { Roles } from 'src/auth/decorator/roles.decorator';
-import { UserRole } from 'src/user/entities/user.entity';
 import { AuthGuard } from '@nestjs/passport';
+import { PermissionsGuard } from 'src/auth/permission.guard';
+import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Course Pricing')
 @Controller('courses/:courseId/pricing')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(UserRole.INSTRUCTOR, UserRole.ADMIN)
+@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class CoursePricingController {
-  constructor(private readonly pricingService: CoursePricingService) {}
+  constructor(private readonly pricingService: CoursePricingService) { }
 
   @Post()
+  @RequirePermissions('pricing:add')
   @ApiOperation({ summary: 'Add pricing for a course' })
   @ApiResponse({
     status: 201,
@@ -41,6 +40,7 @@ export class CoursePricingController {
   }
 
   @Get()
+  @RequirePermissions('pricing:list')
   @ApiOperation({ summary: 'Get all pricing for a course' })
   @ApiResponse({ status: 200, type: [CreateCoursePricingDto] })
   getPricing(@Param('courseId') courseId: string) {
@@ -48,6 +48,7 @@ export class CoursePricingController {
   }
 
   @Patch(':pricingId')
+  @RequirePermissions('pricing:update')
   @ApiOperation({ summary: 'Update course pricing' })
   @ApiBody({ type: CreateCoursePricingDto })
   @ApiResponse({ status: 200, type: CreateCoursePricingDto })
@@ -59,6 +60,7 @@ export class CoursePricingController {
   }
 
   @Delete(':pricingId')
+  @RequirePermissions('pricing:deactivate')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Deactivate course pricing' })
   async deletePricing(@Param('pricingId') pricingId: string) {

@@ -24,24 +24,20 @@ import { CreateBundleDto } from './dto/create-bundle.dto';
 import { UpdateBundleDto } from './dto/update-bundle.dto';
 import { Bundle } from './entities/bundle.entity';
 import { RolesGuard } from 'src/auth/roles.guard';
-import { UserRole } from 'src/user/entities/user.entity';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
 import { AuthGuard } from '@nestjs/passport';
+import { PermissionsGuard } from 'src/auth/permission.guard';
+import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Bundles')
 @Controller('bundles')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(
-  UserRole.INSTRUCTOR,
-  UserRole.ADMIN,
-  UserRole.ACADEMY_USER,
-  UserRole.ACADEMY_ADMIN,
-)
+@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class BundleController {
-  constructor(private readonly bundleService: BundleService) {}
+  constructor(private readonly bundleService: BundleService) { }
 
   @Post()
+  @RequirePermissions('bundle:create')
   @ApiOperation({ summary: 'Create a new bundle with courses and pricing' })
   @ApiBody({ type: CreateBundleDto })
   @ApiResponse({
@@ -58,6 +54,7 @@ export class BundleController {
   }
 
   @Get()
+  @RequirePermissions('bundle:list')
   @ApiOperation({ summary: 'Get all bundles with pagination' })
   @ApiResponse({ status: 200, description: 'Paginated list of bundles' })
   @ApiQuery({
@@ -111,6 +108,7 @@ export class BundleController {
   }
 
   @Get(':id')
+  @RequirePermissions('bundle:get')
   @ApiOperation({ summary: 'Get a single bundle by ID' })
   @ApiParam({ name: 'id', description: 'UUID of the bundle' })
   @ApiResponse({ status: 200, description: 'Bundle details', type: Bundle })
@@ -126,6 +124,7 @@ export class BundleController {
   }
 
   @Patch(':id')
+  @RequirePermissions('bundle:update')
   @ApiOperation({ summary: 'Update a bundle (details, courses, pricing)' })
   @ApiParam({ name: 'id', description: 'UUID of the bundle' })
   @ApiBody({ type: UpdateBundleDto })
@@ -144,6 +143,7 @@ export class BundleController {
   }
 
   @Delete(':id')
+  @RequirePermissions('bundle:delete')
   @ApiOperation({ summary: 'Soft delete a bundle and its relations' })
   @ApiParam({ name: 'id', description: 'UUID of the bundle' })
   async remove(@Param('id', ParseUUIDPipe) id: string, @Req() req) {

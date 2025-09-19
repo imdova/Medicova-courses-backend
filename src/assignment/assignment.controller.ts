@@ -23,16 +23,17 @@ import { CreateAssignmentDto } from './dto/create-assignment.dto';
 import { UpdateAssignmentDto } from './dto/update-assignment.dto';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { RolesGuard } from 'src/auth/roles.guard';
-import { UserRole } from 'src/user/entities/user.entity';
+import { PermissionsGuard } from 'src/auth/permission.guard';
+import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Assignments')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
+@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 @Controller('assignments')
 export class AssignmentController {
   constructor(private readonly assignmentService: AssignmentService) { }
 
   @Post()
-  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_USER, UserRole.ACADEMY_ADMIN)
+  @RequirePermissions('assignment:create')
   @ApiOperation({
     summary: 'Create a new assignment (instructors, academy content creator & admins)',
   })
@@ -46,7 +47,7 @@ export class AssignmentController {
   }
 
   @Get()
-  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_USER, UserRole.ACADEMY_ADMIN)
+  @RequirePermissions('assignment:list')
   @ApiOperation({
     summary:
       'List assignments (instructors: their own; academy content creators: their academy; admins: all)',
@@ -57,7 +58,7 @@ export class AssignmentController {
   }
 
   @Get(':id')
-  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_USER, UserRole.ACADEMY_ADMIN)
+  @RequirePermissions('assignment:get')
   @ApiOperation({
     summary:
       'Get assignment by ID (instructors: only their own; academy content creators: same academy; admins: any)',
@@ -75,7 +76,7 @@ export class AssignmentController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_USER, UserRole.ACADEMY_ADMIN)
+  @RequirePermissions('assignment:update')
   @ApiOperation({
     summary:
       'Update assignment (instructors: only their own; academy content creators: same academy; admins: any',
@@ -99,7 +100,7 @@ export class AssignmentController {
   }
 
   @Delete(':id')
-  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN, UserRole.ACADEMY_USER, UserRole.ACADEMY_ADMIN)
+  @RequirePermissions('assignment:delete')
   @ApiOperation({
     summary:
       'Delete assignment (instructors: only their own; academy content creators: same academy; admins: any',
