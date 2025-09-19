@@ -9,11 +9,13 @@ import {
   IsUrl,
   ValidateNested,
   IsUUID,
+  MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Gender, MaritalStatus } from '../entities/profile.entity';
 import { ProfileMetadataDto } from './profile-metadata.dto';
+import { CountryOrStateDTO } from './country-state.dto';
 
 class LanguageDto {
   @ApiProperty({ example: 'Arabic', description: 'Name of the language' })
@@ -187,4 +189,31 @@ export class CreateProfileDto {
   @IsOptional()
   @IsUUID()
   specialityId?: string;
+
+  @ApiPropertyOptional({
+    type: () => CountryOrStateDTO,
+    description: 'Country of residence (optional)',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CountryOrStateDTO)
+  country?: CountryOrStateDTO;
+
+  @ApiPropertyOptional({
+    type: () => CountryOrStateDTO,
+    description: 'State of residence (optional)',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CountryOrStateDTO)
+  state?: CountryOrStateDTO;
+
+  @ApiPropertyOptional({
+    example: 'Cairo',
+    description: 'City of residence (optional)',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  city?: string;
 }
