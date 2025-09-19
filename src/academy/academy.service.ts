@@ -16,7 +16,6 @@ import { CreateUserDto } from 'src/user/dto/create-user.dto';
 import { UserService } from 'src/user/user.service';
 import { CreateAcademyInstructorDto } from './dto/create-academy-instructor.dto';
 import { AcademyInstructor } from './entities/academy-instructors.entity';
-import { UserRole } from 'src/user/entities/user.entity';
 import { UpdateAcademyInstructorDto } from './dto/update-academy-instructor.dto';
 
 @Injectable()
@@ -28,7 +27,7 @@ export class AcademyService {
     private academyInstructorRepository: Repository<AcademyInstructor>,
     @Inject(forwardRef(() => UserService))
     private userService: UserService,
-  ) {}
+  ) { }
 
   async create(createAcademyDto: CreateAcademyDto): Promise<Academy> {
     const academy = this.academyRepository.create(createAcademyDto);
@@ -95,9 +94,9 @@ export class AcademyService {
     // ✅ Only allow 'student' or 'academy_user' roles
     if (
       ![
-        UserRole.STUDENT,
-        UserRole.ACADEMY_USER,
-        UserRole.ACADEMY_ADMIN,
+        'student',
+        'academy_user',
+        'academy_admin',
       ].includes(role)
     ) {
       throw new BadRequestException(

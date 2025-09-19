@@ -18,7 +18,6 @@ import {
   Paginated,
   PaginateQuery,
 } from 'nestjs-paginate';
-import { UserRole } from 'src/user/entities/user.entity';
 
 export const BUNDLE_PAGINATION_CONFIG: QueryConfig<Bundle> = {
   sortableColumns: ['created_at', 'title', 'status'],
@@ -48,7 +47,7 @@ export class BundleService {
 
     @InjectRepository(Course)
     private readonly courseRepository: Repository<Course>,
-  ) {}
+  ) { }
 
   // All methods are checked for performance
 
@@ -109,7 +108,7 @@ export class BundleService {
     query: PaginateQuery,
     userId: string,
     academyId?: string,
-    role?: UserRole,
+    role?: string,
   ): Promise<Paginated<Bundle>> {
     const qb = this.bundleRepository
       .createQueryBuilder('bundle')
@@ -118,9 +117,9 @@ export class BundleService {
       .leftJoinAndSelect('courseBundles.course', 'course')
       .where('bundle.deleted_at IS NULL');
 
-    if (role === UserRole.ADMIN) {
+    if (role === 'admin') {
       // no extra filter
-    } else if (role === UserRole.ACADEMY_ADMIN) {
+    } else if (role === 'academy_admin') {
       qb.andWhere('bundle.academy_id = :academyId', { academyId });
     } else {
       qb.andWhere('bundle.created_by = :userId', { userId });
@@ -133,7 +132,7 @@ export class BundleService {
     id: string,
     userId: string,
     academyId?: string,
-    role?: UserRole,
+    role?: string,
   ): Promise<Bundle> {
     const bundle = await this.bundleRepository.findOne({
       where: { id, deleted_at: null },
@@ -155,7 +154,7 @@ export class BundleService {
     dto: UpdateBundleDto,
     userId: string,
     academyId?: string,
-    role?: UserRole,
+    role?: string,
   ): Promise<Bundle> {
     const bundle = await this.bundleRepository.findOne({
       where: { id, deleted_at: null },
@@ -218,7 +217,7 @@ export class BundleService {
     id: string,
     userId: string,
     academyId?: string,
-    role?: UserRole,
+    role?: string,
   ): Promise<{ message: string }> {
     const bundle = await this.bundleRepository.findOne({
       where: { id, deleted_at: null },
@@ -236,14 +235,14 @@ export class BundleService {
     bundle: Bundle,
     userId: string,
     academyId?: string,
-    role?: UserRole,
+    role?: string,
   ) {
-    if (role === UserRole.ADMIN) {
+    if (role === 'admin') {
       // Super Admin → unrestricted
       return;
     }
 
-    if (role === UserRole.ACADEMY_ADMIN) {
+    if (role === 'academy_admin') {
       // Academy admin → must match academy
       if (bundle.academy?.id !== academyId) {
         throw new ForbiddenException(

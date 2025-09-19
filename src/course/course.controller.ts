@@ -21,25 +21,19 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { Course } from './entities/course.entity';
-import { RolesGuard } from 'src/auth/roles.guard';
-import { UserRole } from 'src/user/entities/user.entity';
-import { Roles } from 'src/auth/decorator/roles.decorator';
 import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
 import { AuthGuard } from '@nestjs/passport';
+import { PermissionsGuard } from 'src/auth/permission.guard';
+import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Courses')
 @Controller('courses')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(
-  UserRole.INSTRUCTOR,
-  UserRole.ADMIN,
-  UserRole.ACADEMY_ADMIN,
-  UserRole.ACADEMY_USER,
-)
+@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class CourseController {
-  constructor(private readonly courseService: CourseService) {}
+  constructor(private readonly courseService: CourseService) { }
 
   @Post()
+  @RequirePermissions('course:create')
   @ApiOperation({ summary: 'Create a new course' })
   @ApiBody({ type: CreateCourseDto })
   @ApiResponse({
@@ -54,6 +48,7 @@ export class CourseController {
   }
 
   @Get()
+  @RequirePermissions('course:list')
   @ApiOperation({
     summary: 'Get paginated list of courses with filters and sorting',
   })
@@ -123,6 +118,7 @@ export class CourseController {
   }
 
   @Get('tags')
+  @RequirePermissions('course:tags')
   @ApiOperation({ summary: 'Get all available course tags' })
   @ApiResponse({
     status: 200,
@@ -134,6 +130,7 @@ export class CourseController {
   }
 
   @Get(':id')
+  @RequirePermissions('course:get_by_id')
   @ApiOperation({ summary: 'Get a course by ID' })
   @ApiParam({ name: 'id', description: 'UUID of the course' })
   @ApiResponse({
@@ -151,14 +148,8 @@ export class CourseController {
     );
   }
 
-  @Roles(
-    UserRole.INSTRUCTOR,
-    UserRole.ADMIN,
-    UserRole.ACADEMY_ADMIN,
-    UserRole.ACADEMY_USER,
-    UserRole.STUDENT,
-  )
   @Get('slug/:slug')
+  @RequirePermissions('course:get_by_slug')
   @ApiOperation({ summary: 'Get a course by Slug' })
   @ApiParam({ name: 'slug', description: 'Slug of course' })
   @ApiResponse({
@@ -172,6 +163,7 @@ export class CourseController {
   }
 
   @Get(':courseId/students/progress')
+  @RequirePermissions('course:students_progress')
   @ApiOperation({
     summary: 'Get progress of all students in a course (teacher view)',
   })
@@ -184,6 +176,7 @@ export class CourseController {
   }
 
   @Patch(':id')
+  @RequirePermissions('course:update')
   @ApiOperation({ summary: 'Update a course by ID' })
   @ApiParam({ name: 'id', description: 'UUID of the course' })
   @ApiBody({ type: CreateCourseDto })
@@ -208,6 +201,7 @@ export class CourseController {
   }
 
   @Delete(':id')
+  @RequirePermissions('course:delete')
   @ApiOperation({ summary: 'Soft delete a course by ID' })
   @ApiParam({ name: 'id', description: 'UUID of the course' })
   @ApiResponse({ status: 204, description: 'Course soft deleted successfully' })

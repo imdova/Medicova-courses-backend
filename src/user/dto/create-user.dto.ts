@@ -13,7 +13,6 @@ import {
   ApiProperty,
   ApiPropertyOptional,
 } from '@nestjs/swagger';
-import { UserRole } from '../entities/user.entity';
 import { CreateAcademyDto } from 'src/academy/dto/create-academy.dto';
 import { Type } from 'class-transformer';
 
@@ -37,14 +36,13 @@ export class CreateUserDto {
   password: string;
 
   @ApiPropertyOptional({
-    enum: UserRole,
-    example: UserRole.STUDENT,
+    example: 'student',
     description:
       'Role of the user in the system. If not provided, defaults to "student".',
   })
-  @IsEnum(UserRole)
+  @IsString()
   @IsOptional() // optional so default can apply in entity
-  role?: UserRole;
+  role?: string;
 
   // New optional profile fields
   @ApiPropertyOptional({ example: 'John', description: 'First name' })

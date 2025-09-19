@@ -22,7 +22,6 @@ import { CourseSectionItem } from './course-section/entities/course-section-item
 import { CourseProgress } from './course-progress/entities/course-progress.entity';
 import { CourseStudent } from './entities/course-student.entity';
 import { CourseCategory } from 'src/course/course-category/entities/course-category.entity';
-import { UserRole } from 'src/user/entities/user.entity';
 
 export const COURSE_PAGINATION_CONFIG: QueryConfig<Course> = {
   sortableColumns: ['created_at', 'name', 'category', 'status'],
@@ -53,7 +52,7 @@ export class CourseService {
     private courseSectionItemRepo: Repository<CourseSectionItem>,
     @InjectRepository(CourseCategory)
     private courseCategoryRepository: Repository<CourseCategory>,
-  ) {}
+  ) { }
 
   // All methods are checked for performance
 
@@ -133,9 +132,9 @@ export class CourseService {
       .andWhere('course.deleted_at IS NULL'); // filter out soft-deleted
 
     // 🔑 Role-based restrictions
-    if (role === UserRole.ADMIN) {
+    if (role === 'admin') {
       // no extra filter → see all courses
-    } else if (role === UserRole.ACADEMY_ADMIN) {
+    } else if (role === 'academy_admin') {
       qb.andWhere('course.academy_id = :academyId', { academyId });
     } else {
       // INSTRUCTOR, ACADEMY_USER, etc.
@@ -353,8 +352,8 @@ export class CourseService {
     academyId: string,
     role: string,
   ) {
-    if (role === UserRole.ADMIN) return; // full access
-    if (role === UserRole.ACADEMY_ADMIN) {
+    if (role === 'admin') return; // full access
+    if (role === 'academy_admin') {
       if (course.academy?.id !== academyId) {
         throw new ForbiddenException(
           'You cannot access courses outside your academy',

@@ -24,13 +24,15 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/decorator/roles.decorator';
-import { User, UserRole } from './entities/user.entity';
+import { User } from './entities/user.entity';
 import { cookieOptions } from '../auth/auth.controller';
 import { AuthService } from 'src/auth/auth.service';
 import { Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 import { UpdateSecuritySettingsDto } from './dto/security-settings.dto';
 import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
+import { PermissionsGuard } from 'src/auth/permission.guard';
+import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Users')
 @Controller('users')
@@ -38,7 +40,7 @@ export class UserController {
   constructor(
     private readonly userService: UserService,
     private readonly authService: AuthService,
-  ) {}
+  ) { }
 
   @Post('register')
   @ApiOperation({
@@ -85,8 +87,8 @@ export class UserController {
     return { message: 'Registration successful', user };
   }
 
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('user:list')
   @Get()
   @ApiOperation({
     summary: 'List all users',
@@ -100,8 +102,8 @@ export class UserController {
     return this.userService.findAll();
   }
 
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('user:get')
   @Get(':userId')
   @ApiOperation({
     summary: 'Get user by ID',
@@ -120,8 +122,8 @@ export class UserController {
     return this.userService.findOne(userId);
   }
 
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('user:update')
   @Patch(':userId')
   @ApiOperation({
     summary: 'Update user by ID',
@@ -140,8 +142,8 @@ export class UserController {
     return this.userService.update(userId, updateUserDto);
   }
 
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('user:delete')
   @Delete(':userId')
   @ApiOperation({
     summary: 'Delete user by ID',
@@ -156,8 +158,8 @@ export class UserController {
     return this.userService.remove(userId);
   }
 
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(UserRole.INSTRUCTOR, UserRole.ADMIN)
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('student:list_for_instructor')
   @Get(':userId/students')
   @ApiOperation({
     summary: 'Get all students for an instructor',
@@ -178,7 +180,7 @@ export class UserController {
     @Param('userId') instructorId: string,
     @Req() req,
   ): Promise<Paginated<any>> {
-    if (req.user.role === UserRole.INSTRUCTOR) {
+    if (req.user.role === 'instructor') {
       if (req.user.sub !== instructorId) {
         throw new ForbiddenException(
           'You are not allowed to view students for this user',

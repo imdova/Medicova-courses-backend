@@ -13,28 +13,22 @@ import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { QuizService } from './quiz.service';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
-import { RolesGuard } from 'src/auth/roles.guard';
-import { Roles } from 'src/auth/decorator/roles.decorator';
-import { UserRole } from 'src/user/entities/user.entity';
 import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
 import { AuthGuard } from '@nestjs/passport';
 import { QuizAttempt } from './entities/quiz-attempts.entity';
 import { SubmitQuizDto } from './dto/submit-quiz.dto';
 import { CreateQuizWithQuestionsDto } from './dto/create-quiz-with-questions.dto';
+import { PermissionsGuard } from 'src/auth/permission.guard';
+import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Quizzes')
 @Controller('quizzes')
-@UseGuards(AuthGuard('jwt'), RolesGuard)
-@Roles(
-  UserRole.INSTRUCTOR,
-  UserRole.ADMIN,
-  UserRole.ACADEMY_ADMIN,
-  UserRole.ACADEMY_USER,
-)
+@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class QuizController {
-  constructor(private readonly quizService: QuizService) {}
+  constructor(private readonly quizService: QuizService) { }
 
   @Post()
+  @RequirePermissions('quiz:create')
   @ApiOperation({ summary: 'Create a new quiz' })
   @ApiResponse({ status: 201, description: 'Quiz successfully created' })
   create(@Body() dto: CreateQuizDto, @Req() req) {
@@ -42,6 +36,7 @@ export class QuizController {
   }
 
   @Post('with-questions')
+  @RequirePermissions('quiz:create_with_questions')
   @ApiOperation({ summary: 'Create a new quiz with questions' })
   @ApiResponse({
     status: 201,
@@ -55,7 +50,7 @@ export class QuizController {
     );
   }
 
-  @Roles(UserRole.STUDENT)
+  @RequirePermissions('quiz:submit')
   @Post(':quizId/attempts')
   @ApiOperation({ summary: 'Submit a standalone quiz attempt' })
   @ApiResponse({
@@ -77,7 +72,7 @@ export class QuizController {
     );
   }
 
-  @Roles(UserRole.STUDENT)
+  @RequirePermissions('quiz:attempts')
   @Get(':quizId/score')
   @ApiOperation({
     summary: 'Get all quiz attempts scores for current student',
@@ -96,7 +91,7 @@ export class QuizController {
   }
 
   @Get()
-  // Regular filterable columns (nestjs-paginate style)
+  @RequirePermissions('quiz:list')
   @ApiQuery({
     name: 'filter.title',
     required: false,
@@ -176,13 +171,7 @@ export class QuizController {
   }
 
   @Get(':id')
-  @Roles(
-    UserRole.STUDENT,
-    UserRole.INSTRUCTOR,
-    UserRole.ADMIN,
-    UserRole.ACADEMY_ADMIN,
-    UserRole.ACADEMY_USER,
-  )
+  @RequirePermissions('quiz:get')
   @ApiOperation({ summary: 'Get quiz by ID (instructor or student)' })
   @ApiResponse({ status: 200, description: 'Quiz found' })
   @ApiResponse({ status: 404, description: 'Quiz not found' })
@@ -196,6 +185,7 @@ export class QuizController {
   }
 
   @Patch(':id')
+  @RequirePermissions('quiz:update')
   @ApiOperation({ summary: 'Update quiz by ID' })
   @ApiResponse({ status: 200, description: 'Quiz updated successfully' })
   @ApiResponse({ status: 404, description: 'Quiz not found' })
@@ -210,6 +200,7 @@ export class QuizController {
   }
 
   @Delete(':id')
+  @RequirePermissions('quiz:delete')
   @ApiOperation({ summary: 'Delete quiz by ID (soft delete)' })
   @ApiResponse({ status: 200, description: 'Quiz deleted successfully' })
   @ApiResponse({ status: 404, description: 'Quiz not found' })

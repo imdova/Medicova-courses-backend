@@ -11,11 +11,12 @@ import { PassportModule } from '@nestjs/passport';
 import { FacebookStrategy } from './strategy/facebook.strategy';
 import { GoogleStrategy } from './strategy/google.strategy';
 import { JwtStrategy } from './strategy/jwt.strategy';
+import { Role } from 'src/user/entities/roles.entity';
 
 @Module({
   imports: [
     ConfigModule,
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User, Role]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     forwardRef(() => UserModule),
     JwtModule.registerAsync({
