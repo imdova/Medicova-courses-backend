@@ -23,13 +23,13 @@ interface JwtPayload {
 export const cookieOptions = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production', // only true in prod
-  sameSite: 'lax' as const,
+  sameSite: process.env.NODE_ENV === 'production' ? 'lax' as const : 'none' as const,
 };
 
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService) { }
 
   @Post('login')
   @ApiOperation({ summary: 'User login with email and password' })
