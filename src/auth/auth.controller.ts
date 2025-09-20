@@ -20,14 +20,6 @@ interface JwtPayload {
   role: string;
 }
 
-// ✅ Fixed cookie options for localhost development
-export const cookieOptions = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production', // true on vercel
-  sameSite: 'lax' as const,
-  path: '/',      // ✅ Explicitly set path
-};
-
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
@@ -54,15 +46,28 @@ export class AuthController {
     const { access_token, refresh_token, user } =
       await this.authService.generateToken(dbUser);
 
-    // Manual cookie header construction
-    const accessTokenCookie = `access_token=${access_token}; HttpOnly; Path=/; Max-Age=900; SameSite=Lax`;
-    const refreshTokenCookie = `refresh_token=${refresh_token}; HttpOnly; Path=/; Max-Age=604800; SameSite=Lax`;
+    const isProduction = process.env.NODE_ENV === 'production';
 
-    // Set headers manually
+    // Set cookies for same-domain requests
+    const secureFlag = isProduction ? '; Secure' : '';
+    const sameSiteFlag = isProduction ? '; SameSite=None' : '; SameSite=Lax'; // None for cross-origin
+
+    const accessTokenCookie = `access_token=${access_token}; HttpOnly; Path=/; Max-Age=900${sameSiteFlag}${secureFlag}`;
+    const refreshTokenCookie = `refresh_token=${refresh_token}; HttpOnly; Path=/; Max-Age=604800${sameSiteFlag}${secureFlag}`;
+
     res.setHeader('Set-Cookie', [accessTokenCookie, refreshTokenCookie]);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
 
-    return { message: 'Login successful', user };
+    return {
+      message: 'Login successful',
+      user,
+      // Return tokens for cross-origin requests
+      tokens: {
+        access_token,
+        refresh_token,
+        expires_in: 900 // 15 minutes
+      }
+    };
   }
 
   @Post('refresh')
@@ -72,8 +77,8 @@ export class AuthController {
     @Req() req: Request & { user?: JwtPayload },
     @Res({ passthrough: true }) res: Response,
   ) {
-    const refreshToken = req.cookies['refresh_token'];
-    const userId = req.user?.sub; // Comes from JWT in req.user
+    const refreshToken = req.cookies['refresh_token'] || req.body.refresh_token;
+    const userId = req.user?.sub;
 
     if (!refreshToken || !userId) {
       throw new BadRequestException('No refresh token or user ID found');
@@ -82,17 +87,24 @@ export class AuthController {
     const { access_token, refresh_token, user } =
       await this.authService.refreshToken(userId, refreshToken);
 
-    res.cookie('access_token', access_token, {
-      ...cookieOptions,
-      maxAge: 15 * 60 * 1000,
-    });
+    const isProduction = process.env.NODE_ENV === 'production';
+    const secureFlag = isProduction ? '; Secure' : '';
+    const sameSiteFlag = isProduction ? '; SameSite=None' : '; SameSite=Lax';
 
-    res.cookie('refresh_token', refresh_token, {
-      ...cookieOptions,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    const accessTokenCookie = `access_token=${access_token}; HttpOnly; Path=/; Max-Age=900${sameSiteFlag}${secureFlag}`;
+    const refreshTokenCookie = `refresh_token=${refresh_token}; HttpOnly; Path=/; Max-Age=604800${sameSiteFlag}${secureFlag}`;
 
-    return { message: 'Token refreshed', user };
+    res.setHeader('Set-Cookie', [accessTokenCookie, refreshTokenCookie]);
+
+    return {
+      message: 'Token refreshed',
+      user,
+      tokens: {
+        access_token,
+        refresh_token,
+        expires_in: 900
+      }
+    };
   }
 
   @Post('logout')
@@ -104,8 +116,15 @@ export class AuthController {
   ) {
     await this.authService.logout(req.user?.sub);
 
-    res.clearCookie('access_token', cookieOptions);
-    res.clearCookie('refresh_token', cookieOptions);
+    const isProduction = process.env.NODE_ENV === 'production';
+    const secureFlag = isProduction ? '; Secure' : '';
+    const sameSiteFlag = isProduction ? '; SameSite=None' : '; SameSite=Lax';
+
+    // Clear cookies
+    res.setHeader('Set-Cookie', [
+      `access_token=; HttpOnly; Path=/; Max-Age=0${sameSiteFlag}${secureFlag}`,
+      `refresh_token=; HttpOnly; Path=/; Max-Age=0${sameSiteFlag}${secureFlag}`
+    ]);
 
     return { message: 'Logged out successfully' };
   }
@@ -127,15 +146,14 @@ export class AuthController {
   ) {
     const { access_token, refresh_token, user } = req.user;
 
-    res.cookie('access_token', access_token, {
-      ...cookieOptions,
-      maxAge: 15 * 60 * 1000,
-    });
+    const isProduction = process.env.NODE_ENV === 'production';
+    const secureFlag = isProduction ? '; Secure' : '';
+    const sameSiteFlag = isProduction ? '; SameSite=None' : '; SameSite=Lax';
 
-    res.cookie('refresh_token', refresh_token, {
-      ...cookieOptions,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    const accessTokenCookie = `access_token=${access_token}; HttpOnly; Path=/; Max-Age=900${sameSiteFlag}${secureFlag}`;
+    const refreshTokenCookie = `refresh_token=${refresh_token}; HttpOnly; Path=/; Max-Age=604800${sameSiteFlag}${secureFlag}`;
+
+    res.setHeader('Set-Cookie', [accessTokenCookie, refreshTokenCookie]);
 
     return { message: 'Google login successful', user };
   }
@@ -157,15 +175,14 @@ export class AuthController {
   ) {
     const { access_token, refresh_token, user } = req.user;
 
-    res.cookie('access_token', access_token, {
-      ...cookieOptions,
-      maxAge: 15 * 60 * 1000,
-    });
+    const isProduction = process.env.NODE_ENV === 'production';
+    const secureFlag = isProduction ? '; Secure' : '';
+    const sameSiteFlag = isProduction ? '; SameSite=None' : '; SameSite=Lax';
 
-    res.cookie('refresh_token', refresh_token, {
-      ...cookieOptions,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    const accessTokenCookie = `access_token=${access_token}; HttpOnly; Path=/; Max-Age=900${sameSiteFlag}${secureFlag}`;
+    const refreshTokenCookie = `refresh_token=${refresh_token}; HttpOnly; Path=/; Max-Age=604800${sameSiteFlag}${secureFlag}`;
+
+    res.setHeader('Set-Cookie', [accessTokenCookie, refreshTokenCookie]);
 
     return { message: 'Facebook login successful', user };
   }
