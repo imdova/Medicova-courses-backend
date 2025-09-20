@@ -31,8 +31,47 @@ async function bootstrap(): Promise<NestExpressApplication> {
   if (!app) {
     app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-    // middlewares
+    // ✅ Enable cookie parser FIRST
     app.use(cookieParser());
+
+    app.setGlobalPrefix('api');
+
+    // ✅ Improved CORS configuration
+    app.enableCors({
+      origin: function (origin, callback) {
+
+        // Allow requests with no origin (mobile apps, postman, etc.)
+        if (!origin) return callback(null, true);
+
+        const allowedOrigins = [
+          'http://localhost:3000',
+          'http://localhost:3001',
+          'http://localhost:5173',
+          'http://127.0.0.1:3000',
+          'http://127.0.0.1:3001',
+          'http://127.0.0.1:5173',
+          'null' // for file:// protocol
+        ];
+
+        if (allowedOrigins.includes(origin)) {
+          callback(null, true);
+        } else {
+          callback(null, false);
+        }
+      },
+      methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+      credentials: true, // ✅ This is crucial for cookies
+      preflightContinue: false,
+      optionsSuccessStatus: 204
+    });
+
+    // ✅ Add ClassSerializerInterceptor globally
+    app.useGlobalInterceptors(
+      new ClassSerializerInterceptor(app.get(Reflector)),
+    );
+
+    // ✅ Global validation pipes
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
@@ -40,21 +79,6 @@ async function bootstrap(): Promise<NestExpressApplication> {
         transform: true,
       }),
     );
-
-    // ✅ add ClassSerializerInterceptor globally
-    app.useGlobalInterceptors(
-      new ClassSerializerInterceptor(app.get(Reflector)),
-    );
-
-    app.setGlobalPrefix('api');
-    app.enableCors({
-      origin: [
-        'http://localhost:3000',
-      ],
-      methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-      allowedHeaders: ['Content-Type', 'Authorization'],
-      credentials: true,
-    });
 
     app.enableShutdownHooks(); // <-- ensures DB pool closes on exit
 
