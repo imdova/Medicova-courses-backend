@@ -25,7 +25,6 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { User } from './entities/user.entity';
-import { cookieOptions } from '../auth/auth.controller';
 import { AuthService } from 'src/auth/auth.service';
 import { Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
@@ -41,6 +40,17 @@ export class UserController {
     private readonly userService: UserService,
     private readonly authService: AuthService,
   ) { }
+
+  // Helper method for cookie options (same as auth controller logic)
+  private getCookieOptions() {
+    const isProduction = process.env.NODE_ENV === 'production';
+    return {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? ('none' as const) : ('lax' as const),
+      path: '/',
+    };
+  }
 
   @Post('register')
   @ApiOperation({
@@ -75,16 +85,28 @@ export class UserController {
     const { access_token, refresh_token, user } =
       await this.authService.generateToken(createdUser);
 
-    res.cookie('access_token', access_token, {
-      ...cookieOptions,
-      maxAge: 15 * 60 * 1000,
-    });
-    res.cookie('refresh_token', refresh_token, {
-      ...cookieOptions,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    const cookieOptions = this.getCookieOptions();
 
-    return { message: 'Registration successful', user };
+    // Use the same approach as the auth controller for consistency
+    const secureFlag = cookieOptions.secure ? '; Secure' : '';
+    const sameSiteFlag = cookieOptions.sameSite === 'none' ? '; SameSite=None' : '; SameSite=Lax';
+
+    const accessTokenCookie = `access_token=${access_token}; HttpOnly; Path=/; Max-Age=900${sameSiteFlag}${secureFlag}`;
+    const refreshTokenCookie = `refresh_token=${refresh_token}; HttpOnly; Path=/; Max-Age=604800${sameSiteFlag}${secureFlag}`;
+
+    res.setHeader('Set-Cookie', [accessTokenCookie, refreshTokenCookie]);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+
+    return {
+      message: 'Registration successful',
+      user,
+      // Return tokens for cross-origin requests (same as login)
+      tokens: {
+        access_token,
+        refresh_token,
+        expires_in: 900
+      }
+    };
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
@@ -173,7 +195,7 @@ export class UserController {
   })
   @ApiResponse({
     status: HttpStatus.OK,
-    description: 'List of students enrolled in instructor’s courses.',
+    description: `List of students enrolled in instructor's courses.`,
   })
   async getStudentsForInstructor(
     @Paginate() query: PaginateQuery,
