@@ -22,8 +22,8 @@ interface JwtPayload {
 
 export const cookieOptions = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production', // only true in prod
-  sameSite: process.env.NODE_ENV === 'production' ? 'lax' as const : 'none' as const,
+  secure: process.env.NODE_ENV === 'production', // true on vercel
+  sameSite: 'none' as const, // must be "none" for cross-origin cookies
 };
 
 @ApiTags('Authentication')
