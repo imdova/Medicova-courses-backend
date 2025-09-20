@@ -20,10 +20,12 @@ interface JwtPayload {
   role: string;
 }
 
+// ✅ Fixed cookie options for localhost development
 export const cookieOptions = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production', // true on vercel
-  sameSite: 'none' as const, // must be "none" for cross-origin cookies
+  sameSite: 'lax' as const,
+  path: '/',      // ✅ Explicitly set path
 };
 
 @ApiTags('Authentication')
@@ -52,15 +54,13 @@ export class AuthController {
     const { access_token, refresh_token, user } =
       await this.authService.generateToken(dbUser);
 
-    res.cookie('access_token', access_token, {
-      ...cookieOptions,
-      maxAge: 15 * 60 * 1000,
-    });
+    // Manual cookie header construction
+    const accessTokenCookie = `access_token=${access_token}; HttpOnly; Path=/; Max-Age=900; SameSite=Lax`;
+    const refreshTokenCookie = `refresh_token=${refresh_token}; HttpOnly; Path=/; Max-Age=604800; SameSite=Lax`;
 
-    res.cookie('refresh_token', refresh_token, {
-      ...cookieOptions,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    // Set headers manually
+    res.setHeader('Set-Cookie', [accessTokenCookie, refreshTokenCookie]);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
 
     return { message: 'Login successful', user };
   }
