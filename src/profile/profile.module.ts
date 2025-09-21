@@ -9,10 +9,12 @@ import { PublicProfileController } from './public-profile.controller';
 import { Profile } from './entities/profile.entity';
 import { UserModule } from 'src/user/user.module';
 import { ProfileCategoryModule } from './profile-category/profile-category.module';
+import { ProfileCategory } from './profile-category/entities/profile-category.entity';
+import { ProfileSpeciality } from './profile-category/entities/profile-specaility.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Profile]),
+    TypeOrmModule.forFeature([User, Profile, ProfileCategory, ProfileSpeciality]),
     forwardRef(() => UserModule),
     ProfileCategoryModule,
   ],
@@ -20,4 +22,4 @@ import { ProfileCategoryModule } from './profile-category/profile-category.modul
   providers: [ProfileService, RolesGuard, JwtService],
   exports: [ProfileService],
 })
-export class ProfileModule {}
+export class ProfileModule { }
