@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { CreateProfileDto } from './dto/create-profile.dto';
@@ -11,6 +12,8 @@ import { Repository } from 'typeorm';
 import { User } from 'src/user/entities/user.entity';
 import { Profile } from './entities/profile.entity';
 import { v4 as uuidv4 } from 'uuid';
+import { ProfileCategory } from './profile-category/entities/profile-category.entity';
+import { ProfileSpeciality } from './profile-category/entities/profile-specaility.entity';
 
 @Injectable()
 export class ProfileService {
@@ -19,6 +22,10 @@ export class ProfileService {
     private userRepository: Repository<User>,
     @InjectRepository(Profile)
     private profileRepository: Repository<Profile>,
+    @InjectRepository(ProfileCategory)
+    private readonly categoryRepository: Repository<ProfileCategory>,
+    @InjectRepository(ProfileSpeciality)
+    private readonly specialityRepository: Repository<ProfileSpeciality>,
   ) { }
 
   async createProfile(
@@ -101,20 +108,43 @@ export class ProfileService {
 
     // ✅ Only instructors can update category/speciality
     let { categoryId, specialityId, ...rest } = updateProfileDto;
-    if (role !== 'instructor') {
-      categoryId = null;
-      specialityId = null;
+    let category = null;
+    let speciality = null;
+    if (role === 'instructor') {
+      if (categoryId) {
+        category = await this.categoryRepository.findOne({ where: { id: categoryId } });
+        if (!category) {
+          throw new BadRequestException(`Category with id ${categoryId} does not exist`);
+        }
+      }
+
+      if (specialityId) {
+        speciality = await this.specialityRepository.findOne({ where: { id: specialityId } });
+        if (!speciality) {
+          throw new BadRequestException(`Speciality with id ${specialityId} does not exist`);
+        }
+      }
     }
 
     const updatedProfile = Object.assign(user.profile, {
       ...rest,
       userName: updateProfileDto.userName,
-      category: categoryId ? { id: categoryId } : null,
-      speciality: specialityId ? { id: specialityId } : null,
+      category,
+      speciality,
     });
 
-    await this.profileRepository.save(updatedProfile);
-    return updatedProfile;
+    try {
+      return await this.profileRepository.save(updatedProfile);
+    } catch (error: any) {
+      // Handle unique constraint violations
+      if (error.code === '23505') {
+        throw new BadRequestException('A profile with this data already exists.');
+      }
+
+      // You can handle more error codes here if needed
+      console.error('Failed to update profile:', error);
+      throw new InternalServerErrorException('Failed to update profile');
+    }
   }
 
   async getProfileByUserId(userId: string) {
