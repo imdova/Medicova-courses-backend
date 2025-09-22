@@ -143,6 +143,38 @@ export class CreateProfileDto {
   linkedinUrl?: string;
 
   @ApiPropertyOptional({
+    example: 'https://instagram.com/mohamed',
+    description: 'Instagram profile URL',
+  })
+  @IsOptional()
+  @IsUrl()
+  instagramUrl?: string;
+
+  @ApiPropertyOptional({
+    example: 'https://twitter.com/mohamed',
+    description: 'Twitter profile URL',
+  })
+  @IsOptional()
+  @IsUrl()
+  twitterUrl?: string;
+
+  @ApiPropertyOptional({
+    example: 'https://facebook.com/mohamed',
+    description: 'Facebook profile URL',
+  })
+  @IsOptional()
+  @IsUrl()
+  facebookUrl?: string;
+
+  @ApiPropertyOptional({
+    example: 'https://youtube.com/c/mohamed',
+    description: 'YouTube channel/profile URL',
+  })
+  @IsOptional()
+  @IsUrl()
+  youtubeUrl?: string;
+
+  @ApiPropertyOptional({
     type: [LanguageDto],
     description: 'List of languages and proficiency levels',
     example: [

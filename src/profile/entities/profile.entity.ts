@@ -105,6 +105,34 @@ export class Profile extends BasicEntity {
   @Column({ name: 'linkedin_url', nullable: true })
   linkedinUrl?: string;
 
+  @ApiPropertyOptional({
+    example: 'https://instagram.com/mohamed',
+    description: 'Instagram profile URL',
+  })
+  @Column({ name: 'instagram_url', nullable: true })
+  instagramUrl?: string;
+
+  @ApiPropertyOptional({
+    example: 'https://twitter.com/mohamed',
+    description: 'Twitter profile URL',
+  })
+  @Column({ name: 'twitter_url', nullable: true })
+  twitterUrl?: string;
+
+  @ApiPropertyOptional({
+    example: 'https://facebook.com/mohamed',
+    description: 'Facebook profile URL',
+  })
+  @Column({ name: 'facebook_url', nullable: true })
+  facebookUrl?: string;
+
+  @ApiPropertyOptional({
+    example: 'https://youtube.com/c/mohamed',
+    description: 'YouTube channel/profile URL',
+  })
+  @Column({ name: 'youtube_url', nullable: true })
+  youtubeUrl?: string;
+
   @ApiProperty({
     example: 'Arabic: intermediate, English: intermediate',
     description: 'Languages and proficiency',
