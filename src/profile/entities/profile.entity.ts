@@ -194,4 +194,12 @@ export class Profile extends BasicEntity {
   })
   @Column({ type: 'varchar', length: 100, nullable: true })
   city?: string;
+
+  @ApiProperty({
+    example: 75,
+    description: 'Profile completion percentage (auto-calculated)',
+  })
+  @Column({ name: 'completion_percentage', type: 'int', default: 0 })
+  completionPercentage: number;
+
 }

@@ -72,6 +72,8 @@ export class ProfileService {
       ...rest,
     });
 
+    profile.completionPercentage = this.calculateCompletion(profile);
+
     await this.profileRepository.save(profile);
 
     user.profile = profile;
@@ -132,6 +134,8 @@ export class ProfileService {
       category,
       speciality,
     });
+
+    updatedProfile.completionPercentage = this.calculateCompletion(updatedProfile);
 
     try {
       return await this.profileRepository.save(updatedProfile);
@@ -227,5 +231,46 @@ export class ProfileService {
       )
       .setParameter('role', 'instructor')
       .execute();
+  }
+
+  private readonly completionFields: (keyof Profile)[] = [
+    'firstName',
+    'lastName',
+    'userName',
+    'photoUrl',
+    'phoneNumber',
+    'dateOfBirth',
+    'gender',
+    'nationality',
+    'maritalStatus',
+    'resumePath',
+    'contactEmail',
+    'linkedinUrl',
+    'instagramUrl',
+    'twitterUrl',
+    'facebookUrl',
+    'youtubeUrl',
+    'languages',
+    'metadata',
+    'country',
+    'state',
+    'city',
+  ];
+
+  private calculateCompletion(profile: Partial<Profile>): number {
+    let filled = 0;
+
+    for (const field of this.completionFields) {
+      const value = profile[field];
+      if (Array.isArray(value)) {
+        if (value.length > 0) filled++;
+      } else if (value && typeof value === 'object') {
+        if (Object.keys(value).length > 0) filled++;
+      } else if (value !== null && value !== undefined && value !== '') {
+        filled++;
+      }
+    }
+
+    return Math.round((filled / this.completionFields.length) * 100);
   }
 }
