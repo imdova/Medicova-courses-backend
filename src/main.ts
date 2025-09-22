@@ -50,7 +50,8 @@ async function bootstrap(): Promise<NestExpressApplication> {
           'http://127.0.0.1:3000',
           'http://127.0.0.1:3001',
           'http://127.0.0.1:5173',
-          'https://courses.medicova.net/',
+          'https://courses.medicova.net',
+          'https://medicova-courses-git-test-cors-auth-imdovas-projects.vercel.app',
           'null' // for file:// protocol
         ];
 
