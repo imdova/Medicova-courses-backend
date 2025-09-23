@@ -52,6 +52,12 @@ export class User extends BasicEntity {
   @OneToMany(() => Payment, (payment) => payment.user)
   payments: Payment[];
 
+  @Column({ default: false })
+  isEmailVerified: boolean;
+
+  @Column({ nullable: true })
+  emailVerificationToken?: string;
+
   get permissions(): string[] {
     return this.role?.rolePermissions?.map(rp => rp.permission.name) || [];
   }

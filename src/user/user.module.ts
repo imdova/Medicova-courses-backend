@@ -15,6 +15,7 @@ import { UserRolesPermissionsService } from './user-role-permission.service';
 import { Permission } from './entities/permission.entity';
 import { RolePermission } from './entities/roles-permission.entity';
 import { UserPermissionsController } from './user-permissions.controller';
+import { EmailService } from '../common/email.service';
 
 @Module({
   imports: [
@@ -24,7 +25,7 @@ import { UserPermissionsController } from './user-permissions.controller';
     forwardRef(() => AcademyModule),
   ],
   controllers: [UserController, UserRolesController, UserPermissionsController],
-  providers: [UserService, RolesGuard, UserRolesPermissionsService],
+  providers: [UserService, RolesGuard, UserRolesPermissionsService, EmailService],
   exports: [UserService],
 })
 export class UserModule { }
