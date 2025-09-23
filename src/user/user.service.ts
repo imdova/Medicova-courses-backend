@@ -24,6 +24,7 @@ import {
 } from 'nestjs-paginate';
 import { QueryConfig } from 'src/common/utils/query-options';
 import { Role } from './entities/roles.entity';
+import { v4 as uuidv4 } from 'uuid';
 
 export const STUDENT_PAGINATION_CONFIG: QueryConfig<User> = {
   sortableColumns: [
@@ -72,11 +73,14 @@ export class UserService {
       throw new NotFoundException('Role academy_admin not found');
     }
 
+    const verificationToken = uuidv4();
+
     const user = this.userRepository.create({
       ...rest,
       email: normalizedEmail,
       password: hashedPassword,
       role: roleEntity,
+      emailVerificationToken: verificationToken,
     });
 
     try {
@@ -135,6 +139,8 @@ export class UserService {
       throw new NotFoundException('Role academy_admin not found');
     }
 
+    const verificationToken = uuidv4();
+
     // 3. Create user and link to academy
     const user = this.userRepository.create({
       ...userData,
@@ -142,6 +148,7 @@ export class UserService {
       password: hashedPassword,
       role: roleEntity, // ✅ correct
       academy: newAcademy,
+      emailVerificationToken: verificationToken,
     });
 
     const savedUser = await this.userRepository.save(user);
@@ -297,4 +304,17 @@ export class UserService {
 
     return user;
   }
+
+  async verifyEmail(token: string): Promise<User> {
+    const user = await this.userRepository.findOne({
+      where: { emailVerificationToken: token },
+    });
+
+    if (!user) throw new NotFoundException('Invalid or expired verification token');
+
+    user.isEmailVerified = true;
+    user.emailVerificationToken = null; // clear token
+    return this.userRepository.save(user);
+  }
+
 }

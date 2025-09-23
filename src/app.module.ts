@@ -47,6 +47,9 @@ import { Payment } from './payment/entities/payment.entity';
 import { Permission } from './user/entities/permission.entity';
 import { Role } from './user/entities/roles.entity';
 import { RolePermission } from './user/entities/roles-permission.entity';
+import { MailerModule } from '@nestjs-modules/mailer';
+import { join } from 'path';
+import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 
 @Module({
   imports: [
@@ -96,6 +99,16 @@ import { RolePermission } from './user/entities/roles-permission.entity';
       extra: {
         max: 5,
         idleTimeoutMillis: 300000, //remove idle connections after 5 minutes
+      },
+    }),
+    MailerModule.forRoot({
+      transport: process.env.SMTP_TRANSPORT,
+      template: {
+        dir: join(__dirname, '..', 'src', 'templates'),
+        adapter: new HandlebarsAdapter(),
+        options: {
+          strict: true,
+        },
       },
     }),
     UserModule,

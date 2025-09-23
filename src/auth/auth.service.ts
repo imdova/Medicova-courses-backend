@@ -60,6 +60,7 @@ export class AuthService {
       sub: fullUser.id,
       role: fullUser.role?.name ?? null,
       academyId: fullUser.academy?.id ?? null,
+      isEmailVerified: fullUser.isEmailVerified ?? null,
       permissions: fullUser.role?.rolePermissions?.map(
         (rp) => rp.permission.name,
       ) ?? [],
