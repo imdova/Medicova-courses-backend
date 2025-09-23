@@ -94,7 +94,11 @@ import { RolePermission } from './user/entities/roles-permission.entity';
       ],
       synchronize: true,
       extra: {
-        max: 5, // small pool for serverless
+        max: 3,                        // Reduced from 5
+        min: 0,                        // Allow scaling to zero
+        idleTimeoutMillis: 30000,      // 30 seconds (more aggressive)
+        connectionTimeoutMillis: 30000, // 30 seconds
+        reapIntervalMillis: 10000,     // Check every 10 seconds
       },
     }),
     UserModule,
