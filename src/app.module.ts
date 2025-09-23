@@ -94,11 +94,8 @@ import { RolePermission } from './user/entities/roles-permission.entity';
       ],
       synchronize: true,
       extra: {
-        max: 3,                        // Reduced from 5
-        min: 0,                        // Allow scaling to zero
-        idleTimeoutMillis: 30000,      // 30 seconds (more aggressive)
-        connectionTimeoutMillis: 30000, // 30 seconds
-        reapIntervalMillis: 10000,     // Check every 10 seconds
+        max: 5,
+        idleTimeoutMillis: 300000, //remove idle connections after 5 minutes
       },
     }),
     UserModule,
