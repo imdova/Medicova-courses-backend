@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   UseGuards,
   Req,
+  ForbiddenException,
 } from '@nestjs/common';
 import { CourseService } from './course.service';
 import { CreateCourseDto } from './dto/create-course.dto';
@@ -44,6 +45,12 @@ export class CourseController {
   create(@Body() createCourseDto: CreateCourseDto, @Req() req) {
     const userId = req.user.sub; // Get user ID from the request
     const academyId = req.user.academyId;
+    // ✅ block if instructor is not verified
+    if (req.user.role === 'instructor' && !req.user.isEmailVerified) {
+      throw new ForbiddenException(
+        'You must verify your email before creating courses.',
+      );
+    }
     return this.courseService.create(createCourseDto, userId, academyId);
   }
 

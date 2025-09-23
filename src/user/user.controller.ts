@@ -11,6 +11,7 @@ import {
   Res,
   Req,
   ForbiddenException,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -22,8 +23,6 @@ import {
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { RolesGuard } from 'src/auth/roles.guard';
-import { Roles } from 'src/auth/decorator/roles.decorator';
 import { User } from './entities/user.entity';
 import { AuthService } from 'src/auth/auth.service';
 import { Response } from 'express';
@@ -32,6 +31,7 @@ import { UpdateSecuritySettingsDto } from './dto/security-settings.dto';
 import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
 import { PermissionsGuard } from '../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
+import { EmailService } from '../common/email.service';
 
 @ApiTags('Users')
 @Controller('users')
@@ -39,6 +39,7 @@ export class UserController {
   constructor(
     private readonly userService: UserService,
     private readonly authService: AuthService,
+    private readonly emailService: EmailService,
   ) { }
 
   // Helper method for cookie options (same as auth controller logic)
@@ -82,6 +83,18 @@ export class UserController {
       createdUser = await this.userService.register(createUserDto);
     }
 
+    // Send verification email
+    await this.emailService.sendEmail({
+      from: process.env.SMTP_DEMO_EMAIL,
+      to: createdUser.email,
+      subject: 'Please verify your email',
+      template: 'verify-email', // 👈 .hbs file
+      context: {
+        name: createdUser.profile?.firstName || createdUser.email,
+        verificationUrl: `https://courses.medicova.net/verify-email?token=${createdUser.emailVerificationToken}`,
+      },
+    });
+
     const { access_token, refresh_token, user } =
       await this.authService.generateToken(createdUser);
 
@@ -108,6 +121,13 @@ export class UserController {
       }
     };
   }
+
+  @Get('verify-email')
+  async verifyEmail(@Query('token') token: string) {
+    const user = await this.userService.verifyEmail(token);
+    return { message: 'Email verified successfully', user };
+  }
+
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('user:list')
