@@ -10,6 +10,7 @@ import {
   IsDateString,
   ValidateNested,
 } from 'class-validator';
+import { CountryOrStateDTO } from './country-state.dto';
 
 export class ExperienceDto {
   @ApiProperty({ example: 'Senior Instructor' })
@@ -43,6 +44,32 @@ export class ExperienceDto {
   @Min(1)
   @Max(12)
   endMonth?: number;
+
+  @ApiProperty({
+    type: CountryOrStateDTO,
+    required: false,
+    description: 'Country where this experience took place',
+  })
+  @ValidateNested()
+  @Type(() => CountryOrStateDTO)
+  country?: CountryOrStateDTO;
+
+  @ApiProperty({
+    type: CountryOrStateDTO,
+    required: false,
+    description: 'State/Province where this experience took place',
+  })
+  @ValidateNested()
+  @Type(() => CountryOrStateDTO)
+  state?: CountryOrStateDTO;
+
+  @ApiProperty({
+    example: 'Cairo',
+    required: false,
+    description: 'City where this experience took place',
+  })
+  @IsString()
+  city?: string;
 }
 
 export class EducationDto {
@@ -98,6 +125,15 @@ export class ActivityDto {
   activityDate: Date;
 }
 export class ProfileMetadataDto {
+  @ApiProperty({
+    type: String,
+    example: 'Passionate software engineer with 5 years of experience.',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  bio?: string;
+
   @ApiProperty({ type: [ExperienceDto], required: false })
   @IsOptional()
   @ValidateNested({ each: true })
