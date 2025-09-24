@@ -317,4 +317,23 @@ export class UserService {
     return this.userRepository.save(user);
   }
 
+  async resendVerificationEmail(userId: string): Promise<User> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.isEmailVerified) {
+      throw new BadRequestException('Email is already verified');
+    }
+
+    if (!user.emailVerificationToken) {
+      user.emailVerificationToken = uuidv4();
+      await this.userRepository.save(user);
+    }
+
+    return user;
+  }
+
 }
