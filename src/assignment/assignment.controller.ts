@@ -23,6 +23,8 @@ import { CreateAssignmentDto } from './dto/create-assignment.dto';
 import { UpdateAssignmentDto } from './dto/update-assignment.dto';
 import { PermissionsGuard } from '../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
+import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
+import { Assignment } from './entities/assignment.entity';
 
 @ApiTags('Assignments')
 @UseGuards(AuthGuard('jwt'), PermissionsGuard)
@@ -51,8 +53,12 @@ export class AssignmentController {
       'List assignments (instructors: their own; academy content creators: their academy; admins: all)',
   })
   @ApiResponse({ status: HttpStatus.OK, description: 'List of assignments' })
-  findAll(@Req() req) {
-    return this.assignmentService.findAllForUser(req.user.sub, req.user.role, req.user.academyId);
+  findAll(@Req() req, @Paginate() query: PaginateQuery): Promise<Paginated<Assignment>> {
+    return this.assignmentService.findAllForUser(query,
+      req.user.sub,       // requesterId
+      req.user.role,      // role
+      req.user.academyId, // academyId
+    );
   }
 
   @Get(':id')

@@ -14,6 +14,22 @@ import {
   CourseSectionItem,
   CurriculumType,
 } from 'src/course/course-section/entities/course-section-item.entity';
+import { QueryConfig } from 'src/common/utils/query-options';
+import { FilterOperator, paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
+
+export const ASSIGNMENT_PAGINATION_CONFIG: QueryConfig<Assignment> = {
+  sortableColumns: ['created_at', 'name', 'start_date', 'end_date'],
+  defaultSortBy: [['created_at', 'DESC']],
+  filterableColumns: {
+    name: [FilterOperator.ILIKE],       // search by name
+    createdBy: [FilterOperator.EQ],     // filter by creator
+    'academy.id': [FilterOperator.EQ],  // filter by academy
+    start_date: [FilterOperator.GTE, FilterOperator.LTE],
+    end_date: [FilterOperator.GTE, FilterOperator.LTE],
+  },
+  relations: ['academy', 'submissions'],
+};
+
 
 @Injectable()
 export class AssignmentService {
@@ -41,32 +57,27 @@ export class AssignmentService {
   }
 
   async findAllForUser(
+    query: PaginateQuery,
     requesterId: string,
     role: string,
     academyId?: string,
-  ) {
-    let assignments: Assignment[];
+  ): Promise<Paginated<Assignment>> {
+    const qb = this.assignmentRepo.createQueryBuilder('assignment');
+    qb.leftJoinAndSelect('assignment.academy', 'academy')
+      .leftJoinAndSelect('assignment.submissions', 'submissions')
+      .andWhere('assignment.deleted_at IS NULL'); // in case you're using soft delete
 
+    // 🔑 Role-based restrictions
     if (role === 'admin') {
-      // Admin → all assignments
-      assignments = await this.assignmentRepo.find({
-        order: { created_at: 'DESC' },
-      });
+      // admins see everything
     } else if (role === 'academy_admin') {
-      // Academy admin → all assignments in their academy
-      assignments = await this.assignmentRepo.find({
-        where: { academy: { id: academyId } },
-        order: { created_at: 'DESC' },
-      });
+      qb.andWhere('assignment.academy_id = :academyId', { academyId });
     } else {
-      // Instructor / academy_user → only their own
-      assignments = await this.assignmentRepo.find({
-        where: { createdBy: requesterId },
-        order: { created_at: 'DESC' },
-      });
+      // instructors, academy users → only their own assignments
+      qb.andWhere('assignment.created_by = :requesterId', { requesterId });
     }
 
-    return assignments.map(this.toResponse);
+    return paginate(query, qb, ASSIGNMENT_PAGINATION_CONFIG);
   }
 
   async findOneForUser(
