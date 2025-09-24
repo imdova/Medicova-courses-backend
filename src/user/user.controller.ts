@@ -32,6 +32,7 @@ import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
 import { PermissionsGuard } from '../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 import { EmailService } from '../common/email.service';
+import { cookieOptions } from '../auth/auth.controller';
 
 @ApiTags('Users')
 @Controller('users')
@@ -98,17 +99,14 @@ export class UserController {
     const { access_token, refresh_token, user } =
       await this.authService.generateToken(createdUser);
 
-    const cookieOptions = this.getCookieOptions();
-
-    // Use the same approach as the auth controller for consistency
-    const secureFlag = cookieOptions.secure ? '; Secure' : '';
-    const sameSiteFlag = cookieOptions.sameSite === 'none' ? '; SameSite=None' : '; SameSite=Lax';
-
-    const accessTokenCookie = `access_token=${access_token}; HttpOnly; Path=/; Max-Age=900${sameSiteFlag}${secureFlag}`;
-    const refreshTokenCookie = `refresh_token=${refresh_token}; HttpOnly; Path=/; Max-Age=604800${sameSiteFlag}${secureFlag}`;
-
-    res.setHeader('Set-Cookie', [accessTokenCookie, refreshTokenCookie]);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.cookie('access_token', access_token, {
+      ...cookieOptions,
+      maxAge: 15 * 60 * 1000,
+    });
+    res.cookie('refresh_token', refresh_token, {
+      ...cookieOptions,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
 
     return {
       message: 'Registration successful',

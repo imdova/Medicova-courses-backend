@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Not, Repository } from 'typeorm';
 import { User } from '../user/entities/user.entity';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -126,15 +126,22 @@ export class AuthService {
     return this.generateToken(user);
   }
 
-  async refreshToken(userId: string, token: string) {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+  async refreshToken(token: string) {
+    // Get all users that actually have a refreshToken stored
+    const users = await this.userRepository.find({
+      where: { refreshToken: Not(IsNull()) },
+    });
 
-    if (!user || !user.refreshToken) {
-      throw new UnauthorizedException('No refresh token found for user');
+    // Check each user’s hashed refresh token
+    let user: User | null = null;
+    for (const u of users) {
+      if (u.refreshToken && (await bcrypt.compare(token, u.refreshToken))) {
+        user = u;
+        break;
+      }
     }
 
-    const isMatch = await bcrypt.compare(token, user.refreshToken);
-    if (!isMatch) {
+    if (!user) {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
