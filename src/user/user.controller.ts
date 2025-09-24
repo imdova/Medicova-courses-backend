@@ -120,6 +120,34 @@ export class UserController {
     };
   }
 
+  @UseGuards(AuthGuard('jwt'))
+  @Post('resend-verification')
+  @ApiOperation({
+    summary: 'Resend your own verification email',
+    description: 'Allows a logged-in user to resend the email verification link to themselves.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Verification email resent successfully.',
+  })
+  async resendOwnVerification(@Req() req) {
+    const user = await this.userService.resendVerificationEmail(req.user.sub);
+
+    await this.emailService.sendEmail({
+      from: process.env.SMTP_DEMO_EMAIL,
+      to: user.email,
+      subject: 'Please verify your email',
+      template: 'verify-email',
+      context: {
+        name: user.profile?.firstName || user.email,
+        verificationUrl: `https://courses.medicova.net/verify-email?token=${user.emailVerificationToken}`,
+      },
+    });
+
+    return { message: 'Verification email resent successfully' };
+  }
+
+
   @Get('verify-email')
   async verifyEmail(@Query('token') token: string) {
     const user = await this.userService.verifyEmail(token);
