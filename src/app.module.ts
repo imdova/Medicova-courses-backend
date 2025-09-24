@@ -97,10 +97,7 @@ import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handleba
       ],
       synchronize: true,
       extra: {
-        max: 5,
-        idleTimeoutMillis: 30000, // 30 seconds instead of 2 minutes
-        connectionTimeoutMillis: 10000, // Add connection timeout
-        acquireTimeoutMillis: 10000, // Add acquire timeout
+        max: 5
       },
     }),
     MailerModule.forRoot({
