@@ -7,6 +7,7 @@ import {
   Res,
   Get,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { Response, Request } from 'express';
 import { AuthService } from './auth.service';
@@ -19,6 +20,12 @@ interface JwtPayload {
   sub: string;
   role: string;
 }
+
+export const cookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production', // only true in prod
+  sameSite: 'lax' as const,
+};
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -46,23 +53,18 @@ export class AuthController {
     const { access_token, refresh_token, user } =
       await this.authService.generateToken(dbUser);
 
-    const isProduction = process.env.NODE_ENV === 'production';
+    res.cookie('access_token', access_token, {
+      ...cookieOptions,
+      maxAge: 15 * 60 * 1000,
+    });
 
-    // Set cookies for same-domain requests
-    const secureFlag = isProduction ? '; Secure' : '';
-    const sameSiteFlag = isProduction ? '; SameSite=None' : '; SameSite=Lax'; // None for cross-origin
-
-    const accessTokenCookie = `access_token=${access_token}; HttpOnly; Path=/; Max-Age=900${sameSiteFlag}${secureFlag}`;
-    const refreshTokenCookie = `refresh_token=${refresh_token}; HttpOnly; Path=/; Max-Age=604800${sameSiteFlag}${secureFlag}`;
-
-    res.setHeader('Set-Cookie', [accessTokenCookie, refreshTokenCookie]);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.cookie('refresh_token', refresh_token, {
+      ...cookieOptions,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
 
     return {
-      message: 'Login successful',
-      user,
-      // Return tokens for cross-origin requests
-      tokens: {
+      message: 'Login successful', user, tokens: {
         access_token,
         refresh_token,
         expires_in: 900 // 15 minutes
@@ -71,38 +73,36 @@ export class AuthController {
   }
 
   @Post('refresh')
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @ApiOperation({ summary: 'Refresh JWT token using refresh token' })
   async refresh(
     @Req() req: Request & { user?: JwtPayload },
     @Res({ passthrough: true }) res: Response,
+    @Query('token') refreshTokenFromBody: string,
   ) {
-    const refreshToken = req.cookies['refresh_token'] || req.body.refresh_token;
-    const userId = req.user?.sub;
+    const refreshToken = req.cookies?.['refresh_token'] || refreshTokenFromBody;
 
-    if (!refreshToken || !userId) {
-      throw new BadRequestException('No refresh token or user ID found');
+    if (!refreshToken) {
+      throw new BadRequestException('No refresh token found');
     }
 
     const { access_token, refresh_token, user } =
-      await this.authService.refreshToken(userId, refreshToken);
+      await this.authService.refreshToken(refreshToken);
 
-    const isProduction = process.env.NODE_ENV === 'production';
-    const secureFlag = isProduction ? '; Secure' : '';
-    const sameSiteFlag = isProduction ? '; SameSite=None' : '; SameSite=Lax';
+    res.cookie('access_token', access_token, {
+      ...cookieOptions,
+      maxAge: 15 * 60 * 1000,
+    });
 
-    const accessTokenCookie = `access_token=${access_token}; HttpOnly; Path=/; Max-Age=900${sameSiteFlag}${secureFlag}`;
-    const refreshTokenCookie = `refresh_token=${refresh_token}; HttpOnly; Path=/; Max-Age=604800${sameSiteFlag}${secureFlag}`;
-
-    res.setHeader('Set-Cookie', [accessTokenCookie, refreshTokenCookie]);
+    res.cookie('refresh_token', refresh_token, {
+      ...cookieOptions,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
 
     return {
-      message: 'Token refreshed',
-      user,
-      tokens: {
+      message: 'Token refreshed', user, tokens: {
         access_token,
         refresh_token,
-        expires_in: 900
+        expires_in: 900 // 15 minutes
       }
     };
   }
@@ -116,15 +116,8 @@ export class AuthController {
   ) {
     await this.authService.logout(req.user?.sub);
 
-    const isProduction = process.env.NODE_ENV === 'production';
-    const secureFlag = isProduction ? '; Secure' : '';
-    const sameSiteFlag = isProduction ? '; SameSite=None' : '; SameSite=Lax';
-
-    // Clear cookies
-    res.setHeader('Set-Cookie', [
-      `access_token=; HttpOnly; Path=/; Max-Age=0${sameSiteFlag}${secureFlag}`,
-      `refresh_token=; HttpOnly; Path=/; Max-Age=0${sameSiteFlag}${secureFlag}`
-    ]);
+    res.clearCookie('access_token', cookieOptions);
+    res.clearCookie('refresh_token', cookieOptions);
 
     return { message: 'Logged out successfully' };
   }
@@ -146,14 +139,15 @@ export class AuthController {
   ) {
     const { access_token, refresh_token, user } = req.user;
 
-    const isProduction = process.env.NODE_ENV === 'production';
-    const secureFlag = isProduction ? '; Secure' : '';
-    const sameSiteFlag = isProduction ? '; SameSite=None' : '; SameSite=Lax';
+    res.cookie('access_token', access_token, {
+      ...cookieOptions,
+      maxAge: 15 * 60 * 1000,
+    });
 
-    const accessTokenCookie = `access_token=${access_token}; HttpOnly; Path=/; Max-Age=900${sameSiteFlag}${secureFlag}`;
-    const refreshTokenCookie = `refresh_token=${refresh_token}; HttpOnly; Path=/; Max-Age=604800${sameSiteFlag}${secureFlag}`;
-
-    res.setHeader('Set-Cookie', [accessTokenCookie, refreshTokenCookie]);
+    res.cookie('refresh_token', refresh_token, {
+      ...cookieOptions,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
 
     return { message: 'Google login successful', user };
   }
@@ -175,14 +169,15 @@ export class AuthController {
   ) {
     const { access_token, refresh_token, user } = req.user;
 
-    const isProduction = process.env.NODE_ENV === 'production';
-    const secureFlag = isProduction ? '; Secure' : '';
-    const sameSiteFlag = isProduction ? '; SameSite=None' : '; SameSite=Lax';
+    res.cookie('access_token', access_token, {
+      ...cookieOptions,
+      maxAge: 15 * 60 * 1000,
+    });
 
-    const accessTokenCookie = `access_token=${access_token}; HttpOnly; Path=/; Max-Age=900${sameSiteFlag}${secureFlag}`;
-    const refreshTokenCookie = `refresh_token=${refresh_token}; HttpOnly; Path=/; Max-Age=604800${sameSiteFlag}${secureFlag}`;
-
-    res.setHeader('Set-Cookie', [accessTokenCookie, refreshTokenCookie]);
+    res.cookie('refresh_token', refresh_token, {
+      ...cookieOptions,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
 
     return { message: 'Facebook login successful', user };
   }
