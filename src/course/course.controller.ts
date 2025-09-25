@@ -26,6 +26,7 @@ import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
 import { AuthGuard } from '@nestjs/passport';
 import { PermissionsGuard } from '../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
+import { UpdateCourseDto } from './dto/update-course.dto';
 
 @ApiTags('Courses')
 @Controller('courses')
@@ -46,9 +47,13 @@ export class CourseController {
     const userId = req.user.sub; // Get user ID from the request
     const academyId = req.user.academyId;
     // ✅ block if instructor is not verified
-    if (req.user.role === 'instructor' && !req.user.isEmailVerified) {
+    if (
+      req.user.role === 'instructor' &&
+      !req.user.isEmailVerified &&
+      createCourseDto.status === 'published'
+    ) {
       throw new ForbiddenException(
-        'You must verify your email before creating courses.',
+        'You must verify your email before publishing a course.',
       );
     }
     return this.courseService.create(createCourseDto, userId, academyId);
@@ -195,9 +200,18 @@ export class CourseController {
   @ApiResponse({ status: 404, description: 'Course not found' })
   update(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() updateData: Partial<CreateCourseDto>,
+    @Body() updateData: UpdateCourseDto,
     @Req() req,
   ) {
+    if (
+      req.user.role === 'instructor' &&
+      !req.user.isEmailVerified &&
+      updateData.status === 'published'
+    ) {
+      throw new ForbiddenException(
+        'You must verify your email before publishing a course.',
+      );
+    }
     return this.courseService.update(
       id,
       updateData,
