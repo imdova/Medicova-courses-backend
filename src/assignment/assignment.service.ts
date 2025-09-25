@@ -277,16 +277,15 @@ export class AssignmentService {
     userId: string,
     role: string,
     academyId?: string,
+    optionalMessage?: string, // <-- new parameter
   ) {
     // 1️⃣ Find the assignment and check permissions
     const assignment = await this.assignmentRepo.findOne({
       where: { id: assignmentId },
       relations: ['academy'],
     });
-
     if (!assignment) throw new NotFoundException('Assignment not found');
 
-    // Permission check
     if (role === 'instructor' && assignment.createdBy !== userId) {
       throw new ForbiddenException('Not allowed to send reminders for this assignment');
     }
@@ -294,7 +293,7 @@ export class AssignmentService {
       throw new ForbiddenException('Not allowed to send reminders for this assignment');
     }
 
-    // 2️⃣ Get unique students directly with a single optimized query
+    // 2️⃣ Get unique students
     const students = await this.courseSectionItemRepo
       .createQueryBuilder('item')
       .innerJoin('item.assignment', 'assignment')
@@ -306,26 +305,20 @@ export class AssignmentService {
       .select([
         'DISTINCT student.id as "studentId"',
         'student.email as email',
-        'COALESCE(TRIM(CONCAT(profile.firstName, \' \', profile.lastName)), \'Student\') as name'
+        'COALESCE(TRIM(CONCAT(profile.firstName, \' \', profile.lastName)), \'Student\') as name',
       ])
       .where('assignment.id = :assignmentId', { assignmentId })
-      .andWhere('student.email IS NOT NULL') // Ensure email exists
+      .andWhere('student.email IS NOT NULL')
       .getRawMany();
 
     if (students.length === 0) {
       return { message: 'No students to send reminders to' };
     }
 
-    // 3️⃣ Send emails in batches (optional: for better performance with many students)
-    const batchSize = 10; // Adjust based on your email service limits
-    const batches = [];
-
+    // 3️⃣ Send emails in batches
+    const batchSize = 10;
     for (let i = 0; i < students.length; i += batchSize) {
       const batch = students.slice(i, i + batchSize);
-      batches.push(batch);
-    }
-
-    for (const batch of batches) {
       const emailPromises = batch.map(student =>
         this.emailService.sendEmail({
           from: process.env.SMTP_DEMO_EMAIL,
@@ -338,11 +331,10 @@ export class AssignmentService {
             startDate: assignment.start_date,
             endDate: assignment.end_date,
             instructions: assignment.instructions,
+            message: optionalMessage || '', // <-- pass optional message to template
           },
-        })
+        }),
       );
-
-      // Process batch concurrently
       await Promise.allSettled(emailPromises);
     }
 
