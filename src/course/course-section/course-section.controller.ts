@@ -24,6 +24,7 @@ import { CreateMultipleSectionsWithItemsDto } from './dto/create-sections-with-i
 import { AuthGuard } from '@nestjs/passport';
 import { PermissionsGuard } from '../../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
+import { UpdateMultipleSectionsWithItemsDto } from './dto/update-sections-with-items.dto';
 
 @ApiTags('Course Sections')
 @Controller('courses/:courseId/course-sections')
@@ -87,6 +88,26 @@ export class CourseSectionController {
     @Body() dto: UpdateCourseSectionDto,
   ) {
     return this.service.updateSection(sectionId, dto);
+  }
+
+  @Patch('with-items/bulk')
+  @RequirePermissions('section:update_multiple')
+  @ApiOperation({
+    summary: 'Update multiple course sections with items',
+    description: 'Updates existing sections and items (by ID) or creates new ones if ID is not provided'
+  })
+  @ApiParam({ name: 'courseId', description: 'UUID of the course' })
+  @ApiBody({ type: UpdateMultipleSectionsWithItemsDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Sections updated successfully',
+    type: [CourseSection],
+  })
+  async updateMultipleSectionsWithItems(
+    @Param('courseId', ParseUUIDPipe) courseId: string,
+    @Body() dto: UpdateMultipleSectionsWithItemsDto,
+  ) {
+    return this.service.updateMultipleSectionsWithItems(courseId, dto.sections);
   }
 
   @Delete(':sectionId')
