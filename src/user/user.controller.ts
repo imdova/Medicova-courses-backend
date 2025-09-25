@@ -115,7 +115,6 @@ export class UserController {
       tokens: {
         access_token,
         refresh_token,
-        expires_in: 900
       }
     };
   }

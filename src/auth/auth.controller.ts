@@ -67,7 +67,6 @@ export class AuthController {
       message: 'Login successful', user, tokens: {
         access_token,
         refresh_token,
-        expires_in: 900 // 15 minutes
       }
     };
   }
@@ -102,7 +101,6 @@ export class AuthController {
       message: 'Token refreshed', user, tokens: {
         access_token,
         refresh_token,
-        expires_in: 900 // 15 minutes
       }
     };
   }
