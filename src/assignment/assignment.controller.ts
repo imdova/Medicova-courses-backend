@@ -46,6 +46,36 @@ export class AssignmentController {
     return this.assignmentService.create(dto, req.user.sub, req.user.academyId);
   }
 
+  @Post(':id/remind')
+  @RequirePermissions('assignment:send_reminder')
+  @ApiOperation({
+    summary: 'Send reminder email to all students about this assignment',
+  })
+  @ApiParam({ name: 'id', description: 'Assignment ID' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', description: 'Optional custom message to include in the email' },
+      },
+    },
+  })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Reminder emails sent' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Assignment not found' })
+  async sendReminder(
+    @Param('id') id: string,
+    @Req() req,
+    @Body('message') message?: string,
+  ) {
+    return this.assignmentService.sendReminderToStudents(
+      id,
+      req.user.sub,
+      req.user.role,
+      req.user.academyId,
+      message,
+    );
+  }
+
   @Get()
   @RequirePermissions('assignment:list')
   @ApiOperation({
