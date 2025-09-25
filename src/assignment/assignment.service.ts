@@ -16,6 +16,7 @@ import {
 } from 'src/course/course-section/entities/course-section-item.entity';
 import { QueryConfig } from 'src/common/utils/query-options';
 import { FilterOperator, paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
+import { EmailService } from '../common/email.service';
 
 export const ASSIGNMENT_PAGINATION_CONFIG: QueryConfig<Assignment> = {
   sortableColumns: ['created_at', 'name', 'start_date', 'end_date'],
@@ -38,6 +39,7 @@ export class AssignmentService {
     private readonly assignmentRepo: Repository<Assignment>,
     @InjectRepository(CourseSectionItem)
     private courseSectionItemRepo: Repository<CourseSectionItem>,
+    private readonly emailService: EmailService,
     @InjectDataSource()
     private readonly dataSource: DataSource,
   ) { }
@@ -268,5 +270,82 @@ export class AssignmentService {
 
       return submission;
     });
+  }
+
+  async sendReminderToStudents(
+    assignmentId: string,
+    userId: string,
+    role: string,
+    academyId?: string,
+  ) {
+    // 1️⃣ Find the assignment and check permissions
+    const assignment = await this.assignmentRepo.findOne({
+      where: { id: assignmentId },
+      relations: ['academy'],
+    });
+
+    if (!assignment) throw new NotFoundException('Assignment not found');
+
+    // Permission check
+    if (role === 'instructor' && assignment.createdBy !== userId) {
+      throw new ForbiddenException('Not allowed to send reminders for this assignment');
+    }
+    if ((role === 'academy_admin' || role === 'academy_user') && assignment.academy?.id !== academyId) {
+      throw new ForbiddenException('Not allowed to send reminders for this assignment');
+    }
+
+    // 2️⃣ Get unique students directly with a single optimized query
+    const students = await this.courseSectionItemRepo
+      .createQueryBuilder('item')
+      .innerJoin('item.assignment', 'assignment')
+      .innerJoin('item.section', 'section')
+      .innerJoin('section.course', 'course')
+      .innerJoin('course.enrollments', 'enrollment')
+      .innerJoin('enrollment.student', 'student')
+      .leftJoin('student.profile', 'profile')
+      .select([
+        'DISTINCT student.id as "studentId"',
+        'student.email as email',
+        'COALESCE(TRIM(CONCAT(profile.firstName, \' \', profile.lastName)), \'Student\') as name'
+      ])
+      .where('assignment.id = :assignmentId', { assignmentId })
+      .andWhere('student.email IS NOT NULL') // Ensure email exists
+      .getRawMany();
+
+    if (students.length === 0) {
+      return { message: 'No students to send reminders to' };
+    }
+
+    // 3️⃣ Send emails in batches (optional: for better performance with many students)
+    const batchSize = 10; // Adjust based on your email service limits
+    const batches = [];
+
+    for (let i = 0; i < students.length; i += batchSize) {
+      const batch = students.slice(i, i + batchSize);
+      batches.push(batch);
+    }
+
+    for (const batch of batches) {
+      const emailPromises = batch.map(student =>
+        this.emailService.sendEmail({
+          from: process.env.SMTP_DEMO_EMAIL,
+          to: student.email,
+          subject: `Reminder: ${assignment.name}`,
+          template: 'assignment-reminder',
+          context: {
+            studentName: student.name || 'Student',
+            assignmentName: assignment.name,
+            startDate: assignment.start_date,
+            endDate: assignment.end_date,
+            instructions: assignment.instructions,
+          },
+        })
+      );
+
+      // Process batch concurrently
+      await Promise.allSettled(emailPromises);
+    }
+
+    return { message: `Reminder emails sent to ${students.length} students` };
   }
 }
