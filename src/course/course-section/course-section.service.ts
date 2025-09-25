@@ -8,6 +8,8 @@ import { CreateSectionWithItemsDto } from './dto/create-sections-with-items.dto'
 import { CourseSectionItem } from './entities/course-section-item.entity';
 import { Lecture } from './entities/lecture.entity';
 import { Quiz } from 'src/quiz/entities/quiz.entity';
+import { UpdateSectionWithItemsDto } from './dto/update-sections-with-items.dto';
+import { Assignment } from 'src/assignment/entities/assignment.entity';
 
 @Injectable()
 export class CourseSectionService {
@@ -227,5 +229,175 @@ export class CourseSectionService {
     );
 
     return reordered.find((s) => s.id === section.id) ?? section;
+  }
+
+  async updateMultipleSectionsWithItems(
+    courseId: string,
+    sectionsDto: UpdateSectionWithItemsDto[],
+  ): Promise<CourseSection[]> {
+    return this.dataSource.transaction(async (manager) => {
+      const sectionsToCreate: CourseSection[] = [];
+      const sectionsToUpdate: CourseSection[] = [];
+      const itemsToCreate: CourseSectionItem[] = [];
+      const itemsToUpdate: CourseSectionItem[] = [];
+      const itemsToDelete: string[] = [];
+      const lecturesToCreate: Lecture[] = [];
+      const lecturesToUpdate: Lecture[] = [];
+      const quizzesToUpdate: Quiz[] = [];
+      const assignmentsCache: Record<string, Assignment> = {};
+
+      // Step 1: Process sections
+      for (const sectionDto of sectionsDto) {
+        if (sectionDto.id) {
+          const existingSection = await manager.findOne(CourseSection, {
+            where: { id: sectionDto.id, course: { id: courseId } },
+          });
+          if (!existingSection) throw new NotFoundException(`Section with ID ${sectionDto.id} not found`);
+          if (sectionDto.section) Object.assign(existingSection, sectionDto.section);
+          sectionsToUpdate.push(existingSection);
+        } else {
+          const newSection = manager.create(CourseSection, {
+            ...sectionDto.section,
+            course: { id: courseId } as any,
+          });
+          sectionsToCreate.push(newSection);
+        }
+      }
+
+      // Step 2: Save sections
+      const createdSections = sectionsToCreate.length ? await manager.save(sectionsToCreate) : [];
+      const updatedSections = sectionsToUpdate.length ? await manager.save(sectionsToUpdate) : [];
+
+      // Step 3: Map sections for easy access
+      const sectionMap = new Map<string, CourseSection>();
+      let newIndex = 0, updatedIndex = 0;
+      for (const sectionDto of sectionsDto) {
+        if (sectionDto.id) sectionMap.set(sectionDto.id, updatedSections[updatedIndex++]);
+        else sectionMap.set(`new-${newIndex++}`, createdSections[newIndex - 1]);
+      }
+
+      // Step 4: Process items
+      newIndex = 0;
+      for (const sectionDto of sectionsDto) {
+        const sectionKey = sectionDto.id || `new-${newIndex}`;
+        const section = sectionMap.get(sectionKey);
+        if (!section) continue;
+        if (!sectionDto.id) newIndex++;
+
+        const existingItems = sectionDto.id
+          ? await manager.find(CourseSectionItem, {
+            where: { section: { id: sectionDto.id } },
+            relations: ['lecture', 'quiz', 'assignment'],
+          })
+          : [];
+
+        const processedItemIds = new Set<string>();
+        const itemsToProcess = sectionDto.items || [];
+
+        for (const itemDto of itemsToProcess) {
+          if (itemDto.id) {
+            // Update existing item
+            const existingItem = existingItems.find(i => i.id === itemDto.id);
+            if (!existingItem) throw new NotFoundException(`Item with ID ${itemDto.id} not found in section ${section.id}`);
+            processedItemIds.add(itemDto.id);
+
+            if (itemDto.curriculumType) existingItem.curriculumType = itemDto.curriculumType;
+            if (itemDto.order !== undefined) existingItem.order = itemDto.order;
+
+            // Lecture update
+            if (existingItem.curriculumType === 'lecture' && itemDto.lecture) {
+              if (existingItem.lecture) {
+                Object.assign(existingItem.lecture, itemDto.lecture);
+                lecturesToUpdate.push(existingItem.lecture);
+              } else {
+                const lecture = manager.create(Lecture, itemDto.lecture);
+                lecturesToCreate.push(lecture);
+                existingItem.lecture = lecture;
+              }
+            }
+
+            // Quiz update
+            if (existingItem.curriculumType === 'quiz' && itemDto.quizId) {
+              const quiz = await manager.findOne(Quiz, { where: { id: itemDto.quizId, deleted_at: null } });
+              if (!quiz) throw new NotFoundException(`Quiz with ID ${itemDto.quizId} not found`);
+              if (quiz.standalone) { quiz.standalone = false; quizzesToUpdate.push(quiz); }
+              existingItem.quiz = quiz;
+            }
+
+            // Assignment update
+            if (existingItem.curriculumType === 'assignment' && itemDto.assignmentId) {
+              let assignment = assignmentsCache[itemDto.assignmentId];
+              if (!assignment) {
+                assignment = await manager.findOne(Assignment, { where: { id: itemDto.assignmentId, deleted_at: null } });
+                if (!assignment) throw new NotFoundException(`Assignment with ID ${itemDto.assignmentId} not found`);
+                assignmentsCache[itemDto.assignmentId] = assignment;
+              }
+              existingItem.assignment = assignment;
+            }
+
+            itemsToUpdate.push(existingItem);
+          } else {
+            // Create new item
+            const newItem = manager.create(CourseSectionItem, {
+              curriculumType: itemDto.curriculumType,
+              order: itemDto.order,
+              section,
+            });
+
+            if (itemDto.curriculumType === 'lecture' && itemDto.lecture) {
+              const lecture = manager.create(Lecture, itemDto.lecture);
+              lecturesToCreate.push(lecture);
+              newItem.lecture = lecture;
+            }
+
+            if (itemDto.curriculumType === 'quiz' && itemDto.quizId) {
+              const quiz = await manager.findOne(Quiz, { where: { id: itemDto.quizId, deleted_at: null } });
+              if (!quiz) throw new NotFoundException(`Quiz with ID ${itemDto.quizId} not found`);
+              if (quiz.standalone) { quiz.standalone = false; quizzesToUpdate.push(quiz); }
+              newItem.quiz = quiz;
+            }
+
+            if (itemDto.curriculumType === 'assignment' && itemDto.assignmentId) {
+              let assignment = assignmentsCache[itemDto.assignmentId];
+              if (!assignment) {
+                assignment = await manager.findOne(Assignment, { where: { id: itemDto.assignmentId, deleted_at: null } });
+                if (!assignment) throw new NotFoundException(`Assignment with ID ${itemDto.assignmentId} not found`);
+                assignmentsCache[itemDto.assignmentId] = assignment;
+              }
+              newItem.assignment = assignment;
+            }
+
+            itemsToCreate.push(newItem);
+          }
+        }
+
+        // Items to delete
+        for (const existingItem of existingItems) {
+          if (!processedItemIds.has(existingItem.id)) itemsToDelete.push(existingItem.id);
+        }
+      }
+
+      // Step 5: Save all related entities in proper order
+      const savedLectures = lecturesToCreate.length ? await manager.save(lecturesToCreate) : [];
+      for (let i = 0; i < itemsToCreate.length; i++) {
+        if (itemsToCreate[i].lecture && !itemsToCreate[i].lecture.id) {
+          itemsToCreate[i].lecture = savedLectures.shift()!;
+        }
+      }
+
+      if (lecturesToUpdate.length) await manager.save(lecturesToUpdate);
+      if (quizzesToUpdate.length) await manager.save(quizzesToUpdate);
+      if (itemsToUpdate.length) await manager.save(itemsToUpdate);
+      if (itemsToCreate.length) await manager.save(itemsToCreate);
+      if (itemsToDelete.length) await manager.delete(CourseSectionItem, itemsToDelete);
+
+      // Step 6: Return updated sections with full relations
+      const allSectionIds = [...createdSections, ...updatedSections].map(s => s.id);
+      return manager.find(CourseSection, {
+        where: { id: In(allSectionIds) },
+        relations: ['items', 'items.lecture', 'items.quiz', 'items.assignment'],
+        order: { order: 'ASC', items: { order: 'ASC' } },
+      });
+    });
   }
 }
