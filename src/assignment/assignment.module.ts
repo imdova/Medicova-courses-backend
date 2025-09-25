@@ -8,6 +8,7 @@ import { CourseStudent } from 'src/course/entities/course-student.entity';
 import { CourseProgress } from 'src/course/course-progress/entities/course-progress.entity';
 import { CourseSectionItem } from 'src/course/course-section/entities/course-section-item.entity';
 import { CourseAssignmentController } from './course-assignment.controller';
+import { EmailService } from '../common/email.service';
 
 @Module({
   imports: [
@@ -19,8 +20,8 @@ import { CourseAssignmentController } from './course-assignment.controller';
       CourseSectionItem,
     ]),
   ],
-  providers: [AssignmentService],
+  providers: [AssignmentService, EmailService],
   controllers: [AssignmentController, CourseAssignmentController],
   exports: [AssignmentService],
 })
-export class AssignmentModule {}
+export class AssignmentModule { }

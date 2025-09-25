@@ -55,7 +55,7 @@ export class AuthController {
 
     res.cookie('access_token', access_token, {
       ...cookieOptions,
-      maxAge: 15 * 60 * 1000,
+      maxAge: 60 * 60 * 1000,
     });
 
     res.cookie('refresh_token', refresh_token, {
@@ -67,7 +67,6 @@ export class AuthController {
       message: 'Login successful', user, tokens: {
         access_token,
         refresh_token,
-        expires_in: 900 // 15 minutes
       }
     };
   }
@@ -90,7 +89,7 @@ export class AuthController {
 
     res.cookie('access_token', access_token, {
       ...cookieOptions,
-      maxAge: 15 * 60 * 1000,
+      maxAge: 60 * 60 * 1000,
     });
 
     res.cookie('refresh_token', refresh_token, {
@@ -102,7 +101,6 @@ export class AuthController {
       message: 'Token refreshed', user, tokens: {
         access_token,
         refresh_token,
-        expires_in: 900 // 15 minutes
       }
     };
   }
@@ -141,7 +139,7 @@ export class AuthController {
 
     res.cookie('access_token', access_token, {
       ...cookieOptions,
-      maxAge: 15 * 60 * 1000,
+      maxAge: 60 * 60 * 1000,
     });
 
     res.cookie('refresh_token', refresh_token, {
@@ -171,7 +169,7 @@ export class AuthController {
 
     res.cookie('access_token', access_token, {
       ...cookieOptions,
-      maxAge: 15 * 60 * 1000,
+      maxAge: 60 * 60 * 1000,
     });
 
     res.cookie('refresh_token', refresh_token, {
