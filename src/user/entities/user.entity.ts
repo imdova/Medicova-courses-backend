@@ -29,6 +29,9 @@ export class User extends BasicEntity {
   @Column({ name: 'refresh_token', nullable: true })
   refreshToken?: string;
 
+  @Column({ type: 'bigint', nullable: true })
+  refreshTokenExpiresAt: number; // Store as timestamp (milliseconds)
+
   @ManyToOne(() => Role, (role) => role.users)
   role: Role; // user inherits permissions via role
 

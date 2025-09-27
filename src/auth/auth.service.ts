@@ -73,7 +73,12 @@ export class AuthService {
     const refreshToken = uuidv4();
     const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
 
+    // Calculate expiration time (7 days from now)
+    const refreshTokenExpiresAt = Date.now() + (7 * 24 * 60 * 60 * 1000);
+
+    // Update user with new refresh token and expiration
     fullUser.refreshToken = hashedRefreshToken;
+    fullUser.refreshTokenExpiresAt = refreshTokenExpiresAt;
     await this.userRepository.save(fullUser);
 
     return {
@@ -127,17 +132,33 @@ export class AuthService {
   }
 
   async refreshToken(token: string) {
-    // Get all users that actually have a refreshToken stored
+    // Get all users that have non-expired refresh tokens
     const users = await this.userRepository.find({
-      where: { refreshToken: Not(IsNull()) },
+      where: {
+        refreshToken: Not(IsNull()),
+        refreshTokenExpiresAt: Not(IsNull())
+      },
     });
 
-    // Check each user’s hashed refresh token
+    // Check each user's hashed refresh token and expiration
     let user: User | null = null;
     for (const u of users) {
-      if (u.refreshToken && (await bcrypt.compare(token, u.refreshToken))) {
-        user = u;
-        break;
+      if (u.refreshToken && u.refreshTokenExpiresAt) {
+        // Check if token is expired
+        if (Date.now() > u.refreshTokenExpiresAt) {
+          // Token is expired, clean it up
+          await this.userRepository.update(u.id, {
+            refreshToken: null,
+            refreshTokenExpiresAt: null
+          });
+          continue;
+        }
+
+        // Check if the provided token matches the stored hash
+        if (await bcrypt.compare(token, u.refreshToken)) {
+          user = u;
+          break;
+        }
       }
     }
 
@@ -145,11 +166,12 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
+    // Generate new tokens (this will also update the expiration time)
     return this.generateToken(user);
   }
 
   async logout(userId: string) {
-    await this.userRepository.update(userId, { refreshToken: null });
+    await this.userRepository.update(userId, { refreshToken: null, refreshTokenExpiresAt: null });
     return { message: 'Logged out successfully' };
   }
 }
