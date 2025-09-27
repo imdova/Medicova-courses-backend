@@ -20,6 +20,7 @@ import { SubmitQuizDto } from './dto/submit-quiz.dto';
 import { CreateQuizWithQuestionsDto } from './dto/create-quiz-with-questions.dto';
 import { PermissionsGuard } from '../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
+import { UpdateQuizWithQuestionsDto } from './dto/update-quiz-with-questions.dto';
 
 @ApiTags('Quizzes')
 @Controller('quizzes')
@@ -198,6 +199,26 @@ export class QuizController {
       req.user.academyId,
     );
   }
+
+  @Patch(':id/with-questions')
+  @RequirePermissions('quiz:update_with_questions')
+  @ApiOperation({ summary: 'Update quiz and its questions' })
+  @ApiResponse({ status: 200, description: 'Quiz and questions updated successfully' })
+  @ApiResponse({ status: 404, description: 'Quiz not found' })
+  async updateWithQuestions(
+    @Param('id') id: string,
+    @Body() dto: UpdateQuizWithQuestionsDto,
+    @Req() req,
+  ) {
+    return this.quizService.updateQuizWithQuestions(
+      id,
+      dto,
+      req.user.sub,
+      req.user.role,
+      req.user.academyId,
+    );
+  }
+
 
   @Delete(':id')
   @RequirePermissions('quiz:delete')

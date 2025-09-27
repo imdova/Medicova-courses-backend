@@ -22,6 +22,8 @@ import { QuizAttempt } from './entities/quiz-attempts.entity';
 import { CreateQuizWithQuestionsDto } from './dto/create-quiz-with-questions.dto';
 import { QuizQuestion } from './entities/quiz-question.entity';
 import { QuizWithStats } from './interface/quiz-with-stats.interface';
+import { UpdateQuizWithQuestionsDto } from './dto/update-quiz-with-questions.dto';
+import { CreateQuestionDto } from './dto/create-question.dto';
 
 export const QUIZ_PAGINATION_CONFIG: QueryConfig<Quiz> = {
   sortableColumns: ['created_at', 'title'],
@@ -345,6 +347,146 @@ export class QuizService {
         where: { id: quiz.id },
         relations: ['quizQuestions', 'quizQuestions.question'],
       });
+    });
+  }
+
+  async updateQuizWithQuestions(
+    quizId: string,
+    dto: UpdateQuizWithQuestionsDto,
+    userId: string,
+    role: string,
+    academyId: string,
+  ): Promise<Quiz> {
+    return this.quizRepo.manager.transaction(async (manager) => {
+      // 1. Fetch quiz with ownership check
+      const quiz = await manager.findOne(Quiz, {
+        where: { id: quizId, deleted_at: null },
+        relations: ['quizQuestions', 'quizQuestions.question'],
+      });
+      if (!quiz) throw new NotFoundException('Quiz not found');
+      this.checkOwnership(quiz, userId, academyId, role);
+
+      // 2. Update quiz fields if provided
+      if (dto.quiz) {
+        Object.assign(quiz, dto.quiz);
+        await manager.save(quiz);
+      }
+
+      // 3. Process questions if provided
+      if (dto.questions && dto.questions.length > 0) {
+        // Separate operations for better performance
+        const toDelete: string[] = [];
+        const toUpdate: Array<{ id: string; data: Record<string, any> }> = [];
+        const toCreate: Array<Record<string, any>> = [];
+        const toReorder: Array<{ id: string; order: number }> = [];
+
+        // Categorize operations
+        for (const q of dto.questions) {
+          if (q.id && q.delete) {
+            // Validate question belongs to this quiz before deletion
+            const questionExists = quiz.quizQuestions.some(qq => qq.question.id === q.id);
+            if (!questionExists) {
+              throw new BadRequestException(`Question ${q.id} does not belong to this quiz`);
+            }
+            toDelete.push(q.id);
+          } else if (q.id) {
+            // Validate question exists and belongs to this quiz
+            const existingQuizQuestion = quiz.quizQuestions.find(qq => qq.question.id === q.id);
+            if (!existingQuizQuestion) {
+              throw new NotFoundException(`Question ${q.id} not found in this quiz`);
+            }
+
+            // Prepare update data (exclude id, delete, and order from question data)
+            const { id, delete: _, order, ...questionData } = q;
+            if (Object.keys(questionData).length > 0) {
+              toUpdate.push({ id, data: questionData });
+            }
+
+            // Handle reordering separately
+            if (order !== undefined) {
+              toReorder.push({ id, order });
+            }
+          } else {
+            // New question
+            const { id, delete: _, ...questionData } = q;
+            toCreate.push(questionData);
+          }
+        }
+
+        // Execute batch operations
+
+        // 4. Delete questions (this will cascade to quiz_questions table)
+        if (toDelete.length > 0) {
+          await manager.delete(Question, toDelete);
+        }
+
+        // 5. Update existing questions in batch
+        for (const { id, data } of toUpdate) {
+          await manager.update(Question, { id }, data);
+        }
+
+        // 6. Create new questions and their quiz_question relationships
+        if (toCreate.length > 0) {
+          // Ensure required fields are present for new questions
+          const validatedQuestions = toCreate.map((q) => {
+            if (!q.type || !q.text || q.points === undefined) {
+              throw new BadRequestException('New questions must have type, text, and points');
+            }
+
+            // Create the question data, excluding order which is handled separately
+            const { order, ...questionData } = q;
+            return { questionData, order };
+          });
+
+          const newQuestions = validatedQuestions.map(({ questionData }) =>
+            manager.create(Question, questionData as any)
+          );
+          await manager.save(newQuestions);
+
+          // Create quiz_question relationships
+          const currentMaxOrder = Math.max(
+            ...quiz.quizQuestions.map(qq => qq.order || 0),
+            0
+          );
+
+          const quizQuestions = newQuestions.map((question, index) => {
+            const { order } = validatedQuestions[index];
+            const finalOrder = order ?? (currentMaxOrder + index + 1);
+
+            return manager.create(QuizQuestion, {
+              quiz,
+              question,
+              order: finalOrder,
+            });
+          });
+
+          await manager.save(quizQuestions);
+        }
+
+        // 7. Handle reordering
+        if (toReorder.length > 0) {
+          for (const { id, order } of toReorder) {
+            await manager.update(
+              QuizQuestion,
+              { quiz: { id: quizId }, question: { id } },
+              { order }
+            );
+          }
+        }
+      }
+
+      // 8. Reload quiz with updated relations and return
+      const updatedQuiz = await manager.findOne(Quiz, {
+        where: { id: quiz.id },
+        relations: ['quizQuestions', 'quizQuestions.question'],
+      });
+
+      // Sort questions by order for consistent response
+      if (updatedQuiz?.quizQuestions) {
+        updatedQuiz.quizQuestions.sort((a, b) => (a.order || 0) - (b.order || 0));
+      }
+
+      return updatedQuiz;
     });
   }
 
