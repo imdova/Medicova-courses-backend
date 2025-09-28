@@ -72,8 +72,8 @@ export class CreateQuestionDto {
     description: 'List of possible answers',
     type: [AnswerOptionDto],
     example: [
-      { text: 'Option A', correct: false },
-      { text: 'Option B', correct: true },
+      { text: 'Option A', correct: false, image_url: 'https://example.com/image.png' },
+      { text: 'Option B', correct: true, image_url: 'https://example.com/image.png' },
     ],
   })
   @IsArray()
