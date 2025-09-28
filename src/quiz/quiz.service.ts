@@ -128,6 +128,30 @@ export class QuizService {
         maxSuccessRate: Number(filter.maxSuccessRate),
       });
     }
+    // Only add filter if a real userId is provided
+    if (filter?.userId !== undefined && filter.userId !== null && filter.userId !== '') {
+      qb.andWhere(`
+    EXISTS (
+      SELECT 1 
+      FROM quiz_attempts qa 
+      LEFT JOIN course_student cs ON qa.course_student_id = cs.id 
+      WHERE qa.quiz_id = quiz.id 
+      AND (qa.user_id = :filterUserId OR cs.student_id = :filterUserId)
+    )
+  `, { filterUserId: filter.userId });
+    }
+
+    // NEW: Filter by answer_time range
+    if (filter?.minAnswerTime !== undefined) {
+      qb.andWhere('quiz.answer_time >= :minAnswerTime', {
+        minAnswerTime: Number(filter.minAnswerTime),
+      });
+    }
+    if (filter?.maxAnswerTime !== undefined) {
+      qb.andWhere('quiz.answer_time <= :maxAnswerTime', {
+        maxAnswerTime: Number(filter.maxAnswerTime),
+      });
+    }
 
     // Paginate
     const paginated = await paginate<Quiz>(query, qb, QUIZ_PAGINATION_CONFIG);
@@ -143,15 +167,18 @@ export class QuizService {
 
     // Collect quizIds for batch user loading
     const quizIds = entities.map(q => q.id);
-    const attemptsQb = this.attemptRepo
-      .createQueryBuilder('attempt')
-      .leftJoinAndSelect('attempt.quiz', 'quiz')   // <-- add this
-      .leftJoinAndSelect('attempt.courseStudent', 'courseStudent')
-      .leftJoinAndSelect('courseStudent.student', 'student')
-      .leftJoinAndSelect('attempt.user', 'user')
-      .where('attempt.quiz_id IN (:...quizIds)', { quizIds });
+    let attempts = [];
+    if (quizIds.length > 0) {
+      const attemptsQb = this.attemptRepo
+        .createQueryBuilder('attempt')
+        .leftJoinAndSelect('attempt.quiz', 'quiz')
+        .leftJoinAndSelect('attempt.courseStudent', 'courseStudent')
+        .leftJoinAndSelect('courseStudent.student', 'student')
+        .leftJoinAndSelect('attempt.user', 'user')
+        .where('attempt.quiz_id IN (:...quizIds)', { quizIds });
 
-    const attempts = await attemptsQb.getMany();
+      attempts = await attemptsQb.getMany();
+    }
 
     // Map quizId -> users
     const quizUsersMap = new Map<string, any[]>();
