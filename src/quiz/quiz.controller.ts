@@ -157,6 +157,24 @@ export class QuizController {
       'Filter by maximum success rate percentage (<=). Example: `?filter.maxSuccessRate=60`',
     example: 60,
   })
+  @ApiQuery({
+    name: 'filter.userId',
+    required: false,
+    description: 'Filter quizzes attempted by a specific user or student',
+    example: 'user-uuid',
+  })
+  @ApiQuery({
+    name: 'filter.minAnswerTime',
+    required: false,
+    description: 'Minimum allowed answer time (>=)',
+    example: 30,
+  })
+  @ApiQuery({
+    name: 'filter.maxAnswerTime',
+    required: false,
+    description: 'Maximum allowed answer time (<=)',
+    example: 120,
+  })
   @ApiOperation({ summary: 'List all quizzes' })
   @ApiResponse({ status: 200, description: 'List of quizzes' })
   findAll(

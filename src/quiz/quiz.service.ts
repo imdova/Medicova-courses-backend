@@ -65,8 +65,7 @@ export class QuizService {
     userId: string,
     role: string,
     academyId: string,
-  ): Promise<Paginated<QuizWithStats>> {
-    // Scalar subqueries for aggregates (no JOIN/GROUP BY needed)
+  ): Promise<Paginated<QuizWithStats & { users: any[] }>> {
     const QUESTION_COUNT = `(SELECT COUNT(*) FROM quiz_questions qq WHERE qq.quiz_id = quiz.id)`;
     const AVG_SCORE = `(SELECT COALESCE(AVG(qa.score), 0) FROM quiz_attempts qa WHERE qa.quiz_id = quiz.id)`;
     const SUCCESS_RATE = `
@@ -92,12 +91,12 @@ export class QuizService {
       qb.andWhere('quiz.created_by = :userId', { userId });
     }
 
-    // Select aggregates as extra columns
+    // Select aggregates
     qb.addSelect(QUESTION_COUNT, 'questionCount')
       .addSelect(AVG_SCORE, 'average_score')
       .addSelect(SUCCESS_RATE, 'success_rate');
 
-    // Computed-field filters (in WHERE so the count query sees them)
+    // Computed filters
     const { filter } = query;
     if (filter?.minQuestionCount !== undefined) {
       qb.andWhere(`${QUESTION_COUNT} >= :minQuestionCount`, {
@@ -129,11 +128,34 @@ export class QuizService {
         maxSuccessRate: Number(filter.maxSuccessRate),
       });
     }
+    // Only add filter if a real userId is provided
+    if (filter?.userId !== undefined && filter.userId !== null && filter.userId !== '') {
+      qb.andWhere(`
+    EXISTS (
+      SELECT 1 
+      FROM quiz_attempts qa 
+      LEFT JOIN course_student cs ON qa.course_student_id = cs.id 
+      WHERE qa.quiz_id = quiz.id 
+      AND (qa.user_id = :filterUserId OR cs.student_id = :filterUserId)
+    )
+  `, { filterUserId: filter.userId });
+    }
 
-    // 1) Use nestjs-paginate to apply built-in filters/sort + compute totalItems
+    // NEW: Filter by answer_time range
+    if (filter?.minAnswerTime !== undefined) {
+      qb.andWhere('quiz.answer_time >= :minAnswerTime', {
+        minAnswerTime: Number(filter.minAnswerTime),
+      });
+    }
+    if (filter?.maxAnswerTime !== undefined) {
+      qb.andWhere('quiz.answer_time <= :maxAnswerTime', {
+        maxAnswerTime: Number(filter.maxAnswerTime),
+      });
+    }
+
+    // Paginate
     const paginated = await paginate<Quiz>(query, qb, QUIZ_PAGINATION_CONFIG);
 
-    // 2) Fetch raw+entities for the current page (to read our aggregate columns)
     const offset =
       (paginated.meta.currentPage - 1) * paginated.meta.itemsPerPage;
     const limit = paginated.meta.itemsPerPage;
@@ -143,12 +165,41 @@ export class QuizService {
       .take(limit)
       .getRawAndEntities();
 
-    // 3) Merge aggregates into entity objects
-    const data: QuizWithStats[] = entities.map((quiz, i) => ({
+    // Collect quizIds for batch user loading
+    const quizIds = entities.map(q => q.id);
+    let attempts = [];
+    if (quizIds.length > 0) {
+      const attemptsQb = this.attemptRepo
+        .createQueryBuilder('attempt')
+        .leftJoinAndSelect('attempt.quiz', 'quiz')
+        .leftJoinAndSelect('attempt.courseStudent', 'courseStudent')
+        .leftJoinAndSelect('courseStudent.student', 'student')
+        .leftJoinAndSelect('attempt.user', 'user')
+        .where('attempt.quiz_id IN (:...quizIds)', { quizIds });
+
+      attempts = await attemptsQb.getMany();
+    }
+
+    // Map quizId -> users
+    const quizUsersMap = new Map<string, any[]>();
+    for (const attempt of attempts) {
+      const quizId = attempt.quiz.id;
+      const users: any[] = quizUsersMap.get(quizId) ?? [];
+      if (attempt.user) {
+        users.push(attempt.user);
+      } else if (attempt.courseStudent?.student) {
+        users.push(attempt.courseStudent.student);
+      }
+      quizUsersMap.set(quizId, users);
+    }
+
+    // Merge aggregates + users
+    const data: (QuizWithStats & { users: any[] })[] = entities.map((quiz, i) => ({
       ...quiz,
       questionCount: Number(raw[i]?.questionCount ?? 0),
       average_score: Number(raw[i]?.average_score ?? 0),
       success_rate: Number(raw[i]?.success_rate ?? 0),
+      users: quizUsersMap.get(quiz.id) ?? [],
     }));
 
     return {
