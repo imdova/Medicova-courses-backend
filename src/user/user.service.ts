@@ -269,19 +269,6 @@ export class UserService {
             state: student.profile?.state ?? null,
             age,
             gender: student.profile?.gender ?? null,
-            category: student.profile?.category
-              ? {
-                id: student.profile.category.id,
-                name: student.profile.category.name,
-                slug: student.profile.category.slug,
-              }
-              : null,
-            speciality: student.profile?.speciality
-              ? {
-                id: student.profile.speciality.id,
-                name: student.profile.speciality.name,
-              }
-              : null,
           },
         };
       },
