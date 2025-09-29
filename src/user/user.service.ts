@@ -224,27 +224,67 @@ export class UserService {
       .innerJoin('student.enrollments', 'enrollment')
       .innerJoin('enrollment.course', 'course')
       .leftJoinAndSelect('student.profile', 'profile')
+      .leftJoinAndSelect('profile.category', 'category')
+      .leftJoinAndSelect('profile.speciality', 'speciality')
       .where('course.createdBy = :instructorId', { instructorId })
       .loadRelationCountAndMap(
         'student.numberOfCourses',
         'student.enrollments',
+        'enrollmentAlias',
+        (qb) =>
+          qb.innerJoin('enrollmentAlias.course', 'courseAlias')
+            .where('courseAlias.createdBy = :instructorId', { instructorId })
       );
 
     const result = await paginate<any>(query, qb, STUDENT_PAGINATION_CONFIG);
 
     result.data = result.data.map(
-      (student: User & { numberOfCourses?: number }) => ({
-        id: student.id,
-        email: student.email,
-        role: student.role,
-        numberOfCourses: student.numberOfCourses ?? 0,
-        profile: {
-          firstName: student.profile?.firstName ?? null,
-          lastName: student.profile?.lastName ?? null,
-          photoUrl: student.profile?.photoUrl ?? null,
-          phoneNumber: student.profile?.phoneNumber ?? null,
-        },
-      }),
+      (student: User & { numberOfCourses?: number }) => {
+        // Calculate age from date of birth
+        const age = student.profile?.dateOfBirth
+          ? this.calculateAge(student.profile.dateOfBirth)
+          : null;
+
+        // Get earliest enrollment date for this instructor's courses
+        const enrollmentDate = student.enrollments
+          ?.filter(e => e.course?.createdBy === instructorId)
+          ?.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0]
+          ?.created_at ?? null;
+
+        return {
+          id: student.id,
+          email: student.email,
+          role: student.role,
+          numberOfCourses: student.numberOfCourses ?? 0,
+          enrollmentDate,
+          profile: {
+            firstName: student.profile?.firstName ?? null,
+            lastName: student.profile?.lastName ?? null,
+            name: student.profile?.firstName && student.profile?.lastName
+              ? `${student.profile.firstName} ${student.profile.lastName}`
+              : student.profile?.firstName ?? student.profile?.lastName ?? null,
+            photoUrl: student.profile?.photoUrl ?? null,
+            phoneNumber: student.profile?.phoneNumber ?? null,
+            country: student.profile?.country ?? null,
+            state: student.profile?.state ?? null,
+            age,
+            gender: student.profile?.gender ?? null,
+            category: student.profile?.category
+              ? {
+                id: student.profile.category.id,
+                name: student.profile.category.name,
+                slug: student.profile.category.slug,
+              }
+              : null,
+            speciality: student.profile?.speciality
+              ? {
+                id: student.profile.speciality.id,
+                name: student.profile.speciality.name,
+              }
+              : null,
+          },
+        };
+      },
     );
 
     return result;
@@ -334,6 +374,20 @@ export class UserService {
     }
 
     return user;
+  }
+
+  // Helper method to calculate age from date of birth
+  private calculateAge(dateOfBirth: Date): number {
+    const today = new Date();
+    const birthDate = new Date(dateOfBirth);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+
+    return age;
   }
 
 }
