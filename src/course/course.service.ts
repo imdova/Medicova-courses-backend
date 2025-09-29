@@ -277,41 +277,72 @@ export class CourseService {
   }
 
   async getAllStudentsProgress(courseId: string) {
-    // 1️⃣ Count course items
+    // 1️⃣ Count total course items
     const totalItems = await this.courseSectionItemRepo.count({
       where: { section: { course: { id: courseId } } },
     });
+
     if (totalItems === 0) {
       throw new NotFoundException('No curriculum items found for this course');
     }
 
-    // 2️⃣ Start from CourseStudent (enrollments), then join student + progress
-    const summaries = await this.courseRepository.manager
+    // 2️⃣ Get student info + progress
+    const students = await this.courseRepository.manager
       .getRepository(CourseStudent)
-      .createQueryBuilder('courseStudent')
-      .leftJoin('courseStudent.student', 'student')
+      .createQueryBuilder('cs')
+      .leftJoin('cs.student', 'user')
+      .leftJoin('user.profile', 'profile')
       .leftJoin(
-        CourseProgress,
+        'course_progress',
         'progress',
-        'progress.course_student_id = courseStudent.id',
+        'progress.course_student_id = cs.id',
       )
-      .select('student.id', 'studentId')
-      .addSelect('student.email', 'studentEmail')
+      .select('user.id', 'studentId')
+      .addSelect('user.email', 'studentEmail')
+      .addSelect('profile.first_name', 'firstName')
+      .addSelect('profile.last_name', 'lastName')
+      .addSelect('profile.photo_url', 'photoUrl')
+      .addSelect('profile.country', 'country')
+      .addSelect('profile.state', 'state')
+      .addSelect('profile.gender', 'gender')
+      .addSelect('profile.date_of_birth', 'dateOfBirth')
+      .addSelect('profile.category_id', 'categoryId')
+      .addSelect('profile.speciality_id', 'specialtyId')
+      .addSelect('cs.created_at', 'enrollmentDate')
       .addSelect(
         'COUNT(CASE WHEN progress.completed = true THEN 1 END)',
         'completedItems',
       )
-      .where('courseStudent.course = :courseId', { courseId })
-      .groupBy('student.id')
-      .addGroupBy('student.email')
+      .where('cs.course = :courseId', { courseId })
+      .groupBy('user.id')
+      .addGroupBy('profile.id')
+      .addGroupBy('cs.created_at')
       .getRawMany();
 
-    // 3️⃣ Map with percentage
-    return summaries.map((s) => {
+    // 3️⃣ Map results and calculate age & progress %
+    return students.map((s) => {
       const completed = Number(s.completedItems) || 0;
+
+      // Calculate age from date_of_birth
+      let age: number | null = null;
+      if (s.dateOfBirth) {
+        const dob = new Date(s.dateOfBirth);
+        const diffMs = Date.now() - dob.getTime();
+        age = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 365.25));
+      }
+
       return {
         studentId: s.studentId,
         studentEmail: s.studentEmail,
+        fullName: `${s.firstName} ${s.lastName}`,
+        photoUrl: s.photoUrl,
+        country: s.country,
+        state: s.state,
+        age,
+        gender: s.gender,
+        categoryId: s.categoryId,
+        specialtyId: s.specialtyId,
+        enrollmentDate: s.enrollmentDate,
         totalItems,
         completedItems: completed,
         progressPercentage: (completed / totalItems) * 100,
