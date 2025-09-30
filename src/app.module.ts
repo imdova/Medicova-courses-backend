@@ -50,6 +50,7 @@ import { RolePermission } from './user/entities/roles-permission.entity';
 import { MailerModule } from '@nestjs-modules/mailer';
 import { join } from 'path';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
+import { CourseRating } from './course/entities/course-rating.entity';
 
 @Module({
   imports: [
@@ -93,7 +94,8 @@ import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handleba
         Payment,
         Role,
         Permission,
-        RolePermission
+        RolePermission,
+        CourseRating
       ],
       synchronize: true,
       extra: {

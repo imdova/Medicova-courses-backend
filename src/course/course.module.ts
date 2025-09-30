@@ -18,6 +18,7 @@ import { CourseSectionItem } from './course-section/entities/course-section-item
 import { CourseCategory } from 'src/course/course-category/entities/course-category.entity';
 import { CourseCategoryModule } from './course-category/course-category.module';
 import { PaymentModule } from 'src/payment/payment.module';
+import { CourseRating } from './entities/course-rating.entity';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { PaymentModule } from 'src/payment/payment.module';
       CourseStudent,
       CourseSectionItem,
       CourseCategory,
+      CourseRating
     ]),
     CoursePricingModule,
     CourseSectionModule,
@@ -40,4 +42,4 @@ import { PaymentModule } from 'src/payment/payment.module';
   providers: [CourseService, RolesGuard, JwtService, StudentCourseService],
   exports: [CourseService], // export if used elsewhere
 })
-export class CourseModule {}
+export class CourseModule { }

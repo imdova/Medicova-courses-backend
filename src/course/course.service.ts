@@ -22,6 +22,8 @@ import { CourseSectionItem } from './course-section/entities/course-section-item
 import { CourseProgress } from './course-progress/entities/course-progress.entity';
 import { CourseStudent } from './entities/course-student.entity';
 import { CourseCategory } from 'src/course/course-category/entities/course-category.entity';
+import { CourseRating } from './entities/course-rating.entity';
+import { RateCourseDto } from './dto/rate-course.dto';
 
 export const COURSE_PAGINATION_CONFIG: QueryConfig<Course> = {
   sortableColumns: ['created_at', 'name', 'category', 'status'],
@@ -52,6 +54,8 @@ export class CourseService {
     private courseSectionItemRepo: Repository<CourseSectionItem>,
     @InjectRepository(CourseCategory)
     private courseCategoryRepository: Repository<CourseCategory>,
+    @InjectRepository(CourseRating)
+    private courseRatingRepository: Repository<CourseRating>,
   ) { }
 
   // All methods are checked for performance
@@ -375,6 +379,41 @@ export class CourseService {
     }
 
     return { category, subcategory };
+  }
+
+  async rateCourse(courseId: string, userId: string, dto: RateCourseDto) {
+    const course = await this.courseRepository.findOne({ where: { id: courseId } });
+    if (!course) throw new NotFoundException('Course not found');
+
+    // Upsert rating (insert if new, update if exists)
+    await this.courseRatingRepository.upsert(
+      {
+        course: { id: courseId },
+        user: { id: userId },
+        rating: dto.rating,
+        review: dto.review,
+      },
+      ['course', 'user'],
+    );
+
+    // Recalculate aggregate
+    await this.updateCourseAggregates(courseId);
+
+    return { message: 'Rating submitted successfully' };
+  }
+
+  private async updateCourseAggregates(courseId: string) {
+    const { avg, count } = await this.courseRatingRepository
+      .createQueryBuilder('r')
+      .select('AVG(r.rating)', 'avg')
+      .addSelect('COUNT(r.id)', 'count')
+      .where('r.course_id = :courseId', { courseId })
+      .getRawOne();
+
+    await this.courseRepository.update(courseId, {
+      averageRating: Number(avg) || 0,
+      ratingCount: Number(count) || 0,
+    });
   }
 
   private checkOwnership(
