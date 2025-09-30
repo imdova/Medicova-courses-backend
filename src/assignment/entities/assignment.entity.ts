@@ -13,12 +13,12 @@ export class Assignment extends BasicEntity {
   @Column({ type: 'varchar', length: 255 })
   name: string;
 
-  @ApiProperty({ description: 'Start date of assignment' })
-  @Column({ type: 'date' })
+  @ApiProperty({ description: 'Start date of assignment', type: String, format: 'date-time' })
+  @Column({ type: 'timestamptz', nullable: true }) // ✅ stores full timestamp with timezone
   start_date: Date;
 
-  @ApiProperty({ description: 'End date of assignment' })
-  @Column({ type: 'date' })
+  @ApiProperty({ description: 'End date of assignment', type: String, format: 'date-time' })
+  @Column({ type: 'timestamptz', nullable: true }) // ✅ same here
   end_date: Date;
 
   @ApiProperty({ description: 'Instructions for the assignment' })
@@ -35,6 +35,20 @@ export class Assignment extends BasicEntity {
   })
   @Column({ type: 'varchar', nullable: true })
   attachment_url?: string;
+
+  @ApiProperty({
+    description: 'Total points available for this assignment',
+    example: 100,
+  })
+  @Column({ type: 'int', default: 0 })
+  totalPoints: number;
+
+  @ApiProperty({
+    description: 'Number of questions in the assignment',
+    example: 10,
+  })
+  @Column({ type: 'int', default: 0 })
+  numberOfQuestions: number;
 
   @ApiProperty({
     description: 'User ID of the teacher/admin who created the assignment',

@@ -22,6 +22,9 @@ import { CourseSectionItem } from './course-section/entities/course-section-item
 import { CourseProgress } from './course-progress/entities/course-progress.entity';
 import { CourseStudent } from './entities/course-student.entity';
 import { CourseCategory } from 'src/course/course-category/entities/course-category.entity';
+import { CourseRating } from './entities/course-rating.entity';
+import { RateCourseDto } from './dto/rate-course.dto';
+import { User } from 'src/user/entities/user.entity';
 
 export const COURSE_PAGINATION_CONFIG: QueryConfig<Course> = {
   sortableColumns: ['created_at', 'name', 'category', 'status'],
@@ -52,6 +55,8 @@ export class CourseService {
     private courseSectionItemRepo: Repository<CourseSectionItem>,
     @InjectRepository(CourseCategory)
     private courseCategoryRepository: Repository<CourseCategory>,
+    @InjectRepository(CourseRating)
+    private courseRatingRepository: Repository<CourseRating>,
   ) { }
 
   // All methods are checked for performance
@@ -128,20 +133,28 @@ export class CourseService {
     const qb = this.courseRepository.createQueryBuilder('course');
     qb.leftJoinAndSelect('course.category', 'category')
       .leftJoinAndSelect('course.subCategory', 'subCategory')
-      .loadRelationCountAndMap('course.studentCount', 'course.enrollments') // ✅ count enrollments
-      .andWhere('course.deleted_at IS NULL'); // filter out soft-deleted
+      .leftJoinAndSelect('course.instructor', 'instructor')
+      .leftJoinAndSelect('instructor.profile', 'instructorProfile')
+      .loadRelationCountAndMap('course.studentCount', 'course.enrollments')
+      .andWhere('course.deleted_at IS NULL');
 
-    // 🔑 Role-based restrictions
-    if (role === 'admin') {
-      // no extra filter → see all courses
-    } else if (role === 'academy_admin') {
+    if (role === 'academy_admin') {
       qb.andWhere('course.academy_id = :academyId', { academyId });
-    } else {
-      // INSTRUCTOR, ACADEMY_USER, etc.
+    } else if (role !== 'admin') {
       qb.andWhere('course.created_by = :userId', { userId });
     }
 
-    return paginate(query, qb, COURSE_PAGINATION_CONFIG);
+    const result = await paginate(query, qb, COURSE_PAGINATION_CONFIG);
+
+    result.data = result.data.map(
+      (course) =>
+      ({
+        ...course,
+        instructor: this.mapInstructor(course),
+      } as unknown as Course),
+    );
+
+    return result;
   }
 
   async findOne(
@@ -150,26 +163,47 @@ export class CourseService {
     academyId: string,
     role: string,
   ): Promise<Course> {
-    const course = await this.courseRepository.findOne({
-      where: { id, deleted_at: null },
-      relations: ['pricings', 'category', 'subCategory', 'academy'],
-    });
+    const course = await this.courseRepository
+      .createQueryBuilder('course')
+      .leftJoinAndSelect('course.pricings', 'pricing')
+      .leftJoinAndSelect('course.category', 'category')
+      .leftJoinAndSelect('course.subCategory', 'subCategory')
+      .leftJoinAndSelect('course.academy', 'academy')
+      .leftJoinAndSelect('course.instructor', 'instructor')
+      .leftJoinAndSelect('instructor.profile', 'instructorProfile')
+      .where('course.id = :id', { id })
+      .andWhere('course.deleted_at IS NULL')
+      .getOne();
+
     if (!course) throw new NotFoundException('Course not found');
 
     this.checkOwnership(course, userId, academyId, role);
 
-    return course;
+    return {
+      ...course,
+      instructor: this.mapInstructor(course),
+    } as unknown as Course;
   }
 
   async findOneBySlug(slug: string): Promise<Course> {
-    const course = await this.courseRepository.findOne({
-      where: { slug, deleted_at: null },
-      relations: ['pricings', 'category', 'subCategory', 'academy'],
-    });
+    const course = await this.courseRepository
+      .createQueryBuilder('course')
+      .leftJoinAndSelect('course.pricings', 'pricing')
+      .leftJoinAndSelect('course.category', 'category')
+      .leftJoinAndSelect('course.subCategory', 'subCategory')
+      .leftJoinAndSelect('course.academy', 'academy')
+      .leftJoinAndSelect('course.instructor', 'instructor')
+      .leftJoinAndSelect('instructor.profile', 'instructorProfile')
+      .where('course.slug = :slug', { slug })
+      .andWhere('course.deleted_at IS NULL')
+      .getOne();
 
     if (!course) throw new NotFoundException('Course not found');
 
-    return course;
+    return {
+      ...course,
+      instructor: this.mapInstructor(course),
+    } as unknown as Course;
   }
 
   async update(
@@ -377,6 +411,41 @@ export class CourseService {
     return { category, subcategory };
   }
 
+  async rateCourse(courseId: string, userId: string, dto: RateCourseDto) {
+    const course = await this.courseRepository.findOne({ where: { id: courseId } });
+    if (!course) throw new NotFoundException('Course not found');
+
+    // Upsert rating (insert if new, update if exists)
+    await this.courseRatingRepository.upsert(
+      {
+        course: { id: courseId },
+        user: { id: userId },
+        rating: dto.rating,
+        review: dto.review,
+      },
+      ['course', 'user'],
+    );
+
+    // Recalculate aggregate
+    await this.updateCourseAggregates(courseId);
+
+    return { message: 'Rating submitted successfully' };
+  }
+
+  private async updateCourseAggregates(courseId: string) {
+    const { avg, count } = await this.courseRatingRepository
+      .createQueryBuilder('r')
+      .select('AVG(r.rating)', 'avg')
+      .addSelect('COUNT(r.id)', 'count')
+      .where('r.course_id = :courseId', { courseId })
+      .getRawOne();
+
+    await this.courseRepository.update(courseId, {
+      averageRating: Number(avg) || 0,
+      ratingCount: Number(count) || 0,
+    });
+  }
+
   private checkOwnership(
     course: Course,
     userId: string,
@@ -398,5 +467,18 @@ export class CourseService {
         );
       }
     }
+  }
+
+  private mapInstructor(rawCourse: Course & { instructor?: User }) {
+    const instructor = rawCourse['instructor'];
+    if (!instructor) return null;
+
+    const profile = instructor.profile;
+    return {
+      id: instructor.id,
+      fullName: profile ? `${profile.firstName} ${profile.lastName}` : null,
+      userName: profile?.userName,
+      photoUrl: profile?.photoUrl,
+    };
   }
 }

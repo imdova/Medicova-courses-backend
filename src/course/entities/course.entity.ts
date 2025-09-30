@@ -7,6 +7,8 @@ import { CourseSection } from '../course-section/entities/course-section.entity'
 import { CourseStudent } from './course-student.entity';
 import { CourseCategory } from 'src/course/course-category/entities/course-category.entity';
 import { Academy } from 'src/academy/entities/academy.entity';
+import { CourseRating } from './course-rating.entity';
+import { User } from 'src/user/entities/user.entity';
 
 export enum CourseType {
   RECORDED = 'recorded',
@@ -41,6 +43,10 @@ export enum LectureFrequencyCount {
 
 @Entity('courses')
 export class Course extends BasicEntity {
+  @ManyToOne(() => User, { eager: false })
+  @JoinColumn({ name: 'created_by' })
+  instructor: User;
+
   @ApiProperty({
     description: 'User ID of the teacher/admin who created the course',
     format: 'uuid',
@@ -248,4 +254,21 @@ export class Course extends BasicEntity {
   @ApiProperty({ description: 'Slug for SEO-friendly URLs' })
   @Column({ length: 255, unique: true })
   slug: string;
+
+  @ApiPropertyOptional({
+    description: 'Average rating of the course',
+    example: 4.5,
+  })
+  @Column({ type: 'float', default: 0, name: 'average_rating' })
+  averageRating: number;
+
+  @ApiPropertyOptional({
+    description: 'Total number of ratings',
+    example: 123,
+  })
+  @Column({ type: 'int', default: 0, name: 'rating_count' })
+  ratingCount: number;
+
+  @OneToMany(() => CourseRating, (rating) => rating.course)
+  ratings: CourseRating[];
 }
