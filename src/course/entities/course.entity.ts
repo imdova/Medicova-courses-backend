@@ -8,6 +8,7 @@ import { CourseStudent } from './course-student.entity';
 import { CourseCategory } from 'src/course/course-category/entities/course-category.entity';
 import { Academy } from 'src/academy/entities/academy.entity';
 import { CourseRating } from './course-rating.entity';
+import { User } from 'src/user/entities/user.entity';
 
 export enum CourseType {
   RECORDED = 'recorded',
@@ -42,6 +43,10 @@ export enum LectureFrequencyCount {
 
 @Entity('courses')
 export class Course extends BasicEntity {
+  @ManyToOne(() => User, { eager: false })
+  @JoinColumn({ name: 'created_by' })
+  instructor: User;
+
   @ApiProperty({
     description: 'User ID of the teacher/admin who created the course',
     format: 'uuid',
