@@ -11,6 +11,7 @@ import { QueryConfig } from '../common/utils/query-options';
 import { Profile } from 'src/profile/entities/profile.entity';
 import { CurrencyCode } from './course-pricing/entities/course-pricing.entity';
 import { CourseStudent } from './entities/course-student.entity';
+import { User } from 'src/user/entities/user.entity';
 
 export const COURSE_PAGINATION_CONFIG: QueryConfig<Course> = {
   sortableColumns: ['created_at', 'name', 'category', 'status'],
@@ -33,7 +34,7 @@ export class StudentCourseService {
     private readonly profileRepo: Repository<Profile>,
     @InjectRepository(CourseStudent)
     private readonly courseStudentRepository: Repository<CourseStudent>,
-  ) {}
+  ) { }
 
   private async getCurrencyForUser(
     userId: string,
@@ -62,18 +63,26 @@ export class StudentCourseService {
     const qb = this.courseRepo
       .createQueryBuilder('course')
       .leftJoinAndSelect('course.pricings', 'pricing')
+      .leftJoinAndSelect('course.instructor', 'instructor') // ✅ relation works now
+      .leftJoinAndSelect('instructor.profile', 'instructorProfile')
       .andWhere('course.deleted_at IS NULL');
 
     const result = await paginate(query, qb, COURSE_PAGINATION_CONFIG);
 
     // ✅ Filter pricings by user’s allowed currency
     if (currency) {
-      result.data.forEach((course) => {
+      result.data.forEach((course: any) => {
         course.pricings = course.pricings.filter(
           (p) => p.currencyCode === currency,
         );
       });
     }
+
+    // ✅ Map instructor info (compact format)
+    result.data = result.data.map((course: any) => ({
+      ...course,
+      instructor: this.mapInstructor(course), // use your helper
+    }));
 
     return result;
   }
@@ -99,6 +108,8 @@ export class StudentCourseService {
         .leftJoinAndSelect('quiz.quizQuestions', 'quizQuestion')
         .leftJoinAndSelect('quizQuestion.question', 'question')
         .leftJoinAndSelect('item.assignment', 'assignment')
+        .leftJoinAndSelect('course.instructor', 'instructor')          // ✅
+        .leftJoinAndSelect('instructor.profile', 'instructorProfile') // ✅
         .where('course.id = :id', { id })
         .andWhere('course.deleted_at IS NULL')
         .orderBy('section.order', 'ASC')
@@ -106,13 +117,12 @@ export class StudentCourseService {
         .addOrderBy('quizQuestion.order', 'ASC')
         .getOne();
 
-      // Randomize quizzes and answers
       if (course) this.randomizeCourseQuizzes(course);
     } else {
       // Not enrolled → only basic info
       course = await this.courseRepo.findOne({
         where: { id, deleted_at: null },
-        relations: ['pricings'],
+        relations: ['pricings', 'instructor', 'instructor.profile'], // ✅
       });
     }
 
@@ -125,7 +135,11 @@ export class StudentCourseService {
       );
     }
 
-    return course;
+    // Map instructor to compact form
+    return {
+      ...course,
+      instructor: this.mapInstructor(course),
+    } as unknown as Course;
   }
 
   async enroll(courseId: string, userId: string): Promise<CourseStudent> {
@@ -155,22 +169,30 @@ export class StudentCourseService {
 
     const qb = this.courseRepo
       .createQueryBuilder('course')
-      .innerJoin('course.enrollments', 'enrollment') // <-- correct relation
+      .innerJoin('course.enrollments', 'enrollment')
       .innerJoin('enrollment.student', 'student', 'student.id = :userId', {
         userId,
       })
       .leftJoinAndSelect('course.pricings', 'pricing')
+      .leftJoinAndSelect('course.instructor', 'instructor')          // ✅
+      .leftJoinAndSelect('instructor.profile', 'instructorProfile') // ✅
       .andWhere('course.deleted_at IS NULL');
 
     const result = await paginate(query, qb, COURSE_PAGINATION_CONFIG);
 
     if (currency) {
-      result.data.forEach((course) => {
+      result.data.forEach((course: any) => {
         course.pricings = course.pricings.filter(
           (p) => p.currencyCode === currency,
         );
       });
     }
+
+    // Map instructor to compact form
+    result.data = result.data.map((course: any) => ({
+      ...course,
+      instructor: this.mapInstructor(course),
+    }));
 
     return result;
   }
@@ -221,5 +243,18 @@ export class StudentCourseService {
       [array[i], array[j]] = [array[j], array[i]];
     }
     return array;
+  }
+
+  private mapInstructor(rawCourse: Course & { instructor?: User }) {
+    const instructor = rawCourse['instructor'];
+    if (!instructor) return null;
+
+    const profile = instructor.profile;
+    return {
+      id: instructor.id,
+      fullName: profile ? `${profile.firstName} ${profile.lastName}` : null,
+      userName: profile?.userName,
+      photoUrl: profile?.photoUrl,
+    };
   }
 }
