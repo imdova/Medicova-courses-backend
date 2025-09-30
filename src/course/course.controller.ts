@@ -27,6 +27,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { PermissionsGuard } from '../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 import { UpdateCourseDto } from './dto/update-course.dto';
+import { RateCourseDto } from './dto/rate-course.dto';
 
 @ApiTags('Courses')
 @Controller('courses')
@@ -57,6 +58,21 @@ export class CourseController {
       );
     }
     return this.courseService.create(createCourseDto, userId, academyId);
+  }
+
+  @Post(':courseId/rating')
+  @ApiOperation({ summary: 'Add or update a rating and review for a course' })
+  @ApiParam({ name: 'courseId', description: 'UUID of the course' })
+  @ApiBody({ type: RateCourseDto })
+  @ApiResponse({ status: 201, description: 'Rating added/updated successfully' })
+  @ApiResponse({ status: 404, description: 'Course not found' })
+  async rateCourse(
+    @Param('courseId', ParseUUIDPipe) courseId: string,
+    @Body() dto: RateCourseDto,
+    @Req() req,
+  ) {
+    const userId = req.user.sub;
+    return this.courseService.rateCourse(courseId, userId, dto);
   }
 
   @Get()
