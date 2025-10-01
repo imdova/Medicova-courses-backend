@@ -17,6 +17,10 @@ export class ExperienceDto {
   @IsString()
   jobTitle: string;
 
+  @ApiProperty({ example: 'Harvard University' })
+  @IsString()
+  companyOrOrganization: string;
+
   @ApiProperty({ example: 2015 })
   @IsInt()
   @Min(1900)

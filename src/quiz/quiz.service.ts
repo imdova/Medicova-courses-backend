@@ -335,6 +335,7 @@ export class QuizService {
       answers: dto.answers,
       score: percentageScore,
       passed,
+      timeTaken: dto.timeTaken, // ✅ new field
     });
 
     await this.attemptRepo.save(attempt);

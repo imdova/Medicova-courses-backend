@@ -37,7 +37,7 @@ export class CourseProgressService {
 
     @InjectRepository(AssignmentSubmission)
     private readonly submissionRepo: Repository<AssignmentSubmission>,
-  ) {}
+  ) { }
 
   /** ✅ Utility to fetch enrollment or throw */
   private async getEnrollment(courseId: string, studentId: string) {
@@ -163,6 +163,7 @@ export class CourseProgressService {
       answers: dto.answers,
       score: percentage,
       passed,
+      timeTaken: dto.timeTaken,  // ✅ new field
     });
     return this.attemptRepo.save(attempt);
   }

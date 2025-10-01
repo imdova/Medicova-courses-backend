@@ -243,18 +243,35 @@ export class CourseSectionService {
       const itemsToDelete: string[] = [];
       const lecturesToCreate: Lecture[] = [];
       const lecturesToUpdate: Lecture[] = [];
-      const quizzesToUpdate: Quiz[] = [];
-      const assignmentsCache: Record<string, Assignment> = {};
+
+      // Load existing sections with all relations (single query)
+      const existingSections = await manager.find(CourseSection, {
+        where: { course: { id: courseId } },
+        relations: ['items', 'items.lecture', 'items.quiz', 'items.assignment'],
+      });
+
+      // Build lookup maps for O(1) access
+      const existingSectionMap = new Map(
+        existingSections.map(s => [s.id, s])
+      );
+      const existingItemsBySectionMap = new Map(
+        existingSections.map(s => [s.id, s.items || []])
+      );
+
+      const processedSectionIds = new Set<string>();
 
       // Step 1: Process sections
       for (const sectionDto of sectionsDto) {
         if (sectionDto.id) {
-          const existingSection = await manager.findOne(CourseSection, {
-            where: { id: sectionDto.id, course: { id: courseId } },
-          });
-          if (!existingSection) throw new NotFoundException(`Section with ID ${sectionDto.id} not found`);
-          if (sectionDto.section) Object.assign(existingSection, sectionDto.section);
+          const existingSection = existingSectionMap.get(sectionDto.id);
+          if (!existingSection) {
+            throw new NotFoundException(`Section with ID ${sectionDto.id} not found`);
+          }
+          if (sectionDto.section) {
+            Object.assign(existingSection, sectionDto.section);
+          }
           sectionsToUpdate.push(existingSection);
+          processedSectionIds.add(sectionDto.id);
         } else {
           const newSection = manager.create(CourseSection, {
             ...sectionDto.section,
@@ -264,32 +281,49 @@ export class CourseSectionService {
         }
       }
 
-      // Step 2: Save sections
-      const createdSections = sectionsToCreate.length ? await manager.save(sectionsToCreate) : [];
-      const updatedSections = sectionsToUpdate.length ? await manager.save(sectionsToUpdate) : [];
+      // Step 2: Save sections in batch
+      const [createdSections, updatedSections] = await Promise.all([
+        sectionsToCreate.length ? manager.save(sectionsToCreate) : Promise.resolve([]),
+        sectionsToUpdate.length ? manager.save(sectionsToUpdate) : Promise.resolve([]),
+      ]);
 
-      // Step 3: Map sections for easy access
+      // Step 3: Map sections for item processing
       const sectionMap = new Map<string, CourseSection>();
-      let newIndex = 0, updatedIndex = 0;
+      let createdIndex = 0;
+      let updatedIndex = 0;
+
       for (const sectionDto of sectionsDto) {
-        if (sectionDto.id) sectionMap.set(sectionDto.id, updatedSections[updatedIndex++]);
-        else sectionMap.set(`new-${newIndex++}`, createdSections[newIndex - 1]);
+        if (sectionDto.id) {
+          sectionMap.set(sectionDto.id, updatedSections[updatedIndex++]);
+        } else {
+          sectionMap.set(`temp-${createdIndex}`, createdSections[createdIndex]);
+          createdIndex++;
+        }
       }
 
-      // Step 4: Process items
-      newIndex = 0;
-      for (const sectionDto of sectionsDto) {
-        const sectionKey = sectionDto.id || `new-${newIndex}`;
-        const section = sectionMap.get(sectionKey);
-        if (!section) continue;
-        if (!sectionDto.id) newIndex++;
+      // Step 4: Process items (no additional queries)
+      createdIndex = 0;
+      const lectureToItemMap = new Map<Lecture, CourseSectionItem>();
 
+      for (const sectionDto of sectionsDto) {
+        const sectionKey = sectionDto.id || `temp-${createdIndex}`;
+        const section = sectionMap.get(sectionKey);
+
+        if (!section) {
+          console.error(`Section not found for key: ${sectionKey}`);
+          continue;
+        }
+
+        if (!sectionDto.id) createdIndex++;
+
+        // Use cached items instead of querying
         const existingItems = sectionDto.id
-          ? await manager.find(CourseSectionItem, {
-            where: { section: { id: sectionDto.id } },
-            relations: ['lecture', 'quiz', 'assignment'],
-          })
+          ? existingItemsBySectionMap.get(sectionDto.id) || []
           : [];
+
+        const existingItemMap = new Map(
+          existingItems.map(item => [item.id, item])
+        );
 
         const processedItemIds = new Set<string>();
         const itemsToProcess = sectionDto.items || [];
@@ -297,102 +331,136 @@ export class CourseSectionService {
         for (const itemDto of itemsToProcess) {
           if (itemDto.id) {
             // Update existing item
-            const existingItem = existingItems.find(i => i.id === itemDto.id);
-            if (!existingItem) throw new NotFoundException(`Item with ID ${itemDto.id} not found in section ${section.id}`);
-            processedItemIds.add(itemDto.id);
+            const existingItem = existingItemMap.get(itemDto.id);
+            if (!existingItem) {
+              throw new NotFoundException(`Item with ID ${itemDto.id} not found`);
+            }
 
-            if (itemDto.curriculumType) existingItem.curriculumType = itemDto.curriculumType;
-            if (itemDto.order !== undefined) existingItem.order = itemDto.order;
+            Object.assign(existingItem, {
+              order: itemDto.order,
+              curriculumType: itemDto.curriculumType,
+            });
 
-            // Lecture update
-            if (existingItem.curriculumType === 'lecture' && itemDto.lecture) {
+            // Handle lecture updates
+            if (itemDto.lecture) {
               if (existingItem.lecture) {
                 Object.assign(existingItem.lecture, itemDto.lecture);
                 lecturesToUpdate.push(existingItem.lecture);
               } else {
-                const lecture = manager.create(Lecture, itemDto.lecture);
-                lecturesToCreate.push(lecture);
-                existingItem.lecture = lecture;
+                const newLecture = manager.create(Lecture, itemDto.lecture);
+                lecturesToCreate.push(newLecture);
+                existingItem.lecture = newLecture;
               }
             }
 
-            // Quiz update
-            if (existingItem.curriculumType === 'quiz' && itemDto.quizId) {
-              const quiz = await manager.findOne(Quiz, { where: { id: itemDto.quizId, deleted_at: null } });
-              if (!quiz) throw new NotFoundException(`Quiz with ID ${itemDto.quizId} not found`);
-              if (quiz.standalone) { quiz.standalone = false; quizzesToUpdate.push(quiz); }
-              existingItem.quiz = quiz;
+            // Handle quiz/assignment updates
+            if (itemDto.quizId) {
+              existingItem.quiz = { id: itemDto.quizId } as Quiz;
             }
-
-            // Assignment update
-            if (existingItem.curriculumType === 'assignment' && itemDto.assignmentId) {
-              let assignment = assignmentsCache[itemDto.assignmentId];
-              if (!assignment) {
-                assignment = await manager.findOne(Assignment, { where: { id: itemDto.assignmentId, deleted_at: null } });
-                if (!assignment) throw new NotFoundException(`Assignment with ID ${itemDto.assignmentId} not found`);
-                assignmentsCache[itemDto.assignmentId] = assignment;
-              }
-              existingItem.assignment = assignment;
+            if (itemDto.assignmentId) {
+              existingItem.assignment = { id: itemDto.assignmentId } as Assignment;
             }
 
             itemsToUpdate.push(existingItem);
+            processedItemIds.add(itemDto.id);
           } else {
             // Create new item
             const newItem = manager.create(CourseSectionItem, {
-              curriculumType: itemDto.curriculumType,
               order: itemDto.order,
-              section,
+              curriculumType: itemDto.curriculumType,
+              section: section,
             });
 
-            if (itemDto.curriculumType === 'lecture' && itemDto.lecture) {
-              const lecture = manager.create(Lecture, itemDto.lecture);
-              lecturesToCreate.push(lecture);
-              newItem.lecture = lecture;
+            // Handle new lecture
+            if (itemDto.lecture) {
+              const newLecture = manager.create(Lecture, itemDto.lecture);
+              lecturesToCreate.push(newLecture);
+              newItem.lecture = newLecture;
+              lectureToItemMap.set(newLecture, newItem);
             }
 
-            if (itemDto.curriculumType === 'quiz' && itemDto.quizId) {
-              const quiz = await manager.findOne(Quiz, { where: { id: itemDto.quizId, deleted_at: null } });
-              if (!quiz) throw new NotFoundException(`Quiz with ID ${itemDto.quizId} not found`);
-              if (quiz.standalone) { quiz.standalone = false; quizzesToUpdate.push(quiz); }
-              newItem.quiz = quiz;
+            // Handle quiz/assignment
+            if (itemDto.quizId) {
+              newItem.quiz = { id: itemDto.quizId } as Quiz;
             }
-
-            if (itemDto.curriculumType === 'assignment' && itemDto.assignmentId) {
-              let assignment = assignmentsCache[itemDto.assignmentId];
-              if (!assignment) {
-                assignment = await manager.findOne(Assignment, { where: { id: itemDto.assignmentId, deleted_at: null } });
-                if (!assignment) throw new NotFoundException(`Assignment with ID ${itemDto.assignmentId} not found`);
-                assignmentsCache[itemDto.assignmentId] = assignment;
-              }
-              newItem.assignment = assignment;
+            if (itemDto.assignmentId) {
+              newItem.assignment = { id: itemDto.assignmentId } as Assignment;
             }
 
             itemsToCreate.push(newItem);
           }
         }
 
-        // Items to delete
+        // Mark items for deletion
         for (const existingItem of existingItems) {
-          if (!processedItemIds.has(existingItem.id)) itemsToDelete.push(existingItem.id);
+          if (!processedItemIds.has(existingItem.id)) {
+            itemsToDelete.push(existingItem.id);
+          }
         }
       }
 
-      // Step 5: Save all related entities in proper order
-      const savedLectures = lecturesToCreate.length ? await manager.save(lecturesToCreate) : [];
-      for (let i = 0; i < itemsToCreate.length; i++) {
-        if (itemsToCreate[i].lecture && !itemsToCreate[i].lecture.id) {
-          itemsToCreate[i].lecture = savedLectures.shift()!;
-        }
+      // Step 5: Delete sections not in request
+      const sectionIdsToDelete = existingSections
+        .filter(s => !processedSectionIds.has(s.id))
+        .map(s => s.id);
+
+      // Step 6: Save all entities in optimal order
+      const operations: Promise<any>[] = [];
+
+      // Delete sections first (cascade will handle items)
+      if (sectionIdsToDelete.length) {
+        operations.push(manager.delete(CourseSection, sectionIdsToDelete));
       }
 
-      if (lecturesToUpdate.length) await manager.save(lecturesToUpdate);
-      if (quizzesToUpdate.length) await manager.save(quizzesToUpdate);
-      if (itemsToUpdate.length) await manager.save(itemsToUpdate);
-      if (itemsToCreate.length) await manager.save(itemsToCreate);
-      if (itemsToDelete.length) await manager.delete(CourseSectionItem, itemsToDelete);
+      // Save new lectures
+      if (lecturesToCreate.length) {
+        operations.push(
+          manager.save(lecturesToCreate).then(savedLectures => {
+            // Link saved lectures to items using map
+            savedLectures.forEach(savedLecture => {
+              const item = lectureToItemMap.get(
+                Array.from(lectureToItemMap.keys()).find(
+                  l => l.title === savedLecture.title &&
+                    l.videoUrl === savedLecture.videoUrl
+                )!
+              );
+              if (item) {
+                item.lecture = savedLecture;
+              }
+            });
+          })
+        );
+      }
 
-      // Step 6: Return updated sections with full relations
-      const allSectionIds = [...createdSections, ...updatedSections].map(s => s.id);
+      // Update existing lectures
+      if (lecturesToUpdate.length) {
+        operations.push(manager.save(lecturesToUpdate));
+      }
+
+      // Wait for lectures to be saved before saving items
+      await Promise.all(operations);
+
+      // Save items in batch
+      const itemOperations: Promise<any>[] = [];
+
+      if (itemsToUpdate.length) {
+        itemOperations.push(manager.save(itemsToUpdate));
+      }
+      if (itemsToCreate.length) {
+        itemOperations.push(manager.save(itemsToCreate));
+      }
+      if (itemsToDelete.length) {
+        itemOperations.push(manager.delete(CourseSectionItem, itemsToDelete));
+      }
+
+      await Promise.all(itemOperations);
+
+      // Step 7: Return final state
+      const allSectionIds = [
+        ...createdSections.map(s => s.id),
+        ...updatedSections.map(s => s.id),
+      ];
+
       return manager.find(CourseSection, {
         where: { id: In(allSectionIds) },
         relations: ['items', 'items.lecture', 'items.quiz', 'items.assignment'],
