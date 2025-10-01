@@ -47,6 +47,13 @@ export class QuizAttempt extends BasicEntity {
   score: number;
 
   @ApiProperty({
+    description: 'Time taken by the student to solve the quiz (in minutes)',
+    example: 12.5,
+  })
+  @Column({ type: 'float', nullable: true })
+  timeTaken?: number;
+
+  @ApiProperty({
     description: 'Whether the student passed this attempt',
     example: true,
   })

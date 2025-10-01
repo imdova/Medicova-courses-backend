@@ -7,6 +7,7 @@ import {
   IsUUID,
   ValidateNested,
   IsEnum,
+  IsNumber,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CurriculumType } from 'src/course/course-section/entities/course-section-item.entity';
@@ -63,6 +64,14 @@ export class SubmitCourseItemDto {
   @ValidateNested({ each: true })
   @Type(() => QuizAnswerDto)
   answers?: QuizAnswerDto[];
+
+  @ApiPropertyOptional({
+    description: 'Time taken by the student to complete the quiz (in minutes)',
+    example: 12.5,
+  })
+  @IsOptional()
+  @IsNumber()
+  timeTaken?: number;
 
   @ApiPropertyOptional({
     description: 'Assignment submission details (for ASSIGNMENT type only)',
