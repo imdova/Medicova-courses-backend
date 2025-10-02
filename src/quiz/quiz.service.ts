@@ -564,4 +564,27 @@ export class QuizService {
       }
     }
   }
+
+  // quiz-attempt.service.ts
+  async getCountryWiseStatsForQuiz(quizId: string) {
+    return this.attemptRepo
+      .createQueryBuilder('attempt')
+      .leftJoin('attempt.user', 'user') // direct user
+      .leftJoin('user.profile', 'userProfile')
+      .leftJoin('attempt.courseStudent', 'courseStudent') // via course enrollment
+      .leftJoin('courseStudent.student', 'student')
+      .leftJoin('student.profile', 'studentProfile')
+      .select(
+        `COALESCE(userProfile.country ->> 'name', studentProfile.country ->> 'name')`,
+        'country',
+      )
+      .addSelect('AVG(attempt.score)', 'averageScore')
+      .addSelect('AVG(attempt.timeTaken)', 'averageTime')
+      .where('attempt.quiz_id = :quizId', { quizId })
+      .groupBy(
+        `COALESCE(userProfile.country ->> 'name', studentProfile.country ->> 'name')`,
+      )
+      .getRawMany();
+  }
+
 }
