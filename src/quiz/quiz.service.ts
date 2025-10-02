@@ -565,7 +565,6 @@ export class QuizService {
     }
   }
 
-  // quiz-attempt.service.ts
   async getCountryWiseStatsForQuiz(quizId: string) {
     return this.attemptRepo
       .createQueryBuilder('attempt')
@@ -587,4 +586,34 @@ export class QuizService {
       .getRawMany();
   }
 
+  async getStudentStatsForQuiz(quizId: string) {
+    return this.attemptRepo
+      .createQueryBuilder('attempt')
+      .leftJoin('attempt.user', 'user')
+      .leftJoin('user.profile', 'userProfile')
+      .leftJoin('attempt.courseStudent', 'courseStudent')
+      .leftJoin('courseStudent.student', 'student')
+      .leftJoin('student.profile', 'studentProfile')
+      .select(
+        `COALESCE(userProfile.firstName || ' ' || userProfile.lastName, 
+             studentProfile.firstName || ' ' || studentProfile.lastName)`,
+        'student_name',
+      )
+      .addSelect(`COALESCE(user.email, student.email)`, 'email')
+      .addSelect(`attempt."created_at"`, 'date')
+      .addSelect(`attempt."timeTaken"`, 'time_taken')
+      .addSelect(`attempt."score"`, 'score')
+      .addSelect(
+        `COUNT(attempt.id) OVER (PARTITION BY COALESCE(user.id, student.id))`,
+        'plays',
+      )
+      .addSelect(
+        `CASE WHEN attempt.passed = true THEN 'passed' ELSE 'failed' END`,
+        'status',
+      )
+      .where('attempt.quiz_id = :quizId', { quizId })
+      .orderBy('student_name')   // match the alias here
+      .addOrderBy('attempt."created_at"', 'ASC')
+      .getRawMany();
+  }
 }

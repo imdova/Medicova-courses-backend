@@ -96,6 +96,12 @@ export class QuizController {
     return this.quizService.getCountryWiseStatsForQuiz(quizId);
   }
 
+  @Get(':quizId/stats/students')
+  async getQuizStatsByStudent(@Param('quizId') quizId: string) {
+    return this.quizService.getStudentStatsForQuiz(quizId);
+  }
+
+
   @Get()
   @RequirePermissions('quiz:list')
   @ApiQuery({
