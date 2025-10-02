@@ -586,8 +586,31 @@ export class QuizService {
       .getRawMany();
   }
 
-  async getStudentStatsForQuiz(quizId: string) {
-    return this.attemptRepo
+  async getStudentStatsForQuiz(
+    quizId: string,
+    {
+      page = 1,
+      limit = 10,
+      status,
+      minScore,
+      maxScore,
+      startDate,
+      endDate,
+      minTime,
+      maxTime,
+    }: {
+      page?: number;
+      limit?: number;
+      status?: 'passed' | 'failed';
+      minScore?: number;
+      maxScore?: number;
+      startDate?: string; // ISO string or yyyy-mm-dd
+      endDate?: string;
+      minTime?: number;
+      maxTime?: number;
+    }
+  ) {
+    const qb = this.attemptRepo
       .createQueryBuilder('attempt')
       .leftJoin('attempt.user', 'user')
       .leftJoin('user.profile', 'userProfile')
@@ -596,7 +619,7 @@ export class QuizService {
       .leftJoin('student.profile', 'studentProfile')
       .select(
         `COALESCE(userProfile.firstName || ' ' || userProfile.lastName, 
-             studentProfile.firstName || ' ' || studentProfile.lastName)`,
+           studentProfile.firstName || ' ' || studentProfile.lastName)`,
         'student_name',
       )
       .addSelect(`COALESCE(user.email, student.email)`, 'email')
@@ -611,9 +634,57 @@ export class QuizService {
         `CASE WHEN attempt.passed = true THEN 'passed' ELSE 'failed' END`,
         'status',
       )
-      .where('attempt.quiz_id = :quizId', { quizId })
-      .orderBy('student_name')   // match the alias here
-      .addOrderBy('attempt."created_at"', 'ASC')
-      .getRawMany();
+      .where('attempt.quiz_id = :quizId', { quizId });
+
+    // ---- Apply filters ----
+    if (status) {
+      qb.andWhere(`CASE WHEN attempt.passed = true THEN 'passed' ELSE 'failed' END = :status`, {
+        status,
+      });
+    }
+
+    if (minScore !== undefined) {
+      qb.andWhere('attempt.score >= :minScore', { minScore });
+    }
+    if (maxScore !== undefined) {
+      qb.andWhere('attempt.score <= :maxScore', { maxScore });
+    }
+
+    if (startDate) {
+      qb.andWhere('attempt."created_at" >= :startDate', { startDate });
+    }
+    if (endDate) {
+      qb.andWhere('attempt."created_at" <= :endDate', { endDate });
+    }
+
+    if (minTime !== undefined) {
+      qb.andWhere('attempt."timeTaken" >= :minTime', { minTime });
+    }
+    if (maxTime !== undefined) {
+      qb.andWhere('attempt."timeTaken" <= :maxTime', { maxTime });
+    }
+
+    // ---- Sorting ----
+    qb.orderBy('student_name')
+      .addOrderBy('attempt."created_at"', 'ASC');
+
+    // ---- Pagination ----
+    const offset = (page - 1) * limit;
+    qb.skip(offset).take(limit);
+
+    const [data, total] = await Promise.all([
+      qb.getRawMany(),
+      qb.getCount(),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        lastPage: Math.ceil(total / limit),
+      },
+    };
   }
+
 }

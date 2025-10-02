@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -97,8 +98,30 @@ export class QuizController {
   }
 
   @Get(':quizId/stats/students')
-  async getQuizStatsByStudent(@Param('quizId') quizId: string) {
-    return this.quizService.getStudentStatsForQuiz(quizId);
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1, description: 'Page number for pagination' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 10, description: 'Number of results per page' })
+  @ApiQuery({ name: 'status', required: false, enum: ['passed', 'failed'], description: 'Filter attempts by status' })
+  @ApiQuery({ name: 'minScore', required: false, type: Number, example: 50, description: 'Minimum score filter' })
+  @ApiQuery({ name: 'maxScore', required: false, type: Number, example: 100, description: 'Maximum score filter' })
+  @ApiQuery({ name: 'startDate', required: false, type: String, example: '2025-01-01', description: 'Filter attempts after this date (YYYY-MM-DD)' })
+  @ApiQuery({ name: 'endDate', required: false, type: String, example: '2025-01-31', description: 'Filter attempts before this date (YYYY-MM-DD)' })
+  @ApiQuery({ name: 'minTime', required: false, type: Number, example: 30, description: 'Minimum time spent (in seconds/minutes depending on your field)' })
+  @ApiQuery({ name: 'maxTime', required: false, type: Number, example: 300, description: 'Maximum time spent (in seconds/minutes depending on your field)' })
+  async getQuizStatsByStudent(
+    @Param('quizId') quizId: string,
+    @Query() query: any,
+  ) {
+    return this.quizService.getStudentStatsForQuiz(quizId, {
+      page: Number(query.page) || 1,
+      limit: Number(query.limit) || 10,
+      status: query.status,
+      minScore: query.minScore ? Number(query.minScore) : undefined,
+      maxScore: query.maxScore ? Number(query.maxScore) : undefined,
+      startDate: query.startDate,
+      endDate: query.endDate,
+      minTime: query.minTime ? Number(query.minTime) : undefined,
+      maxTime: query.maxTime ? Number(query.maxTime) : undefined,
+    });
   }
 
 
