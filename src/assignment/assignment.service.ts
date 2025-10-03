@@ -17,6 +17,7 @@ import {
 import { QueryConfig } from 'src/common/utils/query-options';
 import { FilterOperator, paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
 import { EmailService } from '../common/email.service';
+import { CourseStudent } from 'src/course/entities/course-student.entity';
 
 export const ASSIGNMENT_PAGINATION_CONFIG: QueryConfig<Assignment> = {
   sortableColumns: ['created_at', 'name', 'start_date', 'end_date'],
@@ -39,6 +40,8 @@ export class AssignmentService {
     private readonly assignmentRepo: Repository<Assignment>,
     @InjectRepository(AssignmentSubmission)
     private readonly assignmentSubmissionRepo: Repository<AssignmentSubmission>,
+    @InjectRepository(CourseStudent)
+    private readonly courseStudentRepo: Repository<CourseStudent>,
     @InjectRepository(CourseSectionItem)
     private courseSectionItemRepo: Repository<CourseSectionItem>,
     private readonly emailService: EmailService,
@@ -428,4 +431,67 @@ export class AssignmentService {
     };
   }
 
+  async getAssignmentOverview(assignmentId: string) {
+    const assignment = await this.assignmentRepo.findOne({
+      where: { id: assignmentId },
+      relations: [
+        'submissions',
+        'submissions.courseStudent',
+        'submissions.courseStudent.course',
+        'submissions.courseStudent.student',
+      ],
+    });
+
+    if (!assignment) {
+      throw new NotFoundException(`Assignment with ID ${assignmentId} not found`);
+    }
+
+    // --- Stats from submissions ---
+    // totalSubmissions = total rows
+    // studentsSubmitted = DISTINCT students who submitted (a student may submit multiple times)
+    const stats = await this.assignmentSubmissionRepo
+      .createQueryBuilder('submission')
+      .leftJoin('submission.courseStudent', 'courseStudent')
+      .leftJoin('courseStudent.student', 'student')
+      .select('COUNT(submission.id)', 'totalSubmissions')
+      .addSelect('COUNT(DISTINCT student.id)', 'studentsSubmitted')
+      .addSelect('AVG(submission.score)', 'avgScore')
+      .where('submission.assignment_id = :assignmentId', { assignmentId })
+      .getRawOne();
+
+    const totalSubmissions = Number(stats?.totalSubmissions ?? 0);
+    const studentsSubmitted = Number(stats?.studentsSubmitted ?? 0);
+    const avgScore = stats?.avgScore ? Number(stats.avgScore) : null;
+
+    // --- Get course info from any submission (if exists) ---
+    const firstSubmission = assignment.submissions?.[0];
+    const course = firstSubmission?.courseStudent?.course;
+
+    // --- Calculate submission rate based on enrolled students for the course ---
+    let submissionRate: string | null = null;
+    if (course) {
+      const totalEnrolled = await this.courseStudentRepo.count({
+        where: { course: { id: course.id } },
+      });
+
+      submissionRate =
+        totalEnrolled > 0
+          ? `${((studentsSubmitted / totalEnrolled) * 100).toFixed(2)}%`
+          : '0%';
+    }
+
+    return {
+      id: assignment.id,
+      name: assignment.name,
+      totalPoints: assignment.totalPoints,
+      numberOfQuestions: assignment.numberOfQuestions,
+      startDate: assignment.start_date,
+      dueDate: assignment.end_date,
+      totalSubmissions,           // total submission rows
+      studentsSubmitted,          // distinct students who submitted
+      averageScore: avgScore !== null ? Number(avgScore.toFixed(2)) : null,
+      submissionRate,             // "%", or null if course unknown
+      course: course ? { id: course.id, title: course.name } : null,
+    };
+  }
 }
