@@ -37,6 +37,8 @@ export class AssignmentService {
   constructor(
     @InjectRepository(Assignment)
     private readonly assignmentRepo: Repository<Assignment>,
+    @InjectRepository(AssignmentSubmission)
+    private readonly assignmentSubmissionRepo: Repository<AssignmentSubmission>,
     @InjectRepository(CourseSectionItem)
     private courseSectionItemRepo: Repository<CourseSectionItem>,
     private readonly emailService: EmailService,
@@ -340,4 +342,90 @@ export class AssignmentService {
 
     return { message: `Reminder emails sent to ${students.length} students` };
   }
+
+  async getStudentStatsForAssignment(
+    assignmentId: string,
+    {
+      page = 1,
+      limit = 10,
+      status,
+      minScore,
+      maxScore,
+      startDate,
+      endDate,
+    }: {
+      page?: number;
+      limit?: number;
+      status?: 'submitted' | 'graded';
+      minScore?: number;
+      maxScore?: number;
+      startDate?: string; // ISO string
+      endDate?: string;
+    },
+  ) {
+    const qb = this.assignmentSubmissionRepo
+      .createQueryBuilder('submission')
+      .leftJoin('submission.courseStudent', 'courseStudent')
+      .leftJoin('courseStudent.student', 'student')
+      .leftJoin('student.profile', 'studentProfile')
+      .select(
+        `studentProfile.firstName || ' ' || studentProfile.lastName`,
+        'student_name',
+      )
+      .addSelect('student.email', 'email')
+      .addSelect('submission.created_at', 'date')
+      .addSelect('submission.score', 'score')
+      .addSelect(
+        `CASE 
+        WHEN submission.graded = false THEN 'submitted'
+        ELSE 'graded'
+      END`,
+        'status',
+      )
+      .where('submission.assignment_id = :assignmentId', { assignmentId });
+
+    // ---- Filters ----
+    if (status) {
+      qb.andWhere(
+        `CASE 
+        WHEN submission.graded = false THEN 'submitted'
+        ELSE 'graded'
+      END = :status`,
+        { status },
+      );
+    }
+
+    if (minScore !== undefined) {
+      qb.andWhere('submission.score >= :minScore', { minScore });
+    }
+    if (maxScore !== undefined) {
+      qb.andWhere('submission.score <= :maxScore', { maxScore });
+    }
+
+    if (startDate) {
+      qb.andWhere('submission."created_at" >= :startDate', { startDate });
+    }
+    if (endDate) {
+      qb.andWhere('submission."created_at" <= :endDate', { endDate });
+    }
+
+    // ---- Sorting ----
+    qb.orderBy('student_name', 'ASC').addOrderBy('submission."created_at"', 'ASC');
+
+    // ---- Pagination ----
+    const offset = (page - 1) * limit;
+    qb.skip(offset).take(limit);
+
+    const [data, total] = await Promise.all([qb.getRawMany(), qb.getCount()]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        lastPage: Math.ceil(total / limit),
+      },
+    };
+  }
+
 }

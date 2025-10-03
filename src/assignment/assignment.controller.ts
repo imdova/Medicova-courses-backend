@@ -9,6 +9,7 @@ import {
   UseGuards,
   Req,
   HttpStatus,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -16,6 +17,7 @@ import {
   ApiResponse,
   ApiParam,
   ApiBody,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { AssignmentService } from './assignment.service';
@@ -107,6 +109,71 @@ export class AssignmentController {
       req.user.role,
       req.user.academyId
     );
+  }
+
+  @Get(':assignmentId/stats/students')
+  //@RequirePermissions('assignment:stats:students')
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    example: 1,
+    description: 'Page number for pagination',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    example: 10,
+    description: 'Number of results per page',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['submitted', 'graded'],
+    description: 'Filter submissions by status',
+  })
+  @ApiQuery({
+    name: 'minScore',
+    required: false,
+    type: Number,
+    example: 50,
+    description: 'Minimum score filter',
+  })
+  @ApiQuery({
+    name: 'maxScore',
+    required: false,
+    type: Number,
+    example: 100,
+    description: 'Maximum score filter',
+  })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    type: String,
+    example: '2025-01-01',
+    description: 'Filter submissions after this date (YYYY-MM-DD)',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    type: String,
+    example: '2025-01-31',
+    description: 'Filter submissions before this date (YYYY-MM-DD)',
+  })
+  async getAssignmentStatsByStudent(
+    @Param('assignmentId') assignmentId: string,
+    @Query() query: any,
+  ) {
+    return this.assignmentService.getStudentStatsForAssignment(assignmentId, {
+      page: Number(query.page) || 1,
+      limit: Number(query.limit) || 10,
+      status: query.status,
+      minScore: query.minScore ? Number(query.minScore) : undefined,
+      maxScore: query.maxScore ? Number(query.maxScore) : undefined,
+      startDate: query.startDate,
+      endDate: query.endDate,
+    });
   }
 
   @Patch(':id')
