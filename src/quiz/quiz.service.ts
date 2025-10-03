@@ -54,7 +54,7 @@ export class QuizService {
   ): Promise<Quiz> {
     const quiz = this.quizRepo.create({
       ...dto,
-      created_by: userId,
+      createdBy: userId,
       academy: { id: academyId },
     });
     return this.quizRepo.save(quiz);
@@ -557,11 +557,192 @@ export class QuizService {
       }
     } else {
       // instructor / academy_user
-      if (quiz.created_by !== userId) {
+      if (quiz.createdBy !== userId) {
         throw new ForbiddenException(
           'You are not allowed to access this course',
         );
       }
     }
+  }
+
+  async getCountryWiseStatsForQuiz(quizId: string) {
+    return this.attemptRepo
+      .createQueryBuilder('attempt')
+      .leftJoin('attempt.user', 'user') // direct user
+      .leftJoin('user.profile', 'userProfile')
+      .leftJoin('attempt.courseStudent', 'courseStudent') // via course enrollment
+      .leftJoin('courseStudent.student', 'student')
+      .leftJoin('student.profile', 'studentProfile')
+      .select(
+        `COALESCE(userProfile.country ->> 'name', studentProfile.country ->> 'name')`,
+        'country',
+      )
+      .addSelect('AVG(attempt.score)', 'averageScore')
+      .addSelect('AVG(attempt.timeTaken)', 'averageTime')
+      .where('attempt.quiz_id = :quizId', { quizId })
+      .groupBy(
+        `COALESCE(userProfile.country ->> 'name', studentProfile.country ->> 'name')`,
+      )
+      .getRawMany();
+  }
+
+  async getStudentStatsForQuiz(
+    quizId: string,
+    {
+      page = 1,
+      limit = 10,
+      status,
+      minScore,
+      maxScore,
+      startDate,
+      endDate,
+      minTime,
+      maxTime,
+    }: {
+      page?: number;
+      limit?: number;
+      status?: 'passed' | 'failed';
+      minScore?: number;
+      maxScore?: number;
+      startDate?: string; // ISO string or yyyy-mm-dd
+      endDate?: string;
+      minTime?: number;
+      maxTime?: number;
+    }
+  ) {
+    const qb = this.attemptRepo
+      .createQueryBuilder('attempt')
+      .leftJoin('attempt.user', 'user')
+      .leftJoin('user.profile', 'userProfile')
+      .leftJoin('attempt.courseStudent', 'courseStudent')
+      .leftJoin('courseStudent.student', 'student')
+      .leftJoin('student.profile', 'studentProfile')
+      .select(
+        `COALESCE(userProfile.firstName || ' ' || userProfile.lastName, 
+           studentProfile.firstName || ' ' || studentProfile.lastName)`,
+        'student_name',
+      )
+      .addSelect(`COALESCE(user.email, student.email)`, 'email')
+      .addSelect(`attempt."created_at"`, 'date')
+      .addSelect(`attempt."timeTaken"`, 'time_taken')
+      .addSelect(`attempt."score"`, 'score')
+      .addSelect(
+        `COUNT(attempt.id) OVER (PARTITION BY COALESCE(user.id, student.id))`,
+        'plays',
+      )
+      .addSelect(
+        `CASE WHEN attempt.passed = true THEN 'passed' ELSE 'failed' END`,
+        'status',
+      )
+      .where('attempt.quiz_id = :quizId', { quizId });
+
+    // ---- Apply filters ----
+    if (status) {
+      qb.andWhere(`CASE WHEN attempt.passed = true THEN 'passed' ELSE 'failed' END = :status`, {
+        status,
+      });
+    }
+
+    if (minScore !== undefined) {
+      qb.andWhere('attempt.score >= :minScore', { minScore });
+    }
+    if (maxScore !== undefined) {
+      qb.andWhere('attempt.score <= :maxScore', { maxScore });
+    }
+
+    if (startDate) {
+      qb.andWhere('attempt."created_at" >= :startDate', { startDate });
+    }
+    if (endDate) {
+      qb.andWhere('attempt."created_at" <= :endDate', { endDate });
+    }
+
+    if (minTime !== undefined) {
+      qb.andWhere('attempt."timeTaken" >= :minTime', { minTime });
+    }
+    if (maxTime !== undefined) {
+      qb.andWhere('attempt."timeTaken" <= :maxTime', { maxTime });
+    }
+
+    // ---- Sorting ----
+    qb.orderBy('student_name')
+      .addOrderBy('attempt."created_at"', 'ASC');
+
+    // ---- Pagination ----
+    const offset = (page - 1) * limit;
+    qb.skip(offset).take(limit);
+
+    const [data, total] = await Promise.all([
+      qb.getRawMany(),
+      qb.getCount(),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        lastPage: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async getQuizOverview(quizId: string) {
+    const quiz = await this.quizRepo.findOne({
+      where: { id: quizId },
+      relations: [
+        'quizQuestions',
+        'quizQuestions.question',
+        'instructor',
+        'instructor.profile',
+      ],
+    });
+
+    if (!quiz) {
+      throw new NotFoundException(`Quiz with ID ${quizId} not found`);
+    }
+
+    // Query attempts and count distinct students via user_id or course_student_id
+    const stats = await this.attemptRepo
+      .createQueryBuilder('attempt')
+      .leftJoin('attempt.courseStudent', 'courseStudent')
+      .leftJoin('courseStudent.student', 'student')
+      .select(
+        // distinct across direct user_id OR course_student.student_id
+        `COUNT(DISTINCT COALESCE(attempt.user_id, student.id))`,
+        'totalStudents',
+      )
+      .addSelect('AVG(attempt.score)', 'avgScore')
+      .addSelect('AVG(attempt.timeTaken)', 'avgTime')
+      .where('attempt.quiz_id = :quizId', { quizId })
+      .getRawOne();
+
+    const { totalStudents, avgScore, avgTime } = stats;
+
+    return {
+      id: quiz.id,
+      title: quiz.title,
+      passingScore: quiz.passing_score,
+      answerTime: quiz.answer_time,
+      instructor: quiz.instructor?.profile
+        ? {
+          id: quiz.instructor.id,
+          firstName: quiz.instructor.profile.firstName,
+          lastName: quiz.instructor.profile.lastName,
+          fullName: `${quiz.instructor.profile.firstName} ${quiz.instructor.profile.lastName}`,
+          email: quiz.instructor.email,
+        }
+        : null,
+      numberOfQuestions: quiz.quizQuestions?.length || 0,
+      questions: quiz.quizQuestions?.map((qq) => ({
+        id: qq.question.id,
+        text: qq.question.text,
+        type: qq.question.type,
+        order: qq.order,
+      })),
+      totalStudents: Number(totalStudents) || 0,
+      averageScore: avgScore ? Number(avgScore).toFixed(2) : null,
+      averageTimeTaken: avgTime ? Number(avgTime).toFixed(2) : null,
+    };
   }
 }

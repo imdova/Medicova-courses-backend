@@ -3,6 +3,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { BasicEntity } from '../../common/entities/basic.entity';
 import { QuizQuestion } from './quiz-question.entity';
 import { Academy } from 'src/academy/entities/academy.entity';
+import { User } from 'src/user/entities/user.entity';
 
 export enum QuizStatus {
   DRAFT = 'draft',
@@ -29,9 +30,16 @@ export enum AnswerTimeType {
 
 @Entity('quizzes')
 export class Quiz extends BasicEntity {
-  @ApiProperty()
-  @Column({ type: 'uuid' })
-  created_by: string;
+  @ManyToOne(() => User, { eager: false, nullable: false })
+  @JoinColumn({ name: 'created_by' })
+  instructor: User;
+
+  @ApiProperty({
+    description: 'User ID of the teacher/admin who created the quiz',
+    format: 'uuid',
+  })
+  @Column({ type: 'uuid', name: 'created_by' })
+  createdBy: string;
 
   @ApiProperty({ enum: QuizStatus })
   @Column({ type: 'enum', enum: QuizStatus, default: QuizStatus.DRAFT })
