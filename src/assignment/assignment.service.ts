@@ -17,6 +17,7 @@ import {
 import { QueryConfig } from 'src/common/utils/query-options';
 import { FilterOperator, paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
 import { EmailService } from '../common/email.service';
+import { CourseStudent } from 'src/course/entities/course-student.entity';
 
 export const ASSIGNMENT_PAGINATION_CONFIG: QueryConfig<Assignment> = {
   sortableColumns: ['created_at', 'name', 'start_date', 'end_date'],
@@ -37,6 +38,10 @@ export class AssignmentService {
   constructor(
     @InjectRepository(Assignment)
     private readonly assignmentRepo: Repository<Assignment>,
+    @InjectRepository(AssignmentSubmission)
+    private readonly assignmentSubmissionRepo: Repository<AssignmentSubmission>,
+    @InjectRepository(CourseStudent)
+    private readonly courseStudentRepo: Repository<CourseStudent>,
     @InjectRepository(CourseSectionItem)
     private courseSectionItemRepo: Repository<CourseSectionItem>,
     private readonly emailService: EmailService,
@@ -339,5 +344,154 @@ export class AssignmentService {
     }
 
     return { message: `Reminder emails sent to ${students.length} students` };
+  }
+
+  async getStudentStatsForAssignment(
+    assignmentId: string,
+    {
+      page = 1,
+      limit = 10,
+      status,
+      minScore,
+      maxScore,
+      startDate,
+      endDate,
+    }: {
+      page?: number;
+      limit?: number;
+      status?: 'submitted' | 'graded';
+      minScore?: number;
+      maxScore?: number;
+      startDate?: string; // ISO string
+      endDate?: string;
+    },
+  ) {
+    const qb = this.assignmentSubmissionRepo
+      .createQueryBuilder('submission')
+      .leftJoin('submission.courseStudent', 'courseStudent')
+      .leftJoin('courseStudent.student', 'student')
+      .leftJoin('student.profile', 'studentProfile')
+      .select(
+        `studentProfile.firstName || ' ' || studentProfile.lastName`,
+        'student_name',
+      )
+      .addSelect('student.email', 'email')
+      .addSelect('submission.created_at', 'date')
+      .addSelect('submission.score', 'score')
+      .addSelect(
+        `CASE 
+        WHEN submission.graded = false THEN 'submitted'
+        ELSE 'graded'
+      END`,
+        'status',
+      )
+      .where('submission.assignment_id = :assignmentId', { assignmentId });
+
+    // ---- Filters ----
+    if (status) {
+      qb.andWhere(
+        `CASE 
+        WHEN submission.graded = false THEN 'submitted'
+        ELSE 'graded'
+      END = :status`,
+        { status },
+      );
+    }
+
+    if (minScore !== undefined) {
+      qb.andWhere('submission.score >= :minScore', { minScore });
+    }
+    if (maxScore !== undefined) {
+      qb.andWhere('submission.score <= :maxScore', { maxScore });
+    }
+
+    if (startDate) {
+      qb.andWhere('submission."created_at" >= :startDate', { startDate });
+    }
+    if (endDate) {
+      qb.andWhere('submission."created_at" <= :endDate', { endDate });
+    }
+
+    // ---- Sorting ----
+    qb.orderBy('student_name', 'ASC').addOrderBy('submission."created_at"', 'ASC');
+
+    // ---- Pagination ----
+    const offset = (page - 1) * limit;
+    qb.skip(offset).take(limit);
+
+    const [data, total] = await Promise.all([qb.getRawMany(), qb.getCount()]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        lastPage: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async getAssignmentOverview(assignmentId: string) {
+    const assignment = await this.assignmentRepo.findOne({
+      where: { id: assignmentId },
+      relations: [
+        'submissions',
+        'submissions.courseStudent',
+        'submissions.courseStudent.course',
+        'submissions.courseStudent.student',
+      ],
+    });
+
+    if (!assignment) {
+      throw new NotFoundException(`Assignment with ID ${assignmentId} not found`);
+    }
+
+    // --- Stats from submissions ---
+    // totalSubmissions = total rows
+    // studentsSubmitted = DISTINCT students who submitted (a student may submit multiple times)
+    const stats = await this.assignmentSubmissionRepo
+      .createQueryBuilder('submission')
+      .leftJoin('submission.courseStudent', 'courseStudent')
+      .leftJoin('courseStudent.student', 'student')
+      .select('COUNT(submission.id)', 'totalSubmissions')
+      .addSelect('COUNT(DISTINCT student.id)', 'studentsSubmitted')
+      .addSelect('AVG(submission.score)', 'avgScore')
+      .where('submission.assignment_id = :assignmentId', { assignmentId })
+      .getRawOne();
+
+    const totalSubmissions = Number(stats?.totalSubmissions ?? 0);
+    const studentsSubmitted = Number(stats?.studentsSubmitted ?? 0);
+    const avgScore = stats?.avgScore ? Number(stats.avgScore) : null;
+
+    // --- Get course info from any submission (if exists) ---
+    const firstSubmission = assignment.submissions?.[0];
+    const course = firstSubmission?.courseStudent?.course;
+
+    // --- Calculate submission rate based on enrolled students for the course ---
+    let submissionRate: string | null = null;
+    if (course) {
+      const totalEnrolled = await this.courseStudentRepo.count({
+        where: { course: { id: course.id } },
+      });
+
+      submissionRate =
+        totalEnrolled > 0
+          ? `${((studentsSubmitted / totalEnrolled) * 100).toFixed(2)}%`
+          : '0%';
+    }
+
+    return {
+      id: assignment.id,
+      name: assignment.name,
+      totalPoints: assignment.totalPoints,
+      numberOfQuestions: assignment.numberOfQuestions,
+      startDate: assignment.start_date,
+      dueDate: assignment.end_date,
+      totalSubmissions,           // total submission rows
+      studentsSubmitted,          // distinct students who submitted
+      averageScore: avgScore !== null ? Number(avgScore.toFixed(2)) : null,
+      submissionRate,             // "%", or null if course unknown
+      course: course ? { id: course.id, title: course.name } : null,
+    };
   }
 }
