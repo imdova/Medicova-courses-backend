@@ -375,7 +375,7 @@ export class QuizService {
       // 1. Create quiz
       const quiz = manager.create(Quiz, {
         ...dto.quiz,
-        created_by: userId,
+        createdBy: userId,
         academy: { id: academyId },
       });
       await manager.save(quiz);
