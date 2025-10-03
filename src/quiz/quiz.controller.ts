@@ -94,11 +94,13 @@ export class QuizController {
   }
 
   @Get(':quizId/stats/country')
+  @RequirePermissions('quiz:stats:country')
   async getQuizStatsByCountry(@Param('quizId') quizId: string) {
     return this.quizService.getCountryWiseStatsForQuiz(quizId);
   }
 
   @Get(':quizId/stats/students')
+  @RequirePermissions('quiz:stats:students')
   @ApiQuery({ name: 'page', required: false, type: Number, example: 1, description: 'Page number for pagination' })
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 10, description: 'Number of results per page' })
   @ApiQuery({ name: 'status', required: false, enum: ['passed', 'failed'], description: 'Filter attempts by status' })
@@ -124,7 +126,6 @@ export class QuizController {
       maxTime: query.maxTime ? Number(query.maxTime) : undefined,
     });
   }
-
 
   @Get()
   @RequirePermissions('quiz:list')
@@ -239,6 +240,7 @@ export class QuizController {
   }
 
   @Get(':quizId/overview')
+  @RequirePermissions('quiz:overview')
   @ApiOperation({ summary: 'Get quiz overview' })
   @ApiResponse({ status: 200, description: 'Quiz overview with stats' })
   async getQuizOverview(@Param('quizId') quizId: string) {
