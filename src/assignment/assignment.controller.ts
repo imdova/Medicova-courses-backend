@@ -112,14 +112,14 @@ export class AssignmentController {
   }
 
   @Get(':assignmentId/overview')
-  //@RequirePermissions('assignment:overview')
+  @RequirePermissions('assignment:overview')
   @ApiOperation({ summary: 'Get overview statistics for an assignment' })
   async getAssignmentOverview(@Param('assignmentId') assignmentId: string) {
     return this.assignmentService.getAssignmentOverview(assignmentId);
   }
 
   @Get(':assignmentId/stats/students')
-  //@RequirePermissions('assignment:stats:students')
+  @RequirePermissions('assignment:stats:students')
   @ApiQuery({
     name: 'page',
     required: false,
