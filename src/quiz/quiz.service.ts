@@ -54,7 +54,7 @@ export class QuizService {
   ): Promise<Quiz> {
     const quiz = this.quizRepo.create({
       ...dto,
-      created_by: userId,
+      createdBy: userId,
       academy: { id: academyId },
     });
     return this.quizRepo.save(quiz);
@@ -557,7 +557,7 @@ export class QuizService {
       }
     } else {
       // instructor / academy_user
-      if (quiz.created_by !== userId) {
+      if (quiz.createdBy !== userId) {
         throw new ForbiddenException(
           'You are not allowed to access this course',
         );
@@ -687,4 +687,62 @@ export class QuizService {
     };
   }
 
+  async getQuizOverview(quizId: string) {
+    const quiz = await this.quizRepo.findOne({
+      where: { id: quizId },
+      relations: [
+        'quizQuestions',
+        'quizQuestions.question',
+        'instructor',
+        'instructor.profile',
+      ],
+    });
+
+    if (!quiz) {
+      throw new NotFoundException(`Quiz with ID ${quizId} not found`);
+    }
+
+    // Query attempts and count distinct students via user_id or course_student_id
+    const stats = await this.attemptRepo
+      .createQueryBuilder('attempt')
+      .leftJoin('attempt.courseStudent', 'courseStudent')
+      .leftJoin('courseStudent.student', 'student')
+      .select(
+        // distinct across direct user_id OR course_student.student_id
+        `COUNT(DISTINCT COALESCE(attempt.user_id, student.id))`,
+        'totalStudents',
+      )
+      .addSelect('AVG(attempt.score)', 'avgScore')
+      .addSelect('AVG(attempt.timeTaken)', 'avgTime')
+      .where('attempt.quiz_id = :quizId', { quizId })
+      .getRawOne();
+
+    const { totalStudents, avgScore, avgTime } = stats;
+
+    return {
+      id: quiz.id,
+      title: quiz.title,
+      passingScore: quiz.passing_score,
+      answerTime: quiz.answer_time,
+      instructor: quiz.instructor?.profile
+        ? {
+          id: quiz.instructor.id,
+          firstName: quiz.instructor.profile.firstName,
+          lastName: quiz.instructor.profile.lastName,
+          fullName: `${quiz.instructor.profile.firstName} ${quiz.instructor.profile.lastName}`,
+          email: quiz.instructor.email,
+        }
+        : null,
+      numberOfQuestions: quiz.quizQuestions?.length || 0,
+      questions: quiz.quizQuestions?.map((qq) => ({
+        id: qq.question.id,
+        text: qq.question.text,
+        type: qq.question.type,
+        order: qq.order,
+      })),
+      totalStudents: Number(totalStudents) || 0,
+      averageScore: avgScore ? Number(avgScore).toFixed(2) : null,
+      averageTimeTaken: avgTime ? Number(avgTime).toFixed(2) : null,
+    };
+  }
 }

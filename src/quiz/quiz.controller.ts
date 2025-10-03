@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  NotFoundException,
   Param,
   Patch,
   Post,
@@ -235,6 +236,13 @@ export class QuizController {
       req.user.role,
       req.user.academyId,
     );
+  }
+
+  @Get(':quizId/overview')
+  @ApiOperation({ summary: 'Get quiz overview' })
+  @ApiResponse({ status: 200, description: 'Quiz overview with stats' })
+  async getQuizOverview(@Param('quizId') quizId: string) {
+    return this.quizService.getQuizOverview(quizId);
   }
 
   @Patch(':id')
