@@ -745,4 +745,56 @@ export class QuizService {
       averageTimeTaken: avgTime ? Number(avgTime).toFixed(2) : null,
     };
   }
+
+  async getQuizQuestionStats(quizId: string) {
+    const quiz = await this.quizRepo.findOne({
+      where: { id: quizId },
+      relations: ['quizQuestions', 'quizQuestions.question'],
+    });
+
+    if (!quiz) {
+      throw new NotFoundException(`Quiz with ID ${quizId} not found`);
+    }
+
+    const attempts = await this.attemptRepo.find({
+      where: { quiz: { id: quizId } },
+    });
+
+    const questionStats = quiz.quizQuestions.map((qq) => {
+      const q = qq.question;
+
+      let correctCount = 0;
+      let incorrectCount = 0;
+
+      for (const attempt of attempts) {
+        for (const ans of attempt.answers || []) {
+          if (ans.questionId === q.id) {
+            if (ans.correct) correctCount++;
+            else incorrectCount++;
+          }
+        }
+      }
+
+      const totalAnswered = correctCount + incorrectCount;
+
+      return {
+        questionId: q.id,
+        text: q.text,
+        type: q.type,
+        answers: q.answers, // show all options from DB, including `correct: true`
+        correctCount,
+        incorrectCount,
+        correctPercentage:
+          totalAnswered > 0
+            ? ((correctCount / totalAnswered) * 100).toFixed(2)
+            : '0.00',
+      };
+    });
+
+    return {
+      quizId: quiz.id,
+      title: quiz.title,
+      questions: questionStats,
+    };
+  }
 }
