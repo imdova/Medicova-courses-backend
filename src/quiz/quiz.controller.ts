@@ -128,6 +128,7 @@ export class QuizController {
   }
 
   @Get(':quizId/questions/stats')
+  @RequirePermissions('quiz:questions:stats')
   @ApiOperation({ summary: 'Get per-question answer distribution' })
   async getQuizQuestionStats(@Param('quizId') quizId: string) {
     return this.quizService.getQuizQuestionStats(quizId);

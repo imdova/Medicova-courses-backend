@@ -797,5 +797,4 @@ export class QuizService {
       questions: questionStats,
     };
   }
-
 }
