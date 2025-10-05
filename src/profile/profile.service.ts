@@ -14,6 +14,8 @@ import { Profile } from './entities/profile.entity';
 import { v4 as uuidv4 } from 'uuid';
 import { ProfileCategory } from './profile-category/entities/profile-category.entity';
 import { ProfileSpeciality } from './profile-category/entities/profile-specaility.entity';
+import { ProfileRating } from './entities/profile-rating.entity';
+import { RateProfileDto } from './dto/rate-profile.dto';
 
 @Injectable()
 export class ProfileService {
@@ -26,6 +28,8 @@ export class ProfileService {
     private readonly categoryRepository: Repository<ProfileCategory>,
     @InjectRepository(ProfileSpeciality)
     private readonly specialityRepository: Repository<ProfileSpeciality>,
+    @InjectRepository(ProfileRating)
+    private readonly profileRatingRepository: Repository<ProfileRating>,
   ) { }
 
   async createProfile(
@@ -155,7 +159,7 @@ export class ProfileService {
   async getProfileByUserId(userId: string) {
     const profile = await this.profileRepository.findOne({
       where: { user: { id: userId } },
-      relations: ['user', 'category', 'speciality'],
+      relations: ['user', 'category', 'speciality', 'ratings'],
     });
 
     if (!profile) {
@@ -195,7 +199,7 @@ export class ProfileService {
   async findInstructorProfileById(profileId: string) {
     return this.profileRepository.findOne({
       where: { id: profileId },
-      relations: ['user'],
+      relations: ['user', 'ratings'],
     });
   }
 
@@ -205,7 +209,7 @@ export class ProfileService {
         userName,
         user: { role: { name: 'instructor' } }, // ✅ filter by role name
       },
-      relations: ['user', 'category', 'speciality'], // ✅ ensure user is loaded
+      relations: ['user', 'category', 'speciality', 'ratings'], // ✅ ensure user is loaded
     });
 
     if (!profile) {
@@ -218,7 +222,6 @@ export class ProfileService {
 
     return profile;
   }
-
 
   async makeAllInstructorProfilesPrivate(): Promise<void> {
     await this.profileRepository
@@ -273,5 +276,52 @@ export class ProfileService {
     }
 
     return Math.round((filled / this.completionFields.length) * 100);
+  }
+
+  async rateProfile(
+    userId: string,
+    profileId: string,
+    dto: RateProfileDto,
+  ): Promise<ProfileRating> {
+    const profile = await this.profileRepository.findOne({ where: { id: profileId } });
+    if (!profile) throw new NotFoundException('Profile not found');
+
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    let rating = await this.profileRatingRepository.findOne({
+      where: { profile: { id: profileId }, user: { id: userId } },
+    });
+
+    if (rating) {
+      rating.rating = dto.rating;
+      rating.review = dto.review;
+      rating.profile = { id: profileId } as Profile; // re-attach
+      rating.user = { id: userId } as User;
+    } else {
+      rating = this.profileRatingRepository.create({
+        rating: dto.rating,
+        review: dto.review,
+        profile: { id: profileId } as Profile,
+        user: { id: userId } as User,
+      });
+    }
+
+    await this.profileRatingRepository.save(rating);
+
+    // ✅ update average rating
+    const { avg } = await this.profileRatingRepository
+      .createQueryBuilder('r')
+      .select('AVG(r.rating)', 'avg')
+      .where('r.profile_id = :profileId', { profileId })
+      .getRawOne();
+
+    // avg comes back as string | null
+    const avgNumber = avg ? parseFloat(avg) : 0;
+
+    profile.averageRating = Number(avgNumber.toFixed(2));
+    await this.profileRepository.save(profile);
+
+    return rating;
   }
 }
