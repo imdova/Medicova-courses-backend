@@ -70,6 +70,7 @@ export class ProfileService {
       category: categoryId ? { id: categoryId } : null,
       speciality: specialityId ? { id: specialityId } : null,
       ...rest,
+      isPublic: role === 'instructor' ? true : false, // ✅ force override
     });
 
     profile.completionPercentage = this.calculateCompletion(profile);

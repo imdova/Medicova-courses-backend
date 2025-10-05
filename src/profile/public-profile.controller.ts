@@ -13,7 +13,6 @@ import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Public Instructor Profile')
 @Controller('public/profiles')
-@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class PublicProfileController {
   constructor(private readonly profileService: ProfileService) { }
 
@@ -28,6 +27,7 @@ export class PublicProfileController {
     return this.profileService.getInstructorProfileByUsername(userName);
   }
 
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('instructor_profile:set_private')
   @Patch('instructor/make-all-private')
   @ApiOperation({
