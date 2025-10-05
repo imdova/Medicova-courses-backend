@@ -31,11 +31,11 @@ import { RateCourseDto } from './dto/rate-course.dto';
 
 @ApiTags('Courses')
 @Controller('courses')
-@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class CourseController {
   constructor(private readonly courseService: CourseService) { }
 
   @Post()
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('course:create')
   @ApiOperation({ summary: 'Create a new course' })
   @ApiBody({ type: CreateCourseDto })
@@ -61,6 +61,7 @@ export class CourseController {
   }
 
   @Post(':courseId/rating')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @ApiOperation({ summary: 'Add or update a rating and review for a course' })
   @ApiParam({ name: 'courseId', description: 'UUID of the course' })
   @ApiBody({ type: RateCourseDto })
@@ -76,6 +77,7 @@ export class CourseController {
   }
 
   @Get()
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('course:list')
   @ApiOperation({
     summary: 'Get paginated list of courses with filters and sorting',
@@ -146,6 +148,7 @@ export class CourseController {
   }
 
   @Get('tags')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('course:tags')
   @ApiOperation({ summary: 'Get all available course tags' })
   @ApiResponse({
@@ -158,6 +161,7 @@ export class CourseController {
   }
 
   @Get(':id')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('course:get_by_id')
   @ApiOperation({ summary: 'Get a course by ID' })
   @ApiParam({ name: 'id', description: 'UUID of the course' })
@@ -177,7 +181,7 @@ export class CourseController {
   }
 
   @Get('slug/:slug')
-  @RequirePermissions('course:get_by_slug')
+  //@RequirePermissions('course:get_by_slug')
   @ApiOperation({ summary: 'Get a course by Slug' })
   @ApiParam({ name: 'slug', description: 'Slug of course' })
   @ApiResponse({
@@ -191,6 +195,7 @@ export class CourseController {
   }
 
   @Get(':courseId/students/progress')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('course:students_progress')
   @ApiOperation({
     summary: 'Get progress of all students in a course (teacher view)',
@@ -204,6 +209,7 @@ export class CourseController {
   }
 
   @Patch(':id')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('course:update')
   @ApiOperation({ summary: 'Update a course by ID' })
   @ApiParam({ name: 'id', description: 'UUID of the course' })
@@ -238,6 +244,7 @@ export class CourseController {
   }
 
   @Delete(':id')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('course:delete')
   @ApiOperation({ summary: 'Soft delete a course by ID' })
   @ApiParam({ name: 'id', description: 'UUID of the course' })
