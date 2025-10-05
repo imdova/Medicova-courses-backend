@@ -194,11 +194,38 @@ export class CourseService {
       .leftJoinAndSelect('course.academy', 'academy')
       .leftJoinAndSelect('course.instructor', 'instructor')
       .leftJoinAndSelect('instructor.profile', 'instructorProfile')
+      .leftJoinAndSelect('course.sections', 'section')
+      .leftJoinAndSelect('section.items', 'item')
+      .leftJoinAndSelect('item.lecture', 'lecture') // if item is a lecture
+      .leftJoinAndSelect('item.quiz', 'quiz')       // if item is a quiz
+      .leftJoinAndSelect('item.assignment', 'assignment') // etc
       .where('course.slug = :slug', { slug })
       .andWhere('course.deleted_at IS NULL')
+      .orderBy('section.order', 'ASC')
+      .addOrderBy('item.order', 'ASC')
       .getOne();
 
     if (!course) throw new NotFoundException('Course not found');
+
+    // Hide lecture URLs if not free
+    course.sections = course.sections?.map((section) => {
+      return {
+        ...section,
+        items: section.items?.map((item) => {
+          if (item.lecture && !item.lecture.isLectureFree) {
+            return {
+              ...item,
+              lecture: {
+                ...item.lecture,
+                videoUrl: undefined,
+                materialUrl: undefined,
+              },
+            };
+          }
+          return item;
+        }),
+      };
+    });
 
     return {
       ...course,
