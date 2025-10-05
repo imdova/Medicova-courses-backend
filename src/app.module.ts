@@ -51,6 +51,7 @@ import { MailerModule } from '@nestjs-modules/mailer';
 import { join } from 'path';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { CourseRating } from './course/entities/course-rating.entity';
+import { ProfileRating } from './profile/entities/profile-rating.entity';
 
 @Module({
   imports: [
@@ -95,7 +96,8 @@ import { CourseRating } from './course/entities/course-rating.entity';
         Role,
         Permission,
         RolePermission,
-        CourseRating
+        CourseRating,
+        ProfileRating
       ],
       synchronize: true,
       extra: {

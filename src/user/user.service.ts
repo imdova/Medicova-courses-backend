@@ -89,7 +89,7 @@ export class UserService {
         firstName: firstName || '',
         lastName: lastName || '',
         photoUrl,
-      });
+      }, role);
 
       return savedUser;
     } catch (error) {
