@@ -508,4 +508,34 @@ export class CourseService {
       photoUrl: profile?.photoUrl,
     };
   }
+
+  async getCourseRatings(courseId: string) {
+    const course = await this.courseRepository.findOne({
+      where: { id: courseId },
+      relations: ['ratings', 'ratings.user', 'ratings.user.profile'],
+    });
+
+    if (!course) {
+      throw new NotFoundException('Course not found');
+    }
+
+    const reviews = course.ratings.map((r) => ({
+      id: r.id,
+      rating: r.rating,
+      review: r.review,
+      user: {
+        id: r.user.id,
+        name: r.user.profile
+          ? `${r.user.profile.firstName} ${r.user.profile.lastName}`
+          : r.user.email, // fallback if profile missing
+        image: r.user.profile?.photoUrl || null,
+      },
+      createdAt: r.created_at, // use camelCase if entity uses it
+    }));
+
+    return {
+      totalCount: reviews.length,
+      reviews,
+    };
+  }
 }

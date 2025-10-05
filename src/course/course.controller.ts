@@ -180,6 +180,18 @@ export class CourseController {
     );
   }
 
+  @Get(':courseId/ratings')
+  @ApiOperation({ summary: 'Get all ratings and reviews for a course' })
+  @ApiParam({ name: 'courseId', description: 'UUID of the course' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of ratings and reviews for the course',
+  })
+  @ApiResponse({ status: 404, description: 'Course not found' })
+  async getCourseRatings(@Param('courseId', ParseUUIDPipe) courseId: string) {
+    return this.courseService.getCourseRatings(courseId);
+  }
+
   @Get('slug/:slug')
   //@RequirePermissions('course:get_by_slug')
   @ApiOperation({ summary: 'Get a course by Slug' })
