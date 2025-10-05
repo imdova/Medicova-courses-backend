@@ -89,7 +89,7 @@ export class UserService {
         firstName: firstName || '',
         lastName: lastName || '',
         photoUrl,
-      });
+      }, role);
 
       return savedUser;
     } catch (error) {
@@ -292,7 +292,18 @@ export class UserService {
 
     // ✅ Update email
     if (dto.email) {
-      user.email = dto.email.trim().toLowerCase();
+      const normalizedEmail = dto.email.trim().toLowerCase();
+
+      // check if another user already has this email
+      const existingUser = await this.userRepository.findOne({
+        where: { email: normalizedEmail },
+      });
+
+      if (existingUser && existingUser.id !== user.id) {
+        throw new BadRequestException('Updated Email is already in use');
+      }
+
+      user.email = normalizedEmail;
     }
 
     // ✅ Update phone (via profile)

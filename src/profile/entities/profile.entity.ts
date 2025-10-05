@@ -6,6 +6,7 @@ import {
   JoinColumn,
   Unique,
   ManyToOne,
+  OneToMany,
 } from 'typeorm';
 import { BasicEntity } from '../../common/entities/basic.entity';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -13,6 +14,7 @@ import { ProfileMetadataDto } from '../dto/profile-metadata.dto';
 import { ProfileCategory } from '../profile-category/entities/profile-category.entity';
 import { ProfileSpeciality } from '../profile-category/entities/profile-specaility.entity';
 import { CountryOrStateDTO } from '../dto/country-state.dto';
+import { ProfileRating } from './profile-rating.entity';
 
 export enum Gender {
   MALE = 'male',
@@ -202,4 +204,13 @@ export class Profile extends BasicEntity {
   @Column({ name: 'completion_percentage', type: 'int', default: 0 })
   completionPercentage: number;
 
+  @ApiPropertyOptional({
+    description: 'Average rating of the course',
+    example: 4.5,
+  })
+  @Column({ type: 'float', default: 0, name: 'average_rating' })
+  averageRating: number;
+
+  @OneToMany(() => ProfileRating, (rating) => rating.profile)
+  ratings: ProfileRating[];
 }

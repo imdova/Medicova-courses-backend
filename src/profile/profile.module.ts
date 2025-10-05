@@ -11,10 +11,11 @@ import { UserModule } from 'src/user/user.module';
 import { ProfileCategoryModule } from './profile-category/profile-category.module';
 import { ProfileCategory } from './profile-category/entities/profile-category.entity';
 import { ProfileSpeciality } from './profile-category/entities/profile-specaility.entity';
+import { ProfileRating } from './entities/profile-rating.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Profile, ProfileCategory, ProfileSpeciality]),
+    TypeOrmModule.forFeature([User, Profile, ProfileCategory, ProfileSpeciality, ProfileRating]),
     forwardRef(() => UserModule),
     ProfileCategoryModule,
   ],
