@@ -63,13 +63,42 @@ export class StudentCourseService {
     const qb = this.courseRepo
       .createQueryBuilder('course')
       .leftJoinAndSelect('course.pricings', 'pricing')
-      .leftJoinAndSelect('course.instructor', 'instructor') // ✅ relation works now
+      .leftJoinAndSelect('course.instructor', 'instructor')
       .leftJoinAndSelect('instructor.profile', 'instructorProfile')
-      .andWhere('course.deleted_at IS NULL');
+      .andWhere('course.deleted_at IS NULL')
+
+      // ✅ Count total enrolled students per course
+      .loadRelationCountAndMap('course.studentCount', 'course.enrollments')
+
+      // ✅ Count lectures per course
+      .loadRelationCountAndMap(
+        'course.lecturesCount',
+        'course.sections',
+        'sectionLectures',
+        (qb) =>
+          qb
+            .leftJoin('sectionLectures.items', 'lectureItems')
+            .andWhere('lectureItems.curriculumType = :lectureType', {
+              lectureType: 'lecture',
+            }),
+      )
+
+      // ✅ Count quizzes per course
+      .loadRelationCountAndMap(
+        'course.quizzesCount',
+        'course.sections',
+        'sectionQuizzes',
+        (qb) =>
+          qb
+            .leftJoin('sectionQuizzes.items', 'quizItems')
+            .andWhere('quizItems.curriculumType = :quizType', {
+              quizType: 'quiz',
+            }),
+      );
 
     const result = await paginate(query, qb, COURSE_PAGINATION_CONFIG);
 
-    // ✅ Filter pricings by user’s allowed currency
+    // ✅ Filter pricings by user's preferred currency (if applicable)
     if (currency) {
       result.data.forEach((course: any) => {
         course.pricings = course.pricings.filter(
@@ -78,10 +107,10 @@ export class StudentCourseService {
       });
     }
 
-    // ✅ Map instructor info (compact format)
+    // ✅ Map instructor to compact form
     result.data = result.data.map((course: any) => ({
       ...course,
-      instructor: this.mapInstructor(course), // use your helper
+      instructor: this.mapInstructor(course),
     }));
 
     return result;
@@ -97,8 +126,8 @@ export class StudentCourseService {
     let course: Course | null;
 
     if (enrollment) {
-      // Full query with relations
-      course = await this.courseRepo
+      // ✅ Enrolled users get full course details
+      const qb = this.courseRepo
         .createQueryBuilder('course')
         .leftJoinAndSelect('course.pricings', 'pricing')
         .leftJoinAndSelect('course.sections', 'section')
@@ -108,34 +137,90 @@ export class StudentCourseService {
         .leftJoinAndSelect('quiz.quizQuestions', 'quizQuestion')
         .leftJoinAndSelect('quizQuestion.question', 'question')
         .leftJoinAndSelect('item.assignment', 'assignment')
-        .leftJoinAndSelect('course.instructor', 'instructor')          // ✅
-        .leftJoinAndSelect('instructor.profile', 'instructorProfile') // ✅
+        .leftJoinAndSelect('course.instructor', 'instructor')
+        .leftJoinAndSelect('instructor.profile', 'instructorProfile')
         .where('course.id = :id', { id })
         .andWhere('course.deleted_at IS NULL')
         .orderBy('section.order', 'ASC')
         .addOrderBy('item.order', 'ASC')
         .addOrderBy('quizQuestion.order', 'ASC')
-        .getOne();
+
+        // ✅ Add counts
+        .loadRelationCountAndMap('course.studentCount', 'course.enrollments')
+        .loadRelationCountAndMap(
+          'course.lecturesCount',
+          'course.sections',
+          'sectionLectures',
+          (qb) =>
+            qb
+              .leftJoin('sectionLectures.items', 'lectureItems')
+              .andWhere('lectureItems.curriculumType = :lectureType', {
+                lectureType: 'lecture',
+              }),
+        )
+        .loadRelationCountAndMap(
+          'course.quizzesCount',
+          'course.sections',
+          'sectionQuizzes',
+          (qb) =>
+            qb
+              .leftJoin('sectionQuizzes.items', 'quizItems')
+              .andWhere('quizItems.curriculumType = :quizType', {
+                quizType: 'quiz',
+              }),
+        );
+
+      course = await qb.getOne();
 
       if (course) this.randomizeCourseQuizzes(course);
     } else {
-      // Not enrolled → only basic info
-      course = await this.courseRepo.findOne({
-        where: { id, deleted_at: null },
-        relations: ['pricings', 'instructor', 'instructor.profile'], // ✅
-      });
+      // ✅ Not enrolled → lightweight fetch
+      const qb = this.courseRepo
+        .createQueryBuilder('course')
+        .leftJoinAndSelect('course.pricings', 'pricing')
+        .leftJoinAndSelect('course.instructor', 'instructor')
+        .leftJoinAndSelect('instructor.profile', 'instructorProfile')
+        .where('course.id = :id', { id })
+        .andWhere('course.deleted_at IS NULL')
+
+        // ✅ Add counts here too
+        .loadRelationCountAndMap('course.studentCount', 'course.enrollments')
+        .loadRelationCountAndMap(
+          'course.lecturesCount',
+          'course.sections',
+          'sectionLectures',
+          (qb) =>
+            qb
+              .leftJoin('sectionLectures.items', 'lectureItems')
+              .andWhere('lectureItems.curriculumType = :lectureType', {
+                lectureType: 'lecture',
+              }),
+        )
+        .loadRelationCountAndMap(
+          'course.quizzesCount',
+          'course.sections',
+          'sectionQuizzes',
+          (qb) =>
+            qb
+              .leftJoin('sectionQuizzes.items', 'quizItems')
+              .andWhere('quizItems.curriculumType = :quizType', {
+                quizType: 'quiz',
+              }),
+        );
+
+      course = await qb.getOne();
     }
 
     if (!course) throw new NotFoundException('Course not found');
 
-    // Filter pricing by user currency
+    // ✅ Filter pricing by user’s currency
     if (currency) {
       course.pricings = course.pricings.filter(
         (p) => p.currencyCode === currency,
       );
     }
 
-    // Map instructor to compact form
+    // ✅ Map instructor data into a compact format
     return {
       ...course,
       instructor: this.mapInstructor(course),
@@ -174,12 +259,42 @@ export class StudentCourseService {
         userId,
       })
       .leftJoinAndSelect('course.pricings', 'pricing')
-      .leftJoinAndSelect('course.instructor', 'instructor')          // ✅
-      .leftJoinAndSelect('instructor.profile', 'instructorProfile') // ✅
-      .andWhere('course.deleted_at IS NULL');
+      .leftJoinAndSelect('course.instructor', 'instructor')
+      .leftJoinAndSelect('instructor.profile', 'instructorProfile')
+      .andWhere('course.deleted_at IS NULL')
+
+      // ✅ Count total enrolled students per course
+      .loadRelationCountAndMap('course.studentCount', 'course.enrollments')
+
+      // ✅ Count lectures
+      .loadRelationCountAndMap(
+        'course.lecturesCount',
+        'course.sections',
+        'sectionLectures',
+        (qb) =>
+          qb
+            .leftJoin('sectionLectures.items', 'lectureItems')
+            .andWhere('lectureItems.curriculumType = :lectureType', {
+              lectureType: 'lecture',
+            }),
+      )
+
+      // ✅ Count quizzes
+      .loadRelationCountAndMap(
+        'course.quizzesCount',
+        'course.sections',
+        'sectionQuizzes',
+        (qb) =>
+          qb
+            .leftJoin('sectionQuizzes.items', 'quizItems')
+            .andWhere('quizItems.curriculumType = :quizType', {
+              quizType: 'quiz',
+            }),
+      );
 
     const result = await paginate(query, qb, COURSE_PAGINATION_CONFIG);
 
+    // ✅ Filter pricing by user’s currency (if applicable)
     if (currency) {
       result.data.forEach((course: any) => {
         course.pricings = course.pricings.filter(
@@ -188,7 +303,7 @@ export class StudentCourseService {
       });
     }
 
-    // Map instructor to compact form
+    // ✅ Map instructor data into a compact structure
     result.data = result.data.map((course: any) => ({
       ...course,
       instructor: this.mapInstructor(course),
