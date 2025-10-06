@@ -188,7 +188,7 @@ export class CourseService {
     academyId: string,
     role: string,
   ): Promise<Course> {
-    const course = await this.courseRepository
+    const qb = this.courseRepository
       .createQueryBuilder('course')
       .leftJoinAndSelect('course.pricings', 'pricing')
       .leftJoinAndSelect('course.category', 'category')
@@ -196,9 +196,39 @@ export class CourseService {
       .leftJoinAndSelect('course.academy', 'academy')
       .leftJoinAndSelect('course.instructor', 'instructor')
       .leftJoinAndSelect('instructor.profile', 'instructorProfile')
-      .where('course.id = :id', { id })
+      .andWhere('course.id = :id', { id })
       .andWhere('course.deleted_at IS NULL')
-      .getOne();
+
+      // ✅ Count enrolled students
+      .loadRelationCountAndMap('course.studentCount', 'course.enrollments')
+
+      // ✅ Count lectures through sections → items
+      .loadRelationCountAndMap(
+        'course.lecturesCount',
+        'course.sections',
+        'sectionLectures',
+        (qb) =>
+          qb
+            .leftJoin('sectionLectures.items', 'lectureItems')
+            .andWhere('lectureItems.curriculumType = :lectureType', {
+              lectureType: 'lecture',
+            }),
+      )
+
+      // ✅ Count quizzes through sections → items
+      .loadRelationCountAndMap(
+        'course.quizzesCount',
+        'course.sections',
+        'sectionQuizzes',
+        (qb) =>
+          qb
+            .leftJoin('sectionQuizzes.items', 'quizItems')
+            .andWhere('quizItems.curriculumType = :quizType', {
+              quizType: 'quiz',
+            }),
+      );
+
+    const course = await qb.getOne();
 
     if (!course) throw new NotFoundException('Course not found');
 
