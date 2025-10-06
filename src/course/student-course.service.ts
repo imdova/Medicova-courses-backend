@@ -63,13 +63,42 @@ export class StudentCourseService {
     const qb = this.courseRepo
       .createQueryBuilder('course')
       .leftJoinAndSelect('course.pricings', 'pricing')
-      .leftJoinAndSelect('course.instructor', 'instructor') // ✅ relation works now
+      .leftJoinAndSelect('course.instructor', 'instructor')
       .leftJoinAndSelect('instructor.profile', 'instructorProfile')
-      .andWhere('course.deleted_at IS NULL');
+      .andWhere('course.deleted_at IS NULL')
+
+      // ✅ Count total enrolled students per course
+      .loadRelationCountAndMap('course.studentCount', 'course.enrollments')
+
+      // ✅ Count lectures per course
+      .loadRelationCountAndMap(
+        'course.lecturesCount',
+        'course.sections',
+        'sectionLectures',
+        (qb) =>
+          qb
+            .leftJoin('sectionLectures.items', 'lectureItems')
+            .andWhere('lectureItems.curriculumType = :lectureType', {
+              lectureType: 'lecture',
+            }),
+      )
+
+      // ✅ Count quizzes per course
+      .loadRelationCountAndMap(
+        'course.quizzesCount',
+        'course.sections',
+        'sectionQuizzes',
+        (qb) =>
+          qb
+            .leftJoin('sectionQuizzes.items', 'quizItems')
+            .andWhere('quizItems.curriculumType = :quizType', {
+              quizType: 'quiz',
+            }),
+      );
 
     const result = await paginate(query, qb, COURSE_PAGINATION_CONFIG);
 
-    // ✅ Filter pricings by user’s allowed currency
+    // ✅ Filter pricings by user's preferred currency (if applicable)
     if (currency) {
       result.data.forEach((course: any) => {
         course.pricings = course.pricings.filter(
@@ -78,10 +107,10 @@ export class StudentCourseService {
       });
     }
 
-    // ✅ Map instructor info (compact format)
+    // ✅ Map instructor to compact form
     result.data = result.data.map((course: any) => ({
       ...course,
-      instructor: this.mapInstructor(course), // use your helper
+      instructor: this.mapInstructor(course),
     }));
 
     return result;
