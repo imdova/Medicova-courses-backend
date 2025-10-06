@@ -131,11 +131,36 @@ export class CourseService {
     role: string,
   ): Promise<Paginated<Course>> {
     const qb = this.courseRepository.createQueryBuilder('course');
+
     qb.leftJoinAndSelect('course.category', 'category')
       .leftJoinAndSelect('course.subCategory', 'subCategory')
       .leftJoinAndSelect('course.instructor', 'instructor')
       .leftJoinAndSelect('instructor.profile', 'instructorProfile')
       .loadRelationCountAndMap('course.studentCount', 'course.enrollments')
+      // ✅ Count lectures via nested joins
+      .loadRelationCountAndMap(
+        'course.lecturesCount',
+        'course.sections',
+        'sectionLectures',
+        (qb) =>
+          qb
+            .leftJoin('sectionLectures.items', 'lectureItems')
+            .andWhere("lectureItems.curriculumType = :lectureType", {
+              lectureType: 'lecture',
+            }),
+      )
+      // ✅ Count quizzes via nested joins
+      .loadRelationCountAndMap(
+        'course.quizzesCount',
+        'course.sections',
+        'sectionQuizzes',
+        (qb) =>
+          qb
+            .leftJoin('sectionQuizzes.items', 'quizItems')
+            .andWhere("quizItems.curriculumType = :quizType", {
+              quizType: 'quiz',
+            }),
+      )
       .andWhere('course.deleted_at IS NULL');
 
     if (role === 'academy_admin') {

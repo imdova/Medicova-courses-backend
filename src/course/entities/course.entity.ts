@@ -178,10 +178,6 @@ export class Course extends BasicEntity {
   })
   lectureFrequencyUnit?: DurationUnit;
 
-  @ApiPropertyOptional({ description: 'Number of lectures' })
-  @Column({ type: 'int', nullable: true, name: 'number_of_lectures' })
-  numberOfLectures?: number;
-
   @ApiPropertyOptional({ description: 'Total course hours' })
   @Column({ type: 'int', nullable: true, name: 'total_hours' })
   totalHours?: number;
