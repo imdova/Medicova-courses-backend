@@ -241,7 +241,7 @@ export class CourseService {
   }
 
   async findOneBySlug(slug: string): Promise<Course> {
-    const course = await this.courseRepository
+    const qb = this.courseRepository
       .createQueryBuilder('course')
       .leftJoinAndSelect('course.pricings', 'pricing')
       .leftJoinAndSelect('course.category', 'category')
@@ -251,36 +251,64 @@ export class CourseService {
       .leftJoinAndSelect('instructor.profile', 'instructorProfile')
       .leftJoinAndSelect('course.sections', 'section')
       .leftJoinAndSelect('section.items', 'item')
-      .leftJoinAndSelect('item.lecture', 'lecture') // if item is a lecture
-      .leftJoinAndSelect('item.quiz', 'quiz')       // if item is a quiz
-      .leftJoinAndSelect('item.assignment', 'assignment') // etc
+      .leftJoinAndSelect('item.lecture', 'lecture')
+      .leftJoinAndSelect('item.quiz', 'quiz')
+      .leftJoinAndSelect('item.assignment', 'assignment')
       .where('course.slug = :slug', { slug })
       .andWhere('course.deleted_at IS NULL')
       .orderBy('section.order', 'ASC')
       .addOrderBy('item.order', 'ASC')
-      .getOne();
+
+      // ✅ Count enrolled students
+      .loadRelationCountAndMap('course.studentCount', 'course.enrollments')
+
+      // ✅ Count lectures
+      .loadRelationCountAndMap(
+        'course.lecturesCount',
+        'course.sections',
+        'sectionLectures',
+        (qb) =>
+          qb
+            .leftJoin('sectionLectures.items', 'lectureItems')
+            .andWhere('lectureItems.curriculumType = :lectureType', {
+              lectureType: 'lecture',
+            }),
+      )
+
+      // ✅ Count quizzes
+      .loadRelationCountAndMap(
+        'course.quizzesCount',
+        'course.sections',
+        'sectionQuizzes',
+        (qb) =>
+          qb
+            .leftJoin('sectionQuizzes.items', 'quizItems')
+            .andWhere('quizItems.curriculumType = :quizType', {
+              quizType: 'quiz',
+            }),
+      );
+
+    const course = await qb.getOne();
 
     if (!course) throw new NotFoundException('Course not found');
 
     // Hide lecture URLs if not free
-    course.sections = course.sections?.map((section) => {
-      return {
-        ...section,
-        items: section.items?.map((item) => {
-          if (item.lecture && !item.lecture.isLectureFree) {
-            return {
-              ...item,
-              lecture: {
-                ...item.lecture,
-                videoUrl: undefined,
-                materialUrl: undefined,
-              },
-            };
-          }
-          return item;
-        }),
-      };
-    });
+    course.sections = course.sections?.map((section) => ({
+      ...section,
+      items: section.items?.map((item) => {
+        if (item.lecture && !item.lecture.isLectureFree) {
+          return {
+            ...item,
+            lecture: {
+              ...item.lecture,
+              videoUrl: undefined,
+              materialUrl: undefined,
+            },
+          };
+        }
+        return item;
+      }),
+    }));
 
     return {
       ...course,
