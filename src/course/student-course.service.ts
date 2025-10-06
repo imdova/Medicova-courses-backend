@@ -174,12 +174,42 @@ export class StudentCourseService {
         userId,
       })
       .leftJoinAndSelect('course.pricings', 'pricing')
-      .leftJoinAndSelect('course.instructor', 'instructor')          // ✅
-      .leftJoinAndSelect('instructor.profile', 'instructorProfile') // ✅
-      .andWhere('course.deleted_at IS NULL');
+      .leftJoinAndSelect('course.instructor', 'instructor')
+      .leftJoinAndSelect('instructor.profile', 'instructorProfile')
+      .andWhere('course.deleted_at IS NULL')
+
+      // ✅ Count total enrolled students per course
+      .loadRelationCountAndMap('course.studentCount', 'course.enrollments')
+
+      // ✅ Count lectures
+      .loadRelationCountAndMap(
+        'course.lecturesCount',
+        'course.sections',
+        'sectionLectures',
+        (qb) =>
+          qb
+            .leftJoin('sectionLectures.items', 'lectureItems')
+            .andWhere('lectureItems.curriculumType = :lectureType', {
+              lectureType: 'lecture',
+            }),
+      )
+
+      // ✅ Count quizzes
+      .loadRelationCountAndMap(
+        'course.quizzesCount',
+        'course.sections',
+        'sectionQuizzes',
+        (qb) =>
+          qb
+            .leftJoin('sectionQuizzes.items', 'quizItems')
+            .andWhere('quizItems.curriculumType = :quizType', {
+              quizType: 'quiz',
+            }),
+      );
 
     const result = await paginate(query, qb, COURSE_PAGINATION_CONFIG);
 
+    // ✅ Filter pricing by user’s currency (if applicable)
     if (currency) {
       result.data.forEach((course: any) => {
         course.pricings = course.pricings.filter(
@@ -188,7 +218,7 @@ export class StudentCourseService {
       });
     }
 
-    // Map instructor to compact form
+    // ✅ Map instructor data into a compact structure
     result.data = result.data.map((course: any) => ({
       ...course,
       instructor: this.mapInstructor(course),
