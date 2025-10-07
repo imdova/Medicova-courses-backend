@@ -760,8 +760,35 @@ export class QuizService {
       where: { quiz: { id: quizId } },
     });
 
+    if (!attempts.length) {
+      return {
+        quizId: quiz.id,
+        title: quiz.title,
+        questions: quiz.quizQuestions.map((qq) => ({
+          questionId: qq.question.id,
+          text: qq.question.text,
+          type: qq.question.type,
+          answers: (qq.question.answers || []).map((opt) => ({
+            text: opt.text,
+            correct: opt.correct,
+            chosenCount: 0,
+            chosenPercentage: '0.00',
+          })),
+          correctCount: 0,
+          incorrectCount: 0,
+          correctPercentage: '0.00',
+        })),
+      };
+    }
+
     const questionStats = quiz.quizQuestions.map((qq) => {
       const q = qq.question;
+
+      // Initialize count map for each answer choice
+      const optionCounts: Record<string, number> = {};
+      for (const option of q.answers || []) {
+        optionCounts[option.text] = 0;
+      }
 
       let correctCount = 0;
       let incorrectCount = 0;
@@ -771,17 +798,34 @@ export class QuizService {
           if (ans.questionId === q.id) {
             if (ans.correct) correctCount++;
             else incorrectCount++;
+
+            if (
+              ans.chosenOptionText &&
+              optionCounts.hasOwnProperty(ans.chosenOptionText)
+            ) {
+              optionCounts[ans.chosenOptionText]++;
+            }
           }
         }
       }
 
       const totalAnswered = correctCount + incorrectCount;
 
+      const optionsWithStats = (q.answers || []).map((opt) => ({
+        text: opt.text,
+        correct: opt.correct,
+        chosenCount: optionCounts[opt.text],
+        chosenPercentage:
+          totalAnswered > 0
+            ? ((optionCounts[opt.text] / totalAnswered) * 100).toFixed(2)
+            : '0.00',
+      }));
+
       return {
         questionId: q.id,
         text: q.text,
         type: q.type,
-        answers: q.answers, // show all options from DB, including `correct: true`
+        answers: optionsWithStats,
         correctCount,
         incorrectCount,
         correctPercentage:

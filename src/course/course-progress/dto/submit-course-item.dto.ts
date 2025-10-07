@@ -24,6 +24,13 @@ export class QuizAnswerDto {
   questionId: string;
 
   @ApiProperty({
+    description: 'The answer text chosen by the student',
+    example: 'Cairo',
+  })
+  @IsString()
+  chosenOptionText: string;
+
+  @ApiProperty({
     description: 'Whether the student marked this question as correct',
     example: true,
   })
