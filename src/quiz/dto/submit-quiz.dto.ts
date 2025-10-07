@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, IsUUID, IsBoolean, ValidateNested, IsOptional, IsNumber } from 'class-validator';
+import { IsArray, IsUUID, IsBoolean, ValidateNested, IsOptional, IsNumber, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class QuizAnswerDto {
@@ -9,6 +9,13 @@ export class QuizAnswerDto {
   })
   @IsUUID()
   questionId: string;
+
+  @ApiProperty({
+    description: 'The answer text chosen by the student',
+    example: 'Cairo',
+  })
+  @IsString()
+  chosenOptionText: string;
 
   @ApiProperty({
     description: 'Whether the student marked this question as correct',

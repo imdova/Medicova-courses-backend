@@ -32,8 +32,8 @@ export class QuizAttempt extends BasicEntity {
     description: 'Answers provided in this attempt',
     type: [QuizAnswerDto],
     example: [
-      { questionId: 'uuid1', correct: true },
-      { questionId: 'uuid2', correct: false },
+      { questionId: 'uuid1', correct: true, chosenOptionText: 'Cairo' },
+      { questionId: 'uuid2', correct: false, chosenOptionText: 'Tokyo' },
     ],
   })
   @Column({ type: 'json' })
