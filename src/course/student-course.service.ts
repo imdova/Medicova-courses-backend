@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import { Course } from './entities/course.entity';
 import { FilterOperator, paginate, PaginateQuery } from 'nestjs-paginate';
 import { QueryConfig } from '../common/utils/query-options';
@@ -139,6 +139,8 @@ export class StudentCourseService {
         .leftJoinAndSelect('item.assignment', 'assignment')
         .leftJoinAndSelect('course.instructor', 'instructor')
         .leftJoinAndSelect('instructor.profile', 'instructorProfile')
+        .leftJoinAndSelect('course.category', 'category')
+        .leftJoinAndSelect('course.subCategory', 'subCategory')
         .where('course.id = :id', { id })
         .andWhere('course.deleted_at IS NULL')
         .orderBy('section.order', 'ASC')
@@ -180,6 +182,8 @@ export class StudentCourseService {
         .leftJoinAndSelect('course.pricings', 'pricing')
         .leftJoinAndSelect('course.instructor', 'instructor')
         .leftJoinAndSelect('instructor.profile', 'instructorProfile')
+        .leftJoinAndSelect('course.category', 'category')
+        .leftJoinAndSelect('course.subCategory', 'subCategory')
         .where('course.id = :id', { id })
         .andWhere('course.deleted_at IS NULL')
 
@@ -213,17 +217,67 @@ export class StudentCourseService {
 
     if (!course) throw new NotFoundException('Course not found');
 
-    // ✅ Filter pricing by user’s currency
+    // ✅ Filter pricing by user's currency
     if (currency) {
       course.pricings = course.pricings.filter(
         (p) => p.currencyCode === currency,
       );
     }
 
-    // ✅ Map instructor data into a compact format
+    // ✅ NEW: Fetch related courses (smart, lightweight, no duplicates)
+    const relatedQuery = this.courseRepo
+      .createQueryBuilder('related')
+      .leftJoin('related.enrollments', 'enrollments')
+      .where('related.id != :id', { id: course.id })
+      .andWhere('related.deleted_at IS NULL')
+      .andWhere(
+        new Brackets((qb) => {
+          if (course.subCategory?.id) {
+            qb.orWhere('related.subcategory_id = :subCategoryId', {
+              subCategoryId: course.subCategory.id,
+            });
+          }
+          if (course.category?.id) {
+            qb.orWhere('related.category_id = :categoryId', {
+              categoryId: course.category.id,
+            });
+          }
+          if (course.tags?.length) {
+            qb.orWhere('related.tags && :tags', { tags: course.tags });
+          }
+          if (course.name) {
+            const firstWord = course.name.toLowerCase().split(' ')[0];
+            qb.orWhere('LOWER(related.name) LIKE :name', {
+              name: `%${firstWord}%`,
+            });
+          }
+        }),
+      );
+
+    const relatedCoursesRaw = await relatedQuery
+      .select([
+        'related.id AS id',
+        'related.name AS name',
+        'COUNT(enrollments.id) AS "studentCount"',
+      ])
+      .groupBy('related.id')
+      .addGroupBy('related.name')
+      .orderBy('"studentCount"', 'DESC')
+      .limit(8)
+      .getRawMany();
+
+    // ✅ Convert count strings → numbers
+    const relatedCourses = relatedCoursesRaw.map((r) => ({
+      id: r.id,
+      name: r.name,
+      studentCount: Number(r.studentCount) || 0,
+    }));
+
+    // ✅ Map instructor data into a compact format and add related courses
     return {
       ...course,
       instructor: this.mapInstructor(course),
+      relatedCourses, // ✅ NEW: Add related courses here
     } as unknown as Course;
   }
 
