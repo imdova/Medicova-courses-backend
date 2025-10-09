@@ -258,10 +258,12 @@ export class StudentCourseService {
       .select([
         'related.id AS id',
         'related.name AS name',
+        'related.course_image AS "courseImage"',
         'COUNT(enrollments.id) AS "studentCount"',
       ])
       .groupBy('related.id')
       .addGroupBy('related.name')
+      .addGroupBy('related.course_image')
       .orderBy('"studentCount"', 'DESC')
       .limit(8)
       .getRawMany();
@@ -270,6 +272,7 @@ export class StudentCourseService {
     const relatedCourses = relatedCoursesRaw.map((r) => ({
       id: r.id,
       name: r.name,
+      courseImage: r.courseImage,
       studentCount: Number(r.studentCount) || 0,
     }));
 
