@@ -19,6 +19,7 @@ import { CourseCategory } from 'src/course/course-category/entities/course-categ
 import { CourseCategoryModule } from './course-category/course-category.module';
 import { PaymentModule } from 'src/payment/payment.module';
 import { CourseRating } from './entities/course-rating.entity';
+import { CourseCommunityModule } from './course-community/course-community.module';
 
 @Module({
   imports: [
@@ -30,13 +31,14 @@ import { CourseRating } from './entities/course-rating.entity';
       CourseStudent,
       CourseSectionItem,
       CourseCategory,
-      CourseRating
+      CourseRating,
     ]),
     CoursePricingModule,
     CourseSectionModule,
     CourseProgressModule,
     CourseCategoryModule,
     forwardRef(() => PaymentModule),
+    CourseCommunityModule,
   ],
   controllers: [CourseController, StudentCourseController],
   providers: [CourseService, RolesGuard, JwtService, StudentCourseService],
