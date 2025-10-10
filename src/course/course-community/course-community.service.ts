@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CourseCommunity } from './entities/course-community.entity';
@@ -20,13 +24,72 @@ export class CourseCommunityService {
     private readonly userRepo: Repository<User>,
   ) { }
 
-  // 🔹 CREATE COMMENT OR REPLY
-  async create(courseId: string, userId: string, dto: CreateCourseCommunityDto) {
-    const course = await this.courseRepo.findOne({ where: { id: courseId } });
+  // 🔹 Shared Access Check
+  private async checkCommunityAccess(
+    courseId: string,
+    userId: string,
+    academyId: string,
+    role: string,
+  ) {
+    const course = await this.courseRepo.findOne({
+      where: { id: courseId },
+      relations: ['academy'],
+    });
+
     if (!course) throw new NotFoundException('Course not found');
+
+    // 🟢 Admin: full access
+    if (role === 'admin') return;
+
+    // 🟢 Academy Admin: can access courses in their academy
+    if (role === 'academy_admin') {
+      if (course.academy?.id !== academyId) {
+        throw new ForbiddenException(
+          'You cannot access courses outside your academy',
+        );
+      }
+      return;
+    }
+
+    // 🟢 Instructor / Academy User: can access their own created courses
+    if (['academy_user', 'instructor'].includes(role)) {
+      if (course.createdBy !== userId) {
+        throw new ForbiddenException(
+          'You cannot access courses you did not create',
+        );
+      }
+      return;
+    }
+
+    // 🟢 Student: must be enrolled in the course
+    const enrollment = await this.courseRepo
+      .createQueryBuilder('course')
+      .innerJoin('course.enrollments', 'enrollment')
+      .innerJoin('enrollment.student', 'student')
+      .where('course.id = :courseId', { courseId })
+      .andWhere('student.id = :userId', { userId })
+      .getOne();
+
+    if (!enrollment) {
+      throw new ForbiddenException('You are not enrolled in this course');
+    }
+  }
+
+  // 🔹 CREATE COMMENT / REPLY
+  async create(
+    courseId: string,
+    userId: string,
+    academyId: string,
+    role: string,
+    dto: CreateCourseCommunityDto,
+  ) {
+    await this.checkCommunityAccess(courseId, userId, academyId, role);
 
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
+
+    const course = await this.courseRepo.findOne({ where: { id: courseId } });
+    if (!course) throw new NotFoundException('Course not found');
 
     let parentComment: CourseCommunity = null;
     if (dto.parentId) {
@@ -48,10 +111,14 @@ export class CourseCommunityService {
     return { message: 'Comment created successfully', data: saved };
   }
 
-  // 🔹 GET ALL COMMENTS FOR A COURSE
-  async findAll(courseId: string) {
-    const course = await this.courseRepo.findOne({ where: { id: courseId } });
-    if (!course) throw new NotFoundException('Course not found');
+  // 🔹 GET ALL COMMENTS
+  async findAll(
+    courseId: string,
+    userId: string,
+    academyId: string,
+    role: string,
+  ) {
+    await this.checkCommunityAccess(courseId, userId, academyId, role);
 
     const comments = await this.communityRepo.find({
       where: { course: { id: courseId }, parent: null },
@@ -63,7 +130,15 @@ export class CourseCommunityService {
   }
 
   // 🔹 GET ONE COMMENT
-  async findOne(courseId: string, id: string) {
+  async findOne(
+    courseId: string,
+    id: string,
+    userId: string,
+    academyId: string,
+    role: string,
+  ) {
+    await this.checkCommunityAccess(courseId, userId, academyId, role);
+
     const comment = await this.communityRepo.findOne({
       where: { id, course: { id: courseId } },
       relations: ['user', 'replies', 'replies.user', 'parent'],
@@ -78,16 +153,26 @@ export class CourseCommunityService {
     courseId: string,
     id: string,
     userId: string,
+    academyId: string,
+    role: string,
     dto: UpdateCourseCommunityDto,
   ) {
+    await this.checkCommunityAccess(courseId, userId, academyId, role);
+
     const comment = await this.communityRepo.findOne({
       where: { id, course: { id: courseId } },
       relations: ['user'],
     });
 
     if (!comment) throw new NotFoundException('Comment not found');
-    if (comment.user.id !== userId)
+
+    // Allow author, admin, or academy_admin
+    if (
+      comment.user.id !== userId &&
+      !['admin', 'academy_admin'].includes(role)
+    ) {
       throw new ForbiddenException('You can only edit your own comments');
+    }
 
     comment.content = dto.content ?? comment.content;
     const updated = await this.communityRepo.save(comment);
@@ -96,7 +181,15 @@ export class CourseCommunityService {
   }
 
   // 🔹 DELETE COMMENT
-  async remove(courseId: string, id: string, userId: string) {
+  async remove(
+    courseId: string,
+    id: string,
+    userId: string,
+    academyId: string,
+    role: string,
+  ) {
+    await this.checkCommunityAccess(courseId, userId, academyId, role);
+
     const comment = await this.communityRepo.findOne({
       where: { id, course: { id: courseId } },
       relations: ['user'],
@@ -104,16 +197,28 @@ export class CourseCommunityService {
 
     if (!comment) throw new NotFoundException('Comment not found');
 
-    // Allow owner or admin/instructor (extend this if you have roles)
-    if (comment.user.id !== userId)
+    // Allow author, admin, or academy_admin
+    if (
+      comment.user.id !== userId &&
+      !['admin', 'academy_admin'].includes(role)
+    ) {
       throw new ForbiddenException('You can only delete your own comments');
+    }
 
     await this.communityRepo.remove(comment);
     return { message: 'Comment deleted successfully' };
   }
 
   // 🔹 INCREASE LIKE COUNT
-  async likeComment(courseId: string, commentId: string) {
+  async likeComment(
+    courseId: string,
+    commentId: string,
+    userId: string,
+    academyId: string,
+    role: string,
+  ) {
+    await this.checkCommunityAccess(courseId, userId, academyId, role);
+
     const comment = await this.communityRepo.findOne({
       where: { id: commentId, course: { id: courseId } },
     });

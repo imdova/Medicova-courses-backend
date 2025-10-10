@@ -60,7 +60,9 @@ export class CourseCommunityController {
     @Req() req,
     @Body() dto: CreateCourseCommunityDto,
   ) {
-    return this.courseCommunityService.create(courseId, req.user.sub, dto);
+    return this.courseCommunityService.create(courseId, req.user.sub,
+      req.user.academyId,
+      req.user.role, dto);
   }
 
   // 🔹 INCREASE LIKE COUNT
@@ -85,8 +87,11 @@ export class CourseCommunityController {
   likeComment(
     @Param('courseId', ParseUUIDPipe) courseId: string,
     @Param('id', ParseUUIDPipe) id: string,
+    @Req() req,
   ) {
-    return this.courseCommunityService.likeComment(courseId, id);
+    return this.courseCommunityService.likeComment(courseId, id, req.user.sub,
+      req.user.academyId,
+      req.user.role,);
   }
 
   // 🔹 GET ALL COMMENTS FOR A COURSE
@@ -108,8 +113,10 @@ export class CourseCommunityController {
     type: [CreateCourseCommunityDto],
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  findAll(@Param('courseId', ParseUUIDPipe) courseId: string) {
-    return this.courseCommunityService.findAll(courseId);
+  findAll(@Param('courseId', ParseUUIDPipe) courseId: string, @Req() req,) {
+    return this.courseCommunityService.findAll(courseId, req.user.sub,
+      req.user.academyId,
+      req.user.role,);
   }
 
   // 🔹 GET SINGLE COMMENT / POST
@@ -138,8 +145,11 @@ export class CourseCommunityController {
   findOne(
     @Param('courseId', ParseUUIDPipe) courseId: string,
     @Param('id', ParseUUIDPipe) id: string,
+    @Req() req,
   ) {
-    return this.courseCommunityService.findOne(courseId, id);
+    return this.courseCommunityService.findOne(courseId, id, req.user.sub,
+      req.user.academyId,
+      req.user.role,);
   }
 
   // 🔹 UPDATE COMMENT
@@ -172,7 +182,9 @@ export class CourseCommunityController {
     @Req() req,
     @Body() dto: UpdateCourseCommunityDto,
   ) {
-    return this.courseCommunityService.update(courseId, id, req.user.sub, dto);
+    return this.courseCommunityService.update(courseId, id, req.user.sub,
+      req.user.academyId,
+      req.user.role, dto);
   }
 
   // 🔹 DELETE COMMENT
@@ -200,6 +212,8 @@ export class CourseCommunityController {
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req,
   ) {
-    return this.courseCommunityService.remove(courseId, id, req.user.sub);
+    return this.courseCommunityService.remove(courseId, id, req.user.sub,
+      req.user.academyId,
+      req.user.role,);
   }
 }
