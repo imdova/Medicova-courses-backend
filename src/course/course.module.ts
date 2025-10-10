@@ -20,6 +20,7 @@ import { CourseCategoryModule } from './course-category/course-category.module';
 import { PaymentModule } from 'src/payment/payment.module';
 import { CourseRating } from './entities/course-rating.entity';
 import { CourseCommunityModule } from './course-community/course-community.module';
+import { CourseNotesModule } from './course-notes/course-notes.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { CourseCommunityModule } from './course-community/course-community.modul
     CourseCategoryModule,
     forwardRef(() => PaymentModule),
     CourseCommunityModule,
+    CourseNotesModule,
   ],
   controllers: [CourseController, StudentCourseController],
   providers: [CourseService, RolesGuard, JwtService, StudentCourseService],

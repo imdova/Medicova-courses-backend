@@ -53,6 +53,7 @@ import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handleba
 import { CourseRating } from './course/entities/course-rating.entity';
 import { ProfileRating } from './profile/entities/profile-rating.entity';
 import { CourseCommunity } from './course/course-community/entities/course-community.entity';
+import { CourseNote } from './course/course-notes/entities/course-note.entity';
 
 @Module({
   imports: [
@@ -99,7 +100,8 @@ import { CourseCommunity } from './course/course-community/entities/course-commu
         RolePermission,
         CourseRating,
         ProfileRating,
-        CourseCommunity
+        CourseCommunity,
+        CourseNote
       ],
       synchronize: true,
       extra: {
