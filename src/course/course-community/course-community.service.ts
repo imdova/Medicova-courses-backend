@@ -111,4 +111,21 @@ export class CourseCommunityService {
     await this.communityRepo.remove(comment);
     return { message: 'Comment deleted successfully' };
   }
+
+  // 🔹 INCREASE LIKE COUNT
+  async likeComment(courseId: string, commentId: string) {
+    const comment = await this.communityRepo.findOne({
+      where: { id: commentId, course: { id: courseId } },
+    });
+
+    if (!comment) throw new NotFoundException('Comment not found');
+
+    comment.likeCount += 1;
+    await this.communityRepo.save(comment);
+
+    return {
+      message: 'Like count increased successfully',
+      likeCount: comment.likeCount,
+    };
+  }
 }

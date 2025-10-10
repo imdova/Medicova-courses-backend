@@ -22,10 +22,12 @@ import { AuthGuard } from '@nestjs/passport';
 import { CourseCommunityService } from './course-community.service';
 import { CreateCourseCommunityDto } from './dto/create-course-community.dto';
 import { UpdateCourseCommunityDto } from './dto/update-course-community.dto';
+import { PermissionsGuard } from 'src/auth/permission.guard';
+import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Course Community')
 @ApiBearerAuth()
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 @Controller('courses/:courseId/community')
 export class CourseCommunityController {
   constructor(
@@ -34,6 +36,7 @@ export class CourseCommunityController {
 
   // 🔹 CREATE COMMENT / POST
   @Post()
+  @RequirePermissions('community:create')
   @ApiOperation({
     summary: 'Create a new community post or comment',
     description:
@@ -60,8 +63,35 @@ export class CourseCommunityController {
     return this.courseCommunityService.create(courseId, req.user.sub, dto);
   }
 
+  // 🔹 INCREASE LIKE COUNT
+  @Post(':id/like')
+  @RequirePermissions('community:like')
+  @ApiOperation({
+    summary: 'Like a community comment',
+    description: 'Increments the like counter of a community comment or reply.',
+  })
+  @ApiParam({
+    name: 'courseId',
+    description: 'UUID of the course this comment belongs to',
+    type: String,
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'UUID of the comment/post to like',
+    type: String,
+  })
+  @ApiResponse({ status: 200, description: 'Like count increased successfully' })
+  @ApiResponse({ status: 404, description: 'Comment not found' })
+  likeComment(
+    @Param('courseId', ParseUUIDPipe) courseId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.courseCommunityService.likeComment(courseId, id);
+  }
+
   // 🔹 GET ALL COMMENTS FOR A COURSE
   @Get()
+  @RequirePermissions('community:list')
   @ApiOperation({
     summary: 'Get all community posts and replies for a course',
     description:
@@ -84,6 +114,7 @@ export class CourseCommunityController {
 
   // 🔹 GET SINGLE COMMENT / POST
   @Get(':id')
+  @RequirePermissions('community:get_by_id')
   @ApiOperation({
     summary: 'Get a specific community post or comment',
     description: 'Fetch a single community post by its UUID.',
@@ -113,6 +144,7 @@ export class CourseCommunityController {
 
   // 🔹 UPDATE COMMENT
   @Patch(':id')
+  @RequirePermissions('community:update')
   @ApiOperation({
     summary: 'Update a community post or comment',
     description:
@@ -128,7 +160,7 @@ export class CourseCommunityController {
     description: 'UUID of the comment/post to update',
     type: String,
   })
-  @ApiBody({ type: UpdateCourseCommunityDto })
+  @ApiBody({ type: CreateCourseCommunityDto })
   @ApiResponse({
     status: 200,
     description: 'Comment updated successfully',
@@ -145,6 +177,7 @@ export class CourseCommunityController {
 
   // 🔹 DELETE COMMENT
   @Delete(':id')
+  @RequirePermissions('community:delete')
   @ApiOperation({
     summary: 'Delete a community post or comment',
     description:
