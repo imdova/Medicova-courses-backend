@@ -15,7 +15,6 @@ import {
   ApiOperation,
   ApiResponse,
   ApiParam,
-  ApiBearerAuth,
   ApiBody,
 } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
@@ -26,7 +25,6 @@ import { PermissionsGuard } from 'src/auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Course Community')
-@ApiBearerAuth()
 @UseGuards(AuthGuard('jwt'), PermissionsGuard)
 @Controller('courses/:courseId/community')
 export class CourseCommunityController {
