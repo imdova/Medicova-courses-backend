@@ -52,6 +52,7 @@ import { join } from 'path';
 import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
 import { CourseRating } from './course/entities/course-rating.entity';
 import { ProfileRating } from './profile/entities/profile-rating.entity';
+import { CourseCommunity } from './course/course-community/entities/course-community.entity';
 
 @Module({
   imports: [
@@ -97,7 +98,8 @@ import { ProfileRating } from './profile/entities/profile-rating.entity';
         Permission,
         RolePermission,
         CourseRating,
-        ProfileRating
+        ProfileRating,
+        CourseCommunity
       ],
       synchronize: true,
       extra: {
