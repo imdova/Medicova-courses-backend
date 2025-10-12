@@ -246,6 +246,23 @@ export class QuizController {
     );
   }
 
+  @Get(':quizId/attempts/:studentId')
+  @RequirePermissions('quiz:attempts:get_for_student')
+  @ApiOperation({ summary: 'Get quiz attempts for a specific student' })
+  async getAttemptsForStudent(
+    @Param('quizId') quizId: string,
+    @Param('studentId') studentId: string,
+    @Req() req,
+  ): Promise<QuizAttempt[]> {
+    return this.quizService.getAttemptsForStudent(
+      quizId,
+      studentId,
+      req.user.sub,
+      req.user.role,
+      req.user.academyId,
+    );
+  }
+
   @Get(':quizId/overview')
   @RequirePermissions('quiz:overview')
   @ApiOperation({ summary: 'Get quiz overview' })
