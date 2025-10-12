@@ -552,14 +552,14 @@ export class QuizService {
     if (role === 'academy_admin') {
       if (quiz.academy?.id !== academyId) {
         throw new ForbiddenException(
-          'You cannot access courses outside your academy',
+          'You cannot access quizzes outside your academy',
         );
       }
     } else {
       // instructor / academy_user
       if (quiz.createdBy !== userId) {
         throw new ForbiddenException(
-          'You are not allowed to access this course',
+          'You are not allowed to access this quiz',
         );
       }
     }
@@ -846,5 +846,43 @@ export class QuizService {
       title: quiz.title,
       questions: questionStats,
     };
+  }
+
+  async getAttemptsForStudent(
+    quizId: string,
+    studentId: string,
+    userId: string,
+    role: string,
+    academyId: string,
+  ): Promise<QuizAttempt[]> {
+    // 1️⃣ Load quiz for ownership validation
+    const quiz = await this.quizRepo.findOne({
+      where: { id: quizId, deleted_at: null },
+      relations: ['academy'],
+    });
+
+    if (!quiz) throw new NotFoundException('Quiz not found');
+
+    // 2️⃣ Check access
+    if (role === 'student') {
+      // students can only access their own attempts
+      if (studentId !== userId) {
+        throw new ForbiddenException('You can only view your own attempts');
+      }
+    } else {
+      // instructors, academy admins, admins, etc.
+      this.checkOwnership(quiz, userId, academyId, role);
+    }
+
+    // 3️⃣ Return all attempts for that student on that quiz
+    return this.attemptRepo
+      .createQueryBuilder('attempt')
+      .leftJoin('attempt.quiz', 'quiz')
+      .leftJoinAndSelect('attempt.courseStudent', 'courseStudent')
+      .leftJoinAndSelect('courseStudent.student', 'student')
+      .where('attempt.quiz_id = :quizId', { quizId })
+      .andWhere('(student.id = :studentId)', { studentId })
+      .orderBy('attempt.created_at', 'DESC')
+      .getMany();
   }
 }
