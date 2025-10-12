@@ -719,6 +719,11 @@ export class QuizService {
 
     const { totalStudents, avgScore, avgTime } = stats;
 
+    // --- Enrollment count (total attempts) ---
+    const enrollments = await this.attemptRepo.count({
+      where: { quiz: { id: quizId } },
+    });
+
     return {
       id: quiz.id,
       title: quiz.title,
@@ -743,6 +748,7 @@ export class QuizService {
       totalStudents: Number(totalStudents) || 0,
       averageScore: avgScore ? Number(avgScore).toFixed(2) : null,
       averageTimeTaken: avgTime ? Number(avgTime).toFixed(2) : null,
+      enrollments,
     };
   }
 
