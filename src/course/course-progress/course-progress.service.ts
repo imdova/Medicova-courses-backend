@@ -126,16 +126,16 @@ export class CourseProgressService {
       where: { quiz: { id: quiz.id }, courseStudent: { id: courseStudent.id } },
     });
 
-    if (quiz.attempt_mode === AttemptMode.SINGLE && attemptCount >= 1) {
-      throw new BadRequestException('You are only allowed a single attempt.');
-    }
-    if (quiz.attempt_mode === AttemptMode.MULTIPLE) {
-      if (quiz.retakes > 0 && attemptCount >= quiz.retakes) {
-        throw new BadRequestException(
-          `You have reached the maximum of ${quiz.retakes} attempts.`,
-        );
-      }
-    }
+    // if (quiz.attempt_mode === AttemptMode.SINGLE && attemptCount >= 1) {
+    //   throw new BadRequestException('You are only allowed a single attempt.');
+    // }
+    // if (quiz.attempt_mode === AttemptMode.MULTIPLE) {
+    //   if (quiz.retakes > 0 && attemptCount >= quiz.retakes) {
+    //     throw new BadRequestException(
+    //       `You have reached the maximum of ${quiz.retakes} attempts.`,
+    //     );
+    //   }
+    // }
 
     const fullQuiz = await this.quizRepo.findOne({
       where: { id: quiz.id },
