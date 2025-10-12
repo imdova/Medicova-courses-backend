@@ -294,17 +294,17 @@ export class QuizService {
       where: { quiz: { id: quizId }, user: { id: userId } },
     });
 
-    // Enforce attempt limits
-    if (quiz.attempt_mode === AttemptMode.SINGLE && attemptCount >= 1) {
-      throw new BadRequestException('You are only allowed a single attempt.');
-    }
-    if (quiz.attempt_mode === AttemptMode.MULTIPLE) {
-      if (quiz.retakes > 0 && attemptCount >= quiz.retakes) {
-        throw new BadRequestException(
-          `You have reached the maximum of ${quiz.retakes} attempts.`,
-        );
-      }
-    }
+    // // Enforce attempt limits
+    // if (quiz.attempt_mode === AttemptMode.SINGLE && attemptCount >= 1) {
+    //   throw new BadRequestException('You are only allowed a single attempt.');
+    // }
+    // if (quiz.attempt_mode === AttemptMode.MULTIPLE) {
+    //   if (quiz.retakes > 0 && attemptCount >= quiz.retakes) {
+    //     throw new BadRequestException(
+    //       `You have reached the maximum of ${quiz.retakes} attempts.`,
+    //     );
+    //   }
+    // }
 
     // Calculate score using frontend correctness
     let score = 0;
