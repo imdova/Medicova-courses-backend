@@ -77,8 +77,8 @@ export class CourseController {
   }
 
   @Get()
-  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  @RequirePermissions('course:list')
+  // @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  // @RequirePermissions('course:list')
   @ApiOperation({
     summary: 'Get paginated list of courses with filters and sorting',
   })
@@ -134,16 +134,16 @@ export class CourseController {
   })
   findAll(
     @Paginate() query: PaginateQuery,
-    @Req() req,
+    //@Req() req,
   ): Promise<Paginated<Course>> {
-    const userId = req.user.sub;
-    const academyId = req.user.academyId;
-    const role = req.user.role;
+    // const userId = req.user.sub;
+    // const academyId = req.user.academyId;
+    // const role = req.user.role;
     return this.courseService.getPaginatedCourses(
       query,
-      userId,
-      academyId,
-      role,
+      // userId,
+      // academyId,
+      // role,
     );
   }
 

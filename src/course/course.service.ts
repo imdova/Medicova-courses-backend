@@ -126,9 +126,9 @@ export class CourseService {
 
   async getPaginatedCourses(
     query: PaginateQuery,
-    userId: string,
-    academyId: string,
-    role: string,
+    // userId: string,
+    // academyId: string,
+    // role: string,
   ): Promise<Paginated<Course>> {
     const qb = this.courseRepository.createQueryBuilder('course');
 
@@ -163,11 +163,11 @@ export class CourseService {
       )
       .andWhere('course.deleted_at IS NULL');
 
-    if (role === 'academy_admin') {
-      qb.andWhere('course.academy_id = :academyId', { academyId });
-    } else if (role !== 'admin') {
-      qb.andWhere('course.created_by = :userId', { userId });
-    }
+    // if (role === 'academy_admin') {
+    //   qb.andWhere('course.academy_id = :academyId', { academyId });
+    // } else if (role !== 'admin') {
+    //   qb.andWhere('course.created_by = :userId', { userId });
+    // }
 
     const result = await paginate(query, qb, COURSE_PAGINATION_CONFIG);
 
