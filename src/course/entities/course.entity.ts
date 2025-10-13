@@ -41,6 +41,14 @@ export enum LectureFrequencyCount {
   THREE_TIMES = 'three_times',
 }
 
+export enum ProgramType {
+  COURSE = 'course',
+  CERTIFICATE_OF_ACHIEVEMENT = 'certificate_of_achievement',
+  PROFESSIONAL_DIPLOMA = 'professional_diploma',
+  MASTER = 'master',
+  DOCTORATE = 'doctorate',
+}
+
 @Entity('courses')
 export class Course extends BasicEntity {
   @ManyToOne(() => User, { eager: false })
@@ -106,34 +114,35 @@ export class Course extends BasicEntity {
   @Column({ type: 'date', nullable: true, name: 'end_date' })
   endDate?: string;
 
-  // Recorded-course-specific fields
-  @ApiPropertyOptional({
-    description: 'Block content access after course expiration?',
-    default: false,
+  @ApiProperty({
+    description:
+      'Determines whether global or platform-level coupons can be applied to this program.',
+    default: true,
   })
-  @Column({ default: false, name: 'block_content_after_expiration' })
-  blockContentAfterExpiration: boolean;
+  @Column({ default: true, name: 'allow_platform_coupons' })
+  allowPlatformCoupons: boolean;
+
+  @ApiProperty({
+    description: 'Defines the type or category of the program.',
+    enum: ProgramType,
+    example: ProgramType.COURSE,
+  })
+  @Column({
+    type: 'enum',
+    enum: ProgramType,
+    default: ProgramType.COURSE,
+    name: 'program_type',
+  })
+  programType: ProgramType;
 
   @ApiPropertyOptional({
-    description: 'Allow students to repurchase the course?',
-    default: false,
+    description:
+      'An array of supported languages for the program (e.g., ["English", "Arabic", "French"]).',
+    type: [String],
+    example: ['English', 'Arabic'],
   })
-  @Column({ default: false, name: 'allow_repurchase' })
-  allowRepurchase: boolean;
-
-  @ApiPropertyOptional({
-    description: 'Offer discount on the course?',
-    default: false,
-  })
-  @Column({ default: false, name: 'offer_discount' })
-  offerDiscount: boolean;
-
-  @ApiPropertyOptional({
-    description: 'Send notification emails?',
-    default: false,
-  })
-  @Column({ default: false, name: 'send_email' })
-  sendEmail: boolean;
+  @Column({ type: 'text', array: true, default: [], name: 'languages' })
+  languages: string[];
 
   // Live/Hybrid-specific fields
   @ApiPropertyOptional({
