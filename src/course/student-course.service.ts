@@ -58,7 +58,7 @@ export class StudentCourseService {
   }
 
   async getPaginatedCourses(query: PaginateQuery, user: any) {
-    const currency = await this.getCurrencyForUser(user.sub);
+    const currency = user ? await this.getCurrencyForUser(user.sub) : 'USD';
 
     const qb = this.courseRepo
       .createQueryBuilder('course')
