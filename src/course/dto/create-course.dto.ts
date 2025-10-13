@@ -18,6 +18,7 @@ import {
   LectureFrequencyCount,
   DurationUnit,
   CourseLevel,
+  ProgramType,
 } from '../entities/course.entity';
 import { CourseMetadataDto } from './course-metadata.dto';
 import { Type } from 'class-transformer';
@@ -120,40 +121,34 @@ export class CreateCourseDto {
   @IsDateString()
   endDate?: string;
 
-  // ----- Recorded course fields -----
+  // ----- 🆕 New fields -----
+  @ApiProperty({
+    description:
+      'Determines whether global or platform-level coupons can be applied to this program.',
+    example: true,
+    default: true,
+  })
+  @IsBoolean()
+  allowPlatformCoupons: boolean;
+
+  @ApiProperty({
+    description: 'Defines the type or category of the program.',
+    enum: ProgramType,
+    example: ProgramType.COURSE,
+  })
+  @IsEnum(ProgramType)
+  programType: ProgramType;
+
   @ApiPropertyOptional({
     description:
-      'Whether to block content after expiration (recorded courses only)',
-    example: false,
+      'An array of supported languages for the program (e.g., ["English", "Arabic", "French"]).',
+    type: [String],
+    example: ['English', 'Arabic'],
   })
   @IsOptional()
-  @IsBoolean()
-  blockContentAfterExpiration: boolean;
-
-  @ApiPropertyOptional({
-    description:
-      'Whether students can repurchase the course (recorded courses only)',
-    example: true,
-  })
-  @IsOptional()
-  @IsBoolean()
-  allowRepurchase: boolean;
-
-  @ApiPropertyOptional({
-    description: 'Whether to offer a discount (recorded courses only)',
-    example: false,
-  })
-  @IsOptional()
-  @IsBoolean()
-  offerDiscount: boolean;
-
-  @ApiPropertyOptional({
-    description: 'Whether to send email notifications (recorded courses only)',
-    example: true,
-  })
-  @IsOptional()
-  @IsBoolean()
-  sendEmail: boolean;
+  @IsArray()
+  @IsString({ each: true })
+  languages?: string[];
 
   @ApiProperty({
     description: 'Whether the course is free of charge',
