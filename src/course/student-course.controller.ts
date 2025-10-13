@@ -28,7 +28,7 @@ import { PaymentService } from 'src/payment/payment.service';
 import { OrderType } from 'src/payment/entities/payment.entity';
 import { PermissionsGuard } from '../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
-import { OptionalJwtAuthGuard } from 'src/auth/strategy/optional-jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/strategy/optional-jwt-auth.guard';
 
 @ApiTags('Student Courses')
 @Controller('student/courses')
