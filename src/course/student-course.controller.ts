@@ -28,10 +28,10 @@ import { PaymentService } from 'src/payment/payment.service';
 import { OrderType } from 'src/payment/entities/payment.entity';
 import { PermissionsGuard } from '../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
+import { OptionalJwtAuthGuard } from 'src/auth/strategy/optional-jwt-auth.guard';
 
 @ApiTags('Student Courses')
 @Controller('student/courses')
-@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class StudentCourseController {
   constructor(
     private readonly studentCourseService: StudentCourseService,
@@ -39,6 +39,7 @@ export class StudentCourseController {
   ) { }
 
   @Post(':id/enroll')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('course:enroll')
   @ApiOperation({
     summary: 'Enroll student into a course',
@@ -67,6 +68,7 @@ export class StudentCourseController {
   }
 
   @Post(':id/purchase')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('course:purchase')
   @ApiOperation({ summary: 'Purchase a course' })
   @ApiBody({ type: CreatePaymentDto })
@@ -86,6 +88,7 @@ export class StudentCourseController {
   }
 
   @Get('enrolled')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('course:list_enrolled')
   @ApiOperation({
     summary: 'Get paginated list of courses the student is enrolled in',
@@ -104,7 +107,8 @@ export class StudentCourseController {
   }
 
   @Get()
-  @RequirePermissions('course:list_available')
+  @UseGuards(OptionalJwtAuthGuard)
+  //@RequirePermissions('course:list_available')
   @ApiOperation({
     summary: 'Get paginated list of available courses for students',
     description:
@@ -122,6 +126,7 @@ export class StudentCourseController {
   }
 
   @Get(':id')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('course:get_for_student')
   @ApiOperation({
     summary: 'Get a course by ID for student view',
@@ -147,6 +152,7 @@ export class StudentCourseController {
   }
 
   @Delete(':id/drop')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('course:drop')
   @ApiOperation({
     summary: 'Drop a course',
