@@ -232,6 +232,15 @@ export class QuizController {
     );
   }
 
+  @Get('latest-for-student')
+  @RequirePermissions('quiz:get_latest_for_student')
+  @ApiOperation({ summary: 'Get the 2 most recently attempted quizzes for the logged-in student' })
+  @ApiResponse({ status: 200, description: 'Latest 2 quizzes with progress percentage' })
+  async getLatestQuizzesForStudent(@Req() req) {
+    const studentId = req.user.sub;
+    return this.quizService.getLatestQuizzesForStudent(studentId);
+  }
+
   @Get(':id')
   @RequirePermissions('quiz:get')
   @ApiOperation({ summary: 'Get quiz by ID (instructor or student)' })
