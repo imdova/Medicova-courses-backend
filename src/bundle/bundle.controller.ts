@@ -63,6 +63,13 @@ export class BundleController {
     example: '$ilike:starter',
   })
   @ApiQuery({
+    name: 'filter.slug',
+    required: false,
+    description:
+      'Search by bundle slug (ILIKE). Example value: `$ilike:starter`',
+    example: '$ilike:starter',
+  })
+  @ApiQuery({
     name: 'filter.status',
     required: false,
     description: 'Filter by bundle status (EQ). Example value: `$eq:published`',

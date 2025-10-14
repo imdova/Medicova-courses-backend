@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -27,6 +28,7 @@ export const BUNDLE_PAGINATION_CONFIG: QueryConfig<Bundle> = {
     status: [FilterOperator.EQ],
     is_free: [FilterOperator.EQ],
     active: [FilterOperator.EQ],
+    slug: [FilterOperator.ILIKE],
     'pricings.sale_price': [FilterOperator.GTE, FilterOperator.LTE],
     'pricings.currency_code': [FilterOperator.EQ],
   },
@@ -56,52 +58,60 @@ export class BundleService {
     userId: string,
     academyId?: string,
   ): Promise<Bundle> {
-    // 1️⃣ Validate all courses exist
-    const courses = await this.courseRepository.find({
-      where: { id: In(dto.courseIds), deleted_at: null },
-    });
+    try {
+      // 1️⃣ Validate all courses exist
+      const courses = await this.courseRepository.find({
+        where: { id: In(dto.courseIds), deleted_at: null },
+      });
 
-    if (courses.length !== dto.courseIds.length) {
-      throw new NotFoundException('One or more courses not found');
+      if (courses.length !== dto.courseIds.length) {
+        throw new NotFoundException('One or more courses not found');
+      }
+
+      // 2️⃣ Create bundle entity
+      const bundle = this.bundleRepository.create({
+        title: dto.title,
+        description: dto.description,
+        thumbnail_url: dto.thumbnail_url,
+        is_free: dto.is_free,
+        status: dto.status,
+        slug: dto.slug,
+        created_by: userId, // Replace with actual user from auth
+        active: true,
+        academy: { id: academyId },
+      });
+
+      const savedBundle = await this.bundleRepository.save(bundle);
+
+      // 3️⃣ Create pricing records
+      const pricings = dto.pricings.map((pricing) =>
+        this.pricingRepository.create({
+          ...pricing,
+          bundle: savedBundle,
+        }),
+      );
+      await this.pricingRepository.save(pricings);
+
+      // 4️⃣ Create course-bundle relations
+      const courseBundles = courses.map((course) =>
+        this.courseBundleRepository.create({
+          bundle: savedBundle,
+          course,
+        }),
+      );
+      await this.courseBundleRepository.save(courseBundles);
+
+      // 5️⃣ Return bundle with relations
+      return this.bundleRepository.findOne({
+        where: { id: savedBundle.id },
+        relations: ['pricings', 'courseBundles', 'courseBundles.course'],
+      });
+    } catch (error) {
+      if (error.code === '23505') { // PostgreSQL unique_violation
+        throw new ConflictException(`Slug '${dto.slug}' already exists.`);
+      }
+      throw error;
     }
-
-    // 2️⃣ Create bundle entity
-    const bundle = this.bundleRepository.create({
-      title: dto.title,
-      description: dto.description,
-      thumbnail_url: dto.thumbnail_url,
-      is_free: dto.is_free,
-      status: dto.status,
-      created_by: userId, // Replace with actual user from auth
-      active: true,
-      academy: { id: academyId },
-    });
-
-    const savedBundle = await this.bundleRepository.save(bundle);
-
-    // 3️⃣ Create pricing records
-    const pricings = dto.pricings.map((pricing) =>
-      this.pricingRepository.create({
-        ...pricing,
-        bundle: savedBundle,
-      }),
-    );
-    await this.pricingRepository.save(pricings);
-
-    // 4️⃣ Create course-bundle relations
-    const courseBundles = courses.map((course) =>
-      this.courseBundleRepository.create({
-        bundle: savedBundle,
-        course,
-      }),
-    );
-    await this.courseBundleRepository.save(courseBundles);
-
-    // 5️⃣ Return bundle with relations
-    return this.bundleRepository.findOne({
-      where: { id: savedBundle.id },
-      relations: ['pricings', 'courseBundles', 'courseBundles.course'],
-    });
   }
 
   async findAll(
@@ -164,20 +174,31 @@ export class BundleService {
 
     this.checkOwnership(bundle, userId, academyId, role);
 
-    Object.assign(bundle, {
-      title: dto.title ?? bundle.title,
-      description: dto.description ?? bundle.description,
-      thumbnail_url: dto.thumbnail_url ?? bundle.thumbnail_url,
-      is_free: dto.is_free ?? bundle.is_free,
-      status: dto.status ?? bundle.status,
-    });
-    await this.bundleRepository.save(bundle);
+    try {
+      Object.assign(bundle, {
+        title: dto.title ?? bundle.title,
+        description: dto.description ?? bundle.description,
+        thumbnail_url: dto.thumbnail_url ?? bundle.thumbnail_url,
+        is_free: dto.is_free ?? bundle.is_free,
+        status: dto.status ?? bundle.status,
+        slug: dto.slug ?? bundle.slug,
+      });
+      await this.bundleRepository.save(bundle);
+    } catch (error) {
+      if (error.code === '23505') { // PostgreSQL unique_violation
+        throw new ConflictException(`Slug '${dto.slug}' already exists.`);
+      }
+      throw error;
+    }
 
     if (dto.courseIds) {
       await this.courseBundleRepository.delete({ bundle: { id } });
       const courses = await this.courseRepository.find({
         where: { id: In(dto.courseIds), deleted_at: null },
       });
+      if (courses.length !== dto.courseIds.length) {
+        throw new NotFoundException('One or more courses not found');
+      }
       const courseBundles = courses.map((course) =>
         this.courseBundleRepository.create({ bundle, course }),
       );

@@ -8,6 +8,7 @@ import {
   Post,
   Delete,
   Body,
+  NotFoundException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -85,6 +86,30 @@ export class StudentCourseController {
       orderId: id, // overwrite orderId from the route param
       orderType: OrderType.COURSE,
     });
+  }
+
+  @Get('latest')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('course:get_latest_for_student')
+  @ApiOperation({
+    summary: 'Get latest studied course for a student',
+    description:
+      'Returns the most recently interacted-with course for the authenticated student.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Latest studied course details',
+    type: Course,
+  })
+  @ApiResponse({ status: 404, description: 'No course progress found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  async getLatestStudiedCourse(@Req() req) {
+    const course = await this.studentCourseService.getLatestStudiedCourse(req.user.sub);
+    if (!course) {
+      throw new NotFoundException('No recent course activity found');
+    }
+    return course;
   }
 
   @Get('enrolled')

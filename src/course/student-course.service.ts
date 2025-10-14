@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, Repository } from 'typeorm';
+import { Brackets, DataSource, Repository } from 'typeorm';
 import { Course } from './entities/course.entity';
 import { FilterOperator, paginate, PaginateQuery } from 'nestjs-paginate';
 import { QueryConfig } from '../common/utils/query-options';
@@ -12,6 +12,8 @@ import { Profile } from 'src/profile/entities/profile.entity';
 import { CurrencyCode } from './course-pricing/entities/course-pricing.entity';
 import { CourseStudent } from './entities/course-student.entity';
 import { User } from 'src/user/entities/user.entity';
+import { CourseProgress } from './course-progress/entities/course-progress.entity';
+import { CourseSectionItem } from './course-section/entities/course-section-item.entity';
 
 export const COURSE_PAGINATION_CONFIG: QueryConfig<Course> = {
   sortableColumns: ['created_at', 'name', 'category', 'status'],
@@ -34,6 +36,7 @@ export class StudentCourseService {
     private readonly profileRepo: Repository<Profile>,
     @InjectRepository(CourseStudent)
     private readonly courseStudentRepository: Repository<CourseStudent>,
+    private readonly dataSource: DataSource
   ) { }
 
   private async getCurrencyForUser(
@@ -427,6 +430,69 @@ export class StudentCourseService {
       fullName: profile ? `${profile.firstName} ${profile.lastName}` : null,
       userName: profile?.userName,
       photoUrl: profile?.photoUrl,
+    };
+  }
+
+  async getLatestStudiedCourse(studentId: string) {
+    const progressRepo = this.dataSource.getRepository(CourseProgress);
+    const courseRepo = this.dataSource.getRepository(Course);
+    const itemRepo = this.dataSource.getRepository(CourseSectionItem);
+
+    // 1️⃣ Get the latest progress record (light join with item + section)
+    const latestProgress = await progressRepo
+      .createQueryBuilder('progress')
+      .innerJoinAndSelect('progress.courseStudent', 'courseStudent')
+      .innerJoinAndSelect('courseStudent.course', 'course')
+      .leftJoinAndSelect('progress.item', 'item')
+      .leftJoinAndSelect('item.section', 'section')
+      .where('courseStudent.student_id = :studentId', { studentId })
+      .orderBy('progress.updated_at', 'DESC')
+      .addOrderBy('progress.created_at', 'DESC')
+      .getOne();
+
+    if (!latestProgress) {
+      return null;
+    }
+
+    // 2️⃣ Fetch course and calculate progress in parallel
+    const [course, totalItems, completedItems] = await Promise.all([
+      courseRepo.findOne({
+        where: { id: latestProgress.courseStudent.course.id },
+      }),
+      itemRepo.count({
+        where: { section: { course: { id: latestProgress.courseStudent.course.id } } },
+      }),
+      progressRepo
+        .createQueryBuilder('progress')
+        .innerJoin('progress.courseStudent', 'courseStudent')
+        .where('courseStudent.student_id = :studentId', { studentId })
+        .andWhere('courseStudent.course_id = :courseId', {
+          courseId: latestProgress.courseStudent.course.id,
+        })
+        .andWhere('progress.completed = true')
+        .getCount(),
+    ]);
+
+    if (!course) return null;
+
+    const totalProgress =
+      totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+
+    // 3️⃣ Extract latest item info (no heavy joins)
+    const latestItem = latestProgress.item
+      ? {
+        id: latestProgress.item.id,
+        type: latestProgress.item.curriculumType || null,
+        sectionName: latestProgress.item.section?.name || null,
+        lastStudiedAt: latestProgress.updated_at,
+      }
+      : null;
+
+    // 4️⃣ Return combined response
+    return {
+      course,
+      totalProgress,
+      latestItem,
     };
   }
 }
