@@ -173,20 +173,31 @@ export class BundleService {
 
     this.checkOwnership(bundle, userId, academyId, role);
 
-    Object.assign(bundle, {
-      title: dto.title ?? bundle.title,
-      description: dto.description ?? bundle.description,
-      thumbnail_url: dto.thumbnail_url ?? bundle.thumbnail_url,
-      is_free: dto.is_free ?? bundle.is_free,
-      status: dto.status ?? bundle.status,
-    });
-    await this.bundleRepository.save(bundle);
+    try {
+      Object.assign(bundle, {
+        title: dto.title ?? bundle.title,
+        description: dto.description ?? bundle.description,
+        thumbnail_url: dto.thumbnail_url ?? bundle.thumbnail_url,
+        is_free: dto.is_free ?? bundle.is_free,
+        status: dto.status ?? bundle.status,
+        slug: dto.slug ?? bundle.slug,
+      });
+      await this.bundleRepository.save(bundle);
+    } catch (error) {
+      if (error.code === '23505') { // PostgreSQL unique_violation
+        throw new ConflictException(`Slug '${dto.slug}' already exists.`);
+      }
+      throw error;
+    }
 
     if (dto.courseIds) {
       await this.courseBundleRepository.delete({ bundle: { id } });
       const courses = await this.courseRepository.find({
         where: { id: In(dto.courseIds), deleted_at: null },
       });
+      if (courses.length !== dto.courseIds.length) {
+        throw new NotFoundException('One or more courses not found');
+      }
       const courseBundles = courses.map((course) =>
         this.courseBundleRepository.create({ bundle, course }),
       );
