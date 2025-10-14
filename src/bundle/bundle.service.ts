@@ -28,6 +28,7 @@ export const BUNDLE_PAGINATION_CONFIG: QueryConfig<Bundle> = {
     status: [FilterOperator.EQ],
     is_free: [FilterOperator.EQ],
     active: [FilterOperator.EQ],
+    slug: [FilterOperator.ILIKE],
     'pricings.sale_price': [FilterOperator.GTE, FilterOperator.LTE],
     'pricings.currency_code': [FilterOperator.EQ],
   },
