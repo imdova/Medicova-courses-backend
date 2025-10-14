@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { AttemptMode, Quiz } from './entities/quiz.entity';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
@@ -24,6 +24,7 @@ import { QuizQuestion } from './entities/quiz-question.entity';
 import { QuizWithStats } from './interface/quiz-with-stats.interface';
 import { UpdateQuizWithQuestionsDto } from './dto/update-quiz-with-questions.dto';
 import { CreateQuestionDto } from './dto/create-question.dto';
+import { CourseStudent } from 'src/course/entities/course-student.entity';
 
 export const QUIZ_PAGINATION_CONFIG: QueryConfig<Quiz> = {
   sortableColumns: ['created_at', 'title'],
@@ -43,6 +44,7 @@ export class QuizService {
     private readonly quizRepo: Repository<Quiz>,
     @InjectRepository(QuizAttempt)
     private attemptRepo: Repository<QuizAttempt>,
+    private readonly dataSource: DataSource
   ) { }
 
   // All methods are checked for performance
@@ -884,5 +886,63 @@ export class QuizService {
       .andWhere('(student.id = :studentId)', { studentId })
       .orderBy('attempt.created_at', 'DESC')
       .getMany();
+  }
+
+  async getLatestQuizzesForStudent(userId: string, limit = 2) {
+    const courseStudentRepo = this.dataSource.getRepository(CourseStudent);
+    const attemptRepo = this.dataSource.getRepository(QuizAttempt);
+
+    // 0️⃣ Get all course_student ids for this user
+    const csRows = await courseStudentRepo
+      .createQueryBuilder('cs')
+      .select(['cs.id AS id'])
+      .where('cs.student_id = :userId', { userId })
+      .getRawMany();
+
+    const csIds = csRows.map((r) => r.id);
+    if (!csIds.length) return [];
+
+    // 1️⃣ Subquery: latest attempt timestamp per quiz
+    const subQuery = attemptRepo
+      .createQueryBuilder('a')
+      .select('MAX(a.created_at)', 'latest')
+      .addSelect('a.quiz_id', 'quiz_id')
+      .where('a.course_student_id IN (:...csIds)', { csIds })
+      .groupBy('a.quiz_id');
+
+    // 2️⃣ Main query: join quiz + course
+    const recentAttempts = await attemptRepo
+      .createQueryBuilder('attempt')
+      .innerJoinAndSelect('attempt.quiz', 'quiz')
+      .leftJoinAndSelect('attempt.courseStudent', 'courseStudent')
+      .leftJoinAndSelect('courseStudent.course', 'course')
+      .innerJoin(
+        '(' + subQuery.getQuery() + ')',
+        'latest_per_quiz',
+        'latest_per_quiz.quiz_id = attempt.quiz_id AND latest_per_quiz.latest = attempt.created_at'
+      )
+      .setParameters(subQuery.getParameters())
+      .andWhere('attempt.course_student_id IN (:...csIds)', { csIds })
+      .orderBy('attempt.created_at', 'DESC')
+      .limit(limit)
+      .getMany();
+
+    // 3️⃣ Format the response
+    return recentAttempts.map((attempt) => ({
+      quizId: attempt.quiz.id,
+      quizTitle: attempt.quiz.title,
+      quizStatus: attempt.quiz.status,
+      passingScore: attempt.quiz.passing_score,
+      score: attempt.score,
+      passed: attempt.passed,
+      attemptedAt: attempt.created_at ?? (attempt as any).created_at,
+      course: attempt.courseStudent?.course
+        ? {
+          id: attempt.courseStudent.course.id,
+          name: attempt.courseStudent.course.name,
+          slug: attempt.courseStudent.course.slug,
+        }
+        : null,
+    }));
   }
 }
