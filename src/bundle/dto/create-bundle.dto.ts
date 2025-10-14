@@ -10,6 +10,7 @@ import {
   ArrayNotEmpty,
   IsNumber,
   Min,
+  MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -76,6 +77,14 @@ export class CreateBundleDto {
   @IsString()
   @IsNotEmpty()
   title: string;
+
+  @ApiProperty({
+    description: 'Slug for SEO-friendly URLs',
+    example: 'full-stack-developer-bundle',
+  })
+  @IsString()
+  @MaxLength(255)
+  slug: string;
 
   @ApiPropertyOptional({
     description: 'Description of the bundle',
