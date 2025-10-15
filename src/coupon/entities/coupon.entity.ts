@@ -13,6 +13,14 @@ export enum CouponStatus {
   EXPIRED = 'EXPIRED',
 }
 
+export enum CouponApplicability {
+  MULTIPLE_COURSES = 'MULTIPLE_COURSES',
+  CATEGORY_COURSES = 'CATEGORY_COURSES',
+  SUBCATEGORY_COURSES = 'SUBCATEGORY_COURSES',
+  ALL_INSTRUCTOR_COURSES = 'ALL_INSTRUCTOR_COURSES',
+  ALL_PLATFORM_COURSES = 'ALL_PLATFORM_COURSES', // (for admin)
+}
+
 @Entity('coupons')
 export class Coupon extends BasicEntity {
   @ApiProperty({
@@ -88,4 +96,19 @@ export class Coupon extends BasicEntity {
   })
   @Column({ type: 'enum', enum: CouponStatus, default: CouponStatus.INACTIVE })
   status: CouponStatus;
+
+  @ApiProperty({
+    description: 'Defines which courses this coupon applies to',
+    enum: CouponApplicability,
+    example: CouponApplicability.MULTIPLE_COURSES,
+  })
+  @Column({
+    type: 'enum',
+    enum: CouponApplicability,
+    name: 'applicable_for',
+  })
+  applicable_for: CouponApplicability;
+
+  @Column('uuid', { array: true, nullable: true })
+  course_ids: string[] | null;
 }
