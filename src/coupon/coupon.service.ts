@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Coupon } from './entities/coupon.entity';
@@ -28,17 +28,41 @@ export class CouponService {
   constructor(
     @InjectRepository(Coupon)
     private readonly couponRepository: Repository<Coupon>,
-  ) {}
+  ) { }
 
-  async create(
-    createCouponDto: CreateCouponDto,
-    userId: string,
-  ): Promise<Coupon> {
-    const coupon = this.couponRepository.create({
-      ...createCouponDto,
-      created_by: userId,
-    });
-    return this.couponRepository.save(coupon);
+  async create(createCouponDto: CreateCouponDto, userId: string): Promise<Coupon> {
+    try {
+      const coupon = this.couponRepository.create({
+        ...createCouponDto,
+        created_by: userId,
+      });
+
+      return await this.couponRepository.save(coupon);
+    } catch (err: any) {
+      // Check for Postgres duplicate error
+      if (err?.code === '23505') {
+        const detail = err?.detail ?? '';
+        if (detail.includes('(code)')) {
+          throw new HttpException(
+            `Coupon code "${createCouponDto.code}" already exists.`,
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+
+        // Generic duplicate field fallback
+        throw new HttpException(
+          `Duplicate entry detected. Please use unique values.`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      // Unknown error
+      console.error('Coupon creation failed:', err);
+      throw new HttpException(
+        'An unexpected error occurred while creating the coupon.',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   async findAll(
@@ -61,7 +85,33 @@ export class CouponService {
   async update(id: string, updateCouponDto: UpdateCouponDto): Promise<Coupon> {
     const coupon = await this.findOne(id);
     Object.assign(coupon, updateCouponDto);
-    return this.couponRepository.save(coupon);
+
+    try {
+      return await this.couponRepository.save(coupon);
+    } catch (err: any) {
+      if (err?.code === '23505') {
+        const detail = err?.detail ?? '';
+
+        if (detail.includes('(code)')) {
+          throw new HttpException(
+            `Coupon code "${updateCouponDto.code}" already exists.`,
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+
+        // Generic duplicate constraint fallback
+        throw new HttpException(
+          `Duplicate entry detected. Please use unique values.`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      console.error('Coupon update failed:', err);
+      throw new HttpException(
+        'An unexpected error occurred while updating the coupon.',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   async remove(id: string): Promise<void> {
