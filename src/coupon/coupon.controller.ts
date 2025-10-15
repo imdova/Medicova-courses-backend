@@ -9,6 +9,7 @@ import {
   UseGuards,
   Patch,
   Req,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -68,6 +69,33 @@ export class CouponController {
     @Req() req,
   ): Promise<Paginated<Coupon>> {
     return this.couponService.findAll(query, req.user.sub, req.user.role);
+  }
+
+  @Get(':couponCode/check')
+  @RequirePermissions('coupon:check_course_eligibility')
+  @ApiOperation({ summary: 'Check if a course is eligible for a given coupon' })
+  @ApiOkResponse({
+    description: 'Coupon eligibility check result',
+    schema: {
+      example: {
+        isValid: true,
+        coupon: {
+          code: 'WELCOME20',
+          discountType: 'percentage',
+          discountValue: 20,
+          applicableFor: 'category_courses',
+          allowedCourses: ['670f91c...', '670f91d...'],
+          allowedCategory: 'UI/UX Design',
+          allowedSubcategory: null,
+        },
+      },
+    },
+  })
+  async checkCouponEligibility(
+    @Param('couponCode') couponCode: string,
+    @Query('courseId') courseId: string,
+  ) {
+    return this.couponService.checkCouponEligibility(couponCode, courseId);
   }
 
   @Get(':id')

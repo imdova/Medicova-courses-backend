@@ -198,7 +198,6 @@ export class CouponService {
     return paginate(query, qb, COUPON_PAGINATION_CONFIG);
   }
 
-
   async findOne(id: string): Promise<Coupon> {
     const coupon = await this.couponRepository.findOne({ where: { id } });
     if (!coupon) throw new NotFoundException(`Coupon with ID ${id} not found`);
@@ -242,6 +241,35 @@ export class CouponService {
     await this.couponRepository.softRemove(coupon);
   }
 
+  async checkCouponEligibility(couponCode: string, courseId: string) {
+    if (!couponCode || !courseId) {
+      throw new HttpException(
+        'couponCode and courseId are required',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const coupon = await this.couponRepository.findOne({
+      where: { code: couponCode },
+    });
+
+    if (!coupon) {
+      throw new HttpException('Coupon not found', HttpStatus.NOT_FOUND);
+    }
+
+    const isValid = Array.isArray(coupon.course_ids) && coupon.course_ids.includes(courseId);
+
+    return {
+      isValid,
+      coupon: {
+        code: coupon.code,
+        discountType: coupon.offer_type,
+        discountValue: coupon.amount,
+        applicableFor: coupon.applicable_for,
+        allowedCourses: coupon.course_ids ?? [],
+      },
+    };
+  }
 
   /**
    * Fetch all active courses created by a specific instructor
