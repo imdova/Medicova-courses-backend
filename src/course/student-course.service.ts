@@ -497,30 +497,51 @@ export class StudentCourseService {
   }
 
   async getRelatedCoursesForEnrolled(userId: string) {
-    // 1️⃣ Get the user's enrolled courses
+    // 1️⃣ Fetch minimal enrollment data (only needed fields)
     const enrolledCourses = await this.courseRepo
       .createQueryBuilder('course')
+      .select([
+        'course.id AS id',
+        'course.name AS name',
+        'course.tags AS tags',
+        'category.id AS categoryId',
+        'subCategory.id AS subCategoryId',
+      ])
       .innerJoin('course.enrollments', 'enrollment')
       .innerJoin('enrollment.student', 'student', 'student.id = :userId', { userId })
-      .leftJoinAndSelect('course.category', 'category')
-      .leftJoinAndSelect('course.subCategory', 'subCategory')
+      .leftJoin('course.category', 'category')
+      .leftJoin('course.subCategory', 'subCategory')
       .andWhere('course.deleted_at IS NULL')
-      .getMany();
+      .getRawMany();
 
     if (!enrolledCourses.length) {
       return [];
     }
 
-    // 2️⃣ Collect category, subcategory, tags, and keywords
-    const categoryIds = new Set<string>();
-    const subCategoryIds = new Set<string>();
+    // 2️⃣ Collect filters efficiently
+    const categoryIds = enrolledCourses
+      .map((c) => c.categoryId)
+      .filter(Boolean);
+
+    const subCategoryIds = enrolledCourses
+      .map((c) => c.subCategoryId)
+      .filter(Boolean);
+
     const allTags = new Set<string>();
     const keywords = new Set<string>();
 
     for (const c of enrolledCourses) {
-      if (c.category?.id) categoryIds.add(c.category.id);
-      if (c.subCategory?.id) subCategoryIds.add(c.subCategory.id);
-      if (Array.isArray(c.tags)) c.tags.forEach((t) => allTags.add(t));
+      try {
+        const tags = Array.isArray(c.tags)
+          ? c.tags
+          : typeof c.tags === 'string'
+            ? JSON.parse(c.tags)
+            : [];
+        tags.forEach((t) => allTags.add(t));
+      } catch {
+        /* ignore malformed tags */
+      }
+
       if (c.name) {
         const firstWord = c.name.toLowerCase().split(' ')[0];
         if (firstWord.length > 2) keywords.add(firstWord);
@@ -529,25 +550,24 @@ export class StudentCourseService {
 
     const enrolledCourseIds = enrolledCourses.map((c) => c.id);
 
-    // 3️⃣ Query for related courses
+    // 3️⃣ Build optimized related query
     const relatedQuery = this.courseRepo
       .createQueryBuilder('related')
-      .leftJoin('related.enrollments', 'enrollments')
       .where('related.deleted_at IS NULL')
       .andWhere('related.id NOT IN (:...enrolledCourseIds)', { enrolledCourseIds })
       .andWhere(
         new Brackets((qb) => {
-          if (subCategoryIds.size > 0)
+          if (subCategoryIds.length)
             qb.orWhere('related.subcategory_id IN (:...subCategoryIds)', {
-              subCategoryIds: Array.from(subCategoryIds),
+              subCategoryIds,
             });
-          if (categoryIds.size > 0)
+          if (categoryIds.length)
             qb.orWhere('related.category_id IN (:...categoryIds)', {
-              categoryIds: Array.from(categoryIds),
+              categoryIds,
             });
-          if (allTags.size > 0)
+          if (allTags.size)
             qb.orWhere('related.tags && :tags', { tags: Array.from(allTags) });
-          if (keywords.size > 0)
+          if (keywords.size)
             qb.orWhere(
               new Brackets((keywordQB) => {
                 Array.from(keywords).forEach((word) => {
@@ -563,15 +583,13 @@ export class StudentCourseService {
         'related.id AS id',
         'related.name AS name',
         'related.course_image AS "courseImage"',
-        'COUNT(enrollments.id) AS "studentCount"',
+        // ✅ Use subquery for accurate and efficient student count
+        `(SELECT COUNT(cs.id) FROM course_student cs WHERE cs.course_id = related.id) AS "studentCount"`,
       ])
-      .groupBy('related.id')
-      .addGroupBy('related.name')
-      .addGroupBy('related.course_image')
       .orderBy('"studentCount"', 'DESC')
-      .limit(12); // You can adjust the limit
+      .limit(12);
 
-    // 4️⃣ Execute and format the results
+    // 4️⃣ Execute and format
     const relatedCoursesRaw = await relatedQuery.getRawMany();
 
     const relatedCourses = relatedCoursesRaw.map((r) => ({
