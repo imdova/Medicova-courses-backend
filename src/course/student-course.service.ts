@@ -495,4 +495,92 @@ export class StudentCourseService {
       latestItem,
     };
   }
+
+  async getRelatedCoursesForEnrolled(userId: string) {
+    // 1️⃣ Get the user's enrolled courses
+    const enrolledCourses = await this.courseRepo
+      .createQueryBuilder('course')
+      .innerJoin('course.enrollments', 'enrollment')
+      .innerJoin('enrollment.student', 'student', 'student.id = :userId', { userId })
+      .leftJoinAndSelect('course.category', 'category')
+      .leftJoinAndSelect('course.subCategory', 'subCategory')
+      .andWhere('course.deleted_at IS NULL')
+      .getMany();
+
+    if (!enrolledCourses.length) {
+      return [];
+    }
+
+    // 2️⃣ Collect category, subcategory, tags, and keywords
+    const categoryIds = new Set<string>();
+    const subCategoryIds = new Set<string>();
+    const allTags = new Set<string>();
+    const keywords = new Set<string>();
+
+    for (const c of enrolledCourses) {
+      if (c.category?.id) categoryIds.add(c.category.id);
+      if (c.subCategory?.id) subCategoryIds.add(c.subCategory.id);
+      if (Array.isArray(c.tags)) c.tags.forEach((t) => allTags.add(t));
+      if (c.name) {
+        const firstWord = c.name.toLowerCase().split(' ')[0];
+        if (firstWord.length > 2) keywords.add(firstWord);
+      }
+    }
+
+    const enrolledCourseIds = enrolledCourses.map((c) => c.id);
+
+    // 3️⃣ Query for related courses
+    const relatedQuery = this.courseRepo
+      .createQueryBuilder('related')
+      .leftJoin('related.enrollments', 'enrollments')
+      .where('related.deleted_at IS NULL')
+      .andWhere('related.id NOT IN (:...enrolledCourseIds)', { enrolledCourseIds })
+      .andWhere(
+        new Brackets((qb) => {
+          if (subCategoryIds.size > 0)
+            qb.orWhere('related.subcategory_id IN (:...subCategoryIds)', {
+              subCategoryIds: Array.from(subCategoryIds),
+            });
+          if (categoryIds.size > 0)
+            qb.orWhere('related.category_id IN (:...categoryIds)', {
+              categoryIds: Array.from(categoryIds),
+            });
+          if (allTags.size > 0)
+            qb.orWhere('related.tags && :tags', { tags: Array.from(allTags) });
+          if (keywords.size > 0)
+            qb.orWhere(
+              new Brackets((keywordQB) => {
+                Array.from(keywords).forEach((word) => {
+                  keywordQB.orWhere('LOWER(related.name) LIKE :kw_' + word, {
+                    ['kw_' + word]: `%${word}%`,
+                  });
+                });
+              }),
+            );
+        }),
+      )
+      .select([
+        'related.id AS id',
+        'related.name AS name',
+        'related.course_image AS "courseImage"',
+        'COUNT(enrollments.id) AS "studentCount"',
+      ])
+      .groupBy('related.id')
+      .addGroupBy('related.name')
+      .addGroupBy('related.course_image')
+      .orderBy('"studentCount"', 'DESC')
+      .limit(12); // You can adjust the limit
+
+    // 4️⃣ Execute and format the results
+    const relatedCoursesRaw = await relatedQuery.getRawMany();
+
+    const relatedCourses = relatedCoursesRaw.map((r) => ({
+      id: r.id,
+      name: r.name,
+      courseImage: r.courseImage,
+      studentCount: Number(r.studentCount) || 0,
+    }));
+
+    return relatedCourses;
+  }
 }
