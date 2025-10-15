@@ -52,7 +52,7 @@ export class CouponController {
     @Body() createCouponDto: CreateCouponDto,
     @Req() req,
   ): Promise<Coupon> {
-    return this.couponService.create(createCouponDto, req.user.sub);
+    return this.couponService.createWithCourses(createCouponDto, req.user.sub, req.user.role);
   }
 
   @Get()

@@ -5,11 +5,12 @@ import { CouponController } from './coupon.controller';
 import { Coupon } from './entities/coupon.entity';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { JwtService } from '@nestjs/jwt';
+import { Course } from 'src/course/entities/course.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Coupon])],
+  imports: [TypeOrmModule.forFeature([Coupon, Course])],
   controllers: [CouponController],
   providers: [CouponService, RolesGuard, JwtService],
   exports: [CouponService],
 })
-export class CouponModule {}
+export class CouponModule { }
