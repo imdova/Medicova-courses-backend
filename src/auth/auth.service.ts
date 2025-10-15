@@ -170,6 +170,76 @@ export class AuthService {
     return this.generateToken(user);
   }
 
+  async refreshTokenNormal(token: string) {
+    // Find a user whose refresh token matches
+    const users = await this.userRepository.find({
+      where: {
+        refreshToken: Not(IsNull()),
+        refreshTokenExpiresAt: Not(IsNull()),
+      },
+      relations: ['role',
+        'role.rolePermissions',
+        'role.rolePermissions.permission',
+        'profile',
+        'academy']
+    });
+
+    let user: User | null = null;
+
+    for (const u of users) {
+      if (u.refreshToken && u.refreshTokenExpiresAt) {
+        // Expired refresh token cleanup
+        if (Date.now() > u.refreshTokenExpiresAt) {
+          await this.userRepository.update(u.id, {
+            refreshToken: null,
+            refreshTokenExpiresAt: null,
+          });
+          continue;
+        }
+
+        // Check token validity
+        if (await bcrypt.compare(token, u.refreshToken)) {
+          user = u;
+          break;
+        }
+      }
+    }
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    // ✅ Only generate a new access token — not a new refresh token
+    const payload = {
+      sub: user.id,
+      role: user.role?.name ?? null,
+      academyId: user.academy?.id ?? null,
+      isEmailVerified: user.isEmailVerified ?? null,
+      permissions: user.role?.rolePermissions?.map(
+        (rp) => rp.permission.name,
+      ) ?? [],
+    };
+
+    const accessToken = this.jwtService.sign(payload, {
+      expiresIn: this.configService.get('JWT_EXPIRATION') || '15m',
+    });
+
+    // Return existing refresh token (so frontend keeps using it)
+    return {
+      access_token: accessToken,
+      refresh_token: token, // same token as provided
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role?.name ?? null,
+        firstName: user.profile?.firstName ?? null,
+        lastName: user.profile?.lastName ?? null,
+        userName: user.profile?.userName ?? null,
+        photo: user.profile?.photoUrl ?? null,
+      },
+    };
+  }
+
   async logout(userId: string) {
     await this.userRepository.update(userId, { refreshToken: null, refreshTokenExpiresAt: null });
     return { message: 'Logged out successfully' };
