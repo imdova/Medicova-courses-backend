@@ -67,7 +67,7 @@ export class CouponController {
     @Paginate() query: PaginateQuery,
     @Req() req,
   ): Promise<Paginated<Coupon>> {
-    return this.couponService.findAll(query, req.user.sub);
+    return this.couponService.findAll(query, req.user.sub, req.user.role);
   }
 
   @Get(':id')

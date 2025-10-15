@@ -186,13 +186,18 @@ export class CouponService {
   async findAll(
     query: PaginateQuery,
     userId: string,
+    role: string,
   ): Promise<Paginated<Coupon>> {
-    const qb = this.couponRepository
-      .createQueryBuilder('coupon')
-      .where('coupon.created_by = :userId', { userId });
+    const qb = this.couponRepository.createQueryBuilder('coupon');
+
+    // ✅ Admins can view all coupons
+    if (role.toLowerCase() !== 'admin') {
+      qb.where('coupon.created_by = :userId', { userId });
+    }
 
     return paginate(query, qb, COUPON_PAGINATION_CONFIG);
   }
+
 
   async findOne(id: string): Promise<Coupon> {
     const coupon = await this.couponRepository.findOne({ where: { id } });
