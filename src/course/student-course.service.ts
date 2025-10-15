@@ -495,4 +495,110 @@ export class StudentCourseService {
       latestItem,
     };
   }
+
+  async getRelatedCoursesForEnrolled(userId: string) {
+    // 1️⃣ Fetch minimal enrollment data (only needed fields)
+    const enrolledCourses = await this.courseRepo
+      .createQueryBuilder('course')
+      .select([
+        'course.id AS id',
+        'course.name AS name',
+        'course.tags AS tags',
+        'category.id AS categoryId',
+        'subCategory.id AS subCategoryId',
+      ])
+      .innerJoin('course.enrollments', 'enrollment')
+      .innerJoin('enrollment.student', 'student', 'student.id = :userId', { userId })
+      .leftJoin('course.category', 'category')
+      .leftJoin('course.subCategory', 'subCategory')
+      .andWhere('course.deleted_at IS NULL')
+      .getRawMany();
+
+    if (!enrolledCourses.length) {
+      return [];
+    }
+
+    // 2️⃣ Collect filters efficiently
+    const categoryIds = enrolledCourses
+      .map((c) => c.categoryId)
+      .filter(Boolean);
+
+    const subCategoryIds = enrolledCourses
+      .map((c) => c.subCategoryId)
+      .filter(Boolean);
+
+    const allTags = new Set<string>();
+    const keywords = new Set<string>();
+
+    for (const c of enrolledCourses) {
+      try {
+        const tags = Array.isArray(c.tags)
+          ? c.tags
+          : typeof c.tags === 'string'
+            ? JSON.parse(c.tags)
+            : [];
+        tags.forEach((t) => allTags.add(t));
+      } catch {
+        /* ignore malformed tags */
+      }
+
+      if (c.name) {
+        const firstWord = c.name.toLowerCase().split(' ')[0];
+        if (firstWord.length > 2) keywords.add(firstWord);
+      }
+    }
+
+    const enrolledCourseIds = enrolledCourses.map((c) => c.id);
+
+    // 3️⃣ Build optimized related query
+    const relatedQuery = this.courseRepo
+      .createQueryBuilder('related')
+      .where('related.deleted_at IS NULL')
+      .andWhere('related.id NOT IN (:...enrolledCourseIds)', { enrolledCourseIds })
+      .andWhere(
+        new Brackets((qb) => {
+          if (subCategoryIds.length)
+            qb.orWhere('related.subcategory_id IN (:...subCategoryIds)', {
+              subCategoryIds,
+            });
+          if (categoryIds.length)
+            qb.orWhere('related.category_id IN (:...categoryIds)', {
+              categoryIds,
+            });
+          if (allTags.size)
+            qb.orWhere('related.tags && :tags', { tags: Array.from(allTags) });
+          if (keywords.size)
+            qb.orWhere(
+              new Brackets((keywordQB) => {
+                Array.from(keywords).forEach((word) => {
+                  keywordQB.orWhere('LOWER(related.name) LIKE :kw_' + word, {
+                    ['kw_' + word]: `%${word}%`,
+                  });
+                });
+              }),
+            );
+        }),
+      )
+      .select([
+        'related.id AS id',
+        'related.name AS name',
+        'related.course_image AS "courseImage"',
+        // ✅ Use subquery for accurate and efficient student count
+        `(SELECT COUNT(cs.id) FROM course_student cs WHERE cs.course_id = related.id) AS "studentCount"`,
+      ])
+      .orderBy('"studentCount"', 'DESC')
+      .limit(12);
+
+    // 4️⃣ Execute and format
+    const relatedCoursesRaw = await relatedQuery.getRawMany();
+
+    const relatedCourses = relatedCoursesRaw.map((r) => ({
+      id: r.id,
+      name: r.name,
+      courseImage: r.courseImage,
+      studentCount: Number(r.studentCount) || 0,
+    }));
+
+    return relatedCourses;
+  }
 }
