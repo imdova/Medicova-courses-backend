@@ -131,6 +131,25 @@ export class StudentCourseController {
     return this.studentCourseService.getEnrolledCourses(query, req.user.sub);
   }
 
+  @Get('enrolled/related')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('course:list_related_for_enrolled')
+  @ApiOperation({
+    summary: 'Get related courses based on the student’s enrolled courses',
+    description:
+      'Returns a smart list of recommended courses based on the student’s enrolled courses (category, subcategory, tags, and name similarity).',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of related courses',
+    type: [Course],
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  getRelatedCoursesForEnrolled(@Req() req) {
+    return this.studentCourseService.getRelatedCoursesForEnrolled(req.user.sub);
+  }
+
   @Get()
   @UseGuards(OptionalJwtAuthGuard)
   //@RequirePermissions('course:list_available')
