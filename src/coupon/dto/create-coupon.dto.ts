@@ -1,13 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsArray,
   IsEnum,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
   MaxLength,
+  ValidateIf,
 } from 'class-validator';
-import { OfferType, CouponStatus } from '../entities/coupon.entity';
+import { OfferType, CouponStatus, CouponApplicability } from '../entities/coupon.entity';
 
 export class CreateCouponDto {
   @ApiProperty({ description: 'Coupon name', example: 'Summer Sale 2025' })
@@ -74,4 +76,44 @@ export class CreateCouponDto {
   @IsOptional()
   @IsEnum(CouponStatus)
   status?: CouponStatus;
+
+  @ApiProperty({
+    description: 'Defines how the coupon is applied',
+    enum: CouponApplicability,
+  })
+  @IsEnum(CouponApplicability)
+  applicable_for: CouponApplicability;
+
+  @ApiPropertyOptional({
+    description: 'Array of selected course IDs (required when applicable_for = MULTIPLE_COURSES)',
+    type: [String],
+    example: [
+      '550e8400-e29b-41d4-a716-446655440000',
+      '660e8400-e29b-41d4-a716-446655440000',
+    ],
+  })
+  @ValidateIf(o => o.applicable_for === CouponApplicability.MULTIPLE_COURSES)
+  @IsArray()
+  @IsNotEmpty({
+    message:
+      'course_ids must be provided when applicable_for is MULTIPLE_COURSES',
+  })
+  course_ids?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Category ID (required when applicable_for = CATEGORY_COURSES)',
+    example: '770e8400-e29b-41d4-a716-446655440000',
+  })
+  @ValidateIf(o => o.applicable_for === CouponApplicability.CATEGORY_COURSES)
+  @IsString()
+  category_id?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Subcategory ID (required when applicable_for = SUBCATEGORY_COURSES)',
+    example: '880e8400-e29b-41d4-a716-446655440000',
+  })
+  @ValidateIf(o => o.applicable_for === CouponApplicability.SUBCATEGORY_COURSES)
+  @IsString()
+  subcategory_id?: string;
 }
