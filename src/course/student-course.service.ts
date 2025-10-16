@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, DataSource, Repository } from 'typeorm';
+import { Brackets, DataSource, In, Repository } from 'typeorm';
 import { Course } from './entities/course.entity';
 import { FilterOperator, paginate, PaginateQuery } from 'nestjs-paginate';
 import { QueryConfig } from '../common/utils/query-options';
@@ -36,6 +36,10 @@ export class StudentCourseService {
     private readonly profileRepo: Repository<Profile>,
     @InjectRepository(CourseStudent)
     private readonly courseStudentRepository: Repository<CourseStudent>,
+    @InjectRepository(CourseProgress)
+    private readonly progressRepo: Repository<CourseProgress>,
+    @InjectRepository(CourseSectionItem)
+    private readonly courseSectionItemRepo: Repository<CourseSectionItem>,
     private readonly dataSource: DataSource
   ) { }
 
@@ -354,7 +358,7 @@ export class StudentCourseService {
 
     const result = await paginate(query, qb, COURSE_PAGINATION_CONFIG);
 
-    // ✅ Filter pricing by user’s currency (if applicable)
+    // ✅ Filter pricing by user's currency (if applicable)
     if (currency) {
       result.data.forEach((course: any) => {
         course.pricings = course.pricings.filter(
@@ -362,6 +366,14 @@ export class StudentCourseService {
         );
       });
     }
+
+    // ✅ Get progress for all enrolled courses in bulk
+    const courseIds = result.data.map((course: any) => course.id);
+    const progressMap = await this.getBulkCourseProgress(courseIds, userId);
+
+    result.data.forEach((course: any) => {
+      course.progressPercentage = progressMap.get(course.id) || 0;
+    });
 
     // ✅ Map instructor data into a compact structure
     result.data = result.data.map((course: any) => ({
@@ -600,5 +612,83 @@ export class StudentCourseService {
     }));
 
     return relatedCourses;
+  }
+
+  async getBulkCourseProgress(
+    courseIds: string[],
+    studentId: string,
+  ): Promise<Map<string, number>> {
+    if (courseIds.length === 0) {
+      return new Map();
+    }
+
+    // 1️⃣ Get all enrollments for these courses
+    const enrollments = await this.courseStudentRepository.find({
+      where: {
+        course: { id: In(courseIds) },
+        student: { id: studentId },
+      },
+      select: ['id', 'course'],
+      relations: ['course'],
+    });
+
+    const enrollmentMap = new Map(
+      enrollments.map((e) => [e.course.id, e.id]),
+    );
+
+    // 2️⃣ Get total items per course (single query)
+    const totalItemsQuery = await this.courseSectionItemRepo
+      .createQueryBuilder('item')
+      .select('course.id', 'courseId')
+      .addSelect('COUNT(item.id)', 'totalCount')
+      .leftJoin('item.section', 'section')
+      .leftJoin('section.course', 'course')
+      .where('course.id IN (:...courseIds)', { courseIds })
+      .groupBy('course.id')
+      .getRawMany();
+
+    const totalItemsMap = new Map(
+      totalItemsQuery.map((row) => [row.courseId, parseInt(row.totalCount)]),
+    );
+
+    // 3️⃣ Get completed items per course (single query)
+    const completedItemsQuery = await this.progressRepo
+      .createQueryBuilder('progress')
+      .select('course.id', 'courseId')
+      .addSelect('COUNT(progress.id)', 'completedCount')
+      .leftJoin('progress.item', 'item')
+      .leftJoin('item.section', 'section')
+      .leftJoin('section.course', 'course')
+      .where('progress.course_student_id IN (:...enrollmentIds)', {
+        enrollmentIds: Array.from(enrollmentMap.values()),
+      })
+      .andWhere('progress.completed = :completed', { completed: true })
+      .andWhere('course.id IN (:...courseIds)', { courseIds })
+      .groupBy('course.id')
+      .getRawMany();
+
+    const completedItemsMap = new Map(
+      completedItemsQuery.map((row) => [
+        row.courseId,
+        parseInt(row.completedCount),
+      ]),
+    );
+
+    // 4️⃣ Calculate percentages
+    const progressMap = new Map<string, number>();
+
+    courseIds.forEach((courseId) => {
+      const isEnrolled = enrollmentMap.has(courseId);
+      const totalCount = totalItemsMap.get(courseId) || 0;
+      const completedCount = completedItemsMap.get(courseId) || 0;
+
+      if (!isEnrolled || totalCount === 0) {
+        progressMap.set(courseId, 0);
+      } else {
+        progressMap.set(courseId, (completedCount / totalCount) * 100);
+      }
+    });
+
+    return progressMap;
   }
 }

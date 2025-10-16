@@ -21,6 +21,7 @@ import { PaymentModule } from 'src/payment/payment.module';
 import { CourseRating } from './entities/course-rating.entity';
 import { CourseCommunityModule } from './course-community/course-community.module';
 import { CourseNotesModule } from './course-notes/course-notes.module';
+import { CourseProgress } from './course-progress/entities/course-progress.entity';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { CourseNotesModule } from './course-notes/course-notes.module';
       CourseSectionItem,
       CourseCategory,
       CourseRating,
+      CourseProgress,
     ]),
     CoursePricingModule,
     CourseSectionModule,
