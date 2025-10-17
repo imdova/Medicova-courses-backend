@@ -88,6 +88,20 @@ export class StudentCourseController {
     });
   }
 
+  @Post(':id/favorite')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('course:favorite')
+  @ApiOperation({
+    summary: 'Add or remove a course from favorites',
+    description: 'Allows the authenticated student to favorite or unfavorite a course.',
+  })
+  @ApiResponse({ status: 200, description: 'Favorite toggled successfully' })
+  @ApiResponse({ status: 404, description: 'Course not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  toggleFavorite(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
+    return this.studentCourseService.toggleFavorite(id, req.user.sub);
+  }
+
   @Get('latest')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('course:get_latest_for_student')
@@ -129,6 +143,19 @@ export class StudentCourseController {
   @ApiResponse({ status: 403, description: 'Forbidden' })
   getEnrolledCourses(@Paginate() query: PaginateQuery, @Req() req) {
     return this.studentCourseService.getEnrolledCourses(query, req.user.sub);
+  }
+
+  @Get('favorites')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('course:list_favorites')
+  @ApiOperation({
+    summary: 'Get all favorite courses for the authenticated student',
+    description: 'Returns a list of all courses the student has favorited.',
+  })
+  @ApiResponse({ status: 200, description: 'List of favorite courses', type: [Course] })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  getFavorites(@Req() req) {
+    return this.studentCourseService.getFavoriteCourses(req.user.sub);
   }
 
   @Get('enrolled/related')

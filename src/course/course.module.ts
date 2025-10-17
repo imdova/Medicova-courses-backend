@@ -22,6 +22,7 @@ import { CourseRating } from './entities/course-rating.entity';
 import { CourseCommunityModule } from './course-community/course-community.module';
 import { CourseNotesModule } from './course-notes/course-notes.module';
 import { CourseProgress } from './course-progress/entities/course-progress.entity';
+import { CourseFavorite } from './entities/course-favorite.entity';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { CourseProgress } from './course-progress/entities/course-progress.entit
       CourseCategory,
       CourseRating,
       CourseProgress,
+      CourseFavorite,
     ]),
     CoursePricingModule,
     CourseSectionModule,
