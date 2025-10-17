@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Not, Repository } from 'typeorm';
 import { User } from '../user/entities/user.entity';
@@ -7,6 +7,7 @@ import * as bcrypt from 'bcrypt';
 import { ConfigService } from '@nestjs/config';
 import { v4 as uuidv4 } from 'uuid';
 import { Role } from '../user/entities/roles.entity';
+import { EmailService } from '../common/email.service';
 
 @Injectable()
 export class AuthService {
@@ -17,6 +18,7 @@ export class AuthService {
     private configService: ConfigService,
     @InjectRepository(Role)
     private roleRepository: Repository<Role>,
+    private readonly emailService: EmailService,
   ) { }
 
   async validateUser(email: string, password: string): Promise<User> {
@@ -248,5 +250,89 @@ export class AuthService {
   async logout(userId: string) {
     await this.userRepository.update(userId, { refreshToken: null, refreshTokenExpiresAt: null });
     return { message: 'Logged out successfully' };
+  }
+
+  async sendPasswordResetEmail(email: string) {
+    const user = await this.userRepository.findOne({
+      where: { email },
+      relations: ['profile'],
+    });
+
+    // For security, do not reveal if user exists
+    if (!user) return;
+
+    // Generate a UUID token (like your refresh token)
+    const resetToken = uuidv4();
+    const hashedResetToken = await bcrypt.hash(resetToken, 10);
+
+    // Expiration: 1 hour
+    const expiresAt = Date.now() + 60 * 60 * 1000;
+
+    user.passwordResetToken = hashedResetToken;
+    user.passwordResetExpiresAt = expiresAt;
+    await this.userRepository.save(user);
+
+    // Build frontend reset URL
+    const resetUrl = `https://courses.medicova.net/reset-password?token=${resetToken}`;
+
+    // Send email via your EmailService
+    await this.emailService.sendEmail({
+      from: process.env.SMTP_DEMO_EMAIL,
+      to: user.email,
+      subject: 'Reset your Medicova Courses password',
+      template: 'reset-password',
+      context: {
+        name: user.profile?.firstName || user.email,
+        resetUrl,
+      },
+    });
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    // Find all users who have a reset token stored
+    const users = await this.userRepository.find({
+      where: {
+        passwordResetToken: Not(IsNull()),
+        passwordResetExpiresAt: Not(IsNull()),
+      },
+    });
+
+    let user: User | null = null;
+
+    for (const u of users) {
+      // Check expiration
+      if (Date.now() > u.passwordResetExpiresAt) {
+        await this.userRepository.update(u.id, {
+          passwordResetToken: null,
+          passwordResetExpiresAt: null,
+        });
+        continue;
+      }
+
+      // Compare token hashes
+      const isMatch = await bcrypt.compare(token, u.passwordResetToken);
+      if (isMatch) {
+        user = u;
+        break;
+      }
+    }
+
+    if (!user) {
+      throw new BadRequestException('Invalid or expired password reset token.');
+    }
+
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password and clear reset fields
+    user.password = hashedPassword;
+    user.passwordResetToken = null;
+    user.passwordResetExpiresAt = null;
+
+    // Optional: invalidate refresh tokens
+    user.refreshToken = null;
+    user.refreshTokenExpiresAt = null;
+
+    await this.userRepository.save(user);
   }
 }

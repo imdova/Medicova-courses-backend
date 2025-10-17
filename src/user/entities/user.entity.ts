@@ -61,6 +61,12 @@ export class User extends BasicEntity {
   @Column({ nullable: true })
   emailVerificationToken?: string;
 
+  @Column({ nullable: true })
+  passwordResetToken?: string;
+
+  @Column({ type: 'bigint', nullable: true })
+  passwordResetExpiresAt?: number;
+
   get permissions(): string[] {
     return this.role?.rolePermissions?.map(rp => rp.permission.name) || [];
   }

@@ -12,6 +12,7 @@ import { FacebookStrategy } from './strategy/facebook.strategy';
 import { GoogleStrategy } from './strategy/google.strategy';
 import { JwtStrategy } from './strategy/jwt.strategy';
 import { Role } from 'src/user/entities/roles.entity';
+import { EmailService } from '../common/email.service';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { Role } from 'src/user/entities/roles.entity';
     FacebookStrategy,
     GoogleStrategy,
     JwtStrategy,
+    EmailService,
   ],
   controllers: [AuthController],
   exports: [AuthService],

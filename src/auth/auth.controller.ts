@@ -12,9 +12,11 @@ import {
 import { Response, Request } from 'express';
 import { AuthService } from './auth.service';
 import { CreateAuthDto } from './dto/create-auth.dto';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from './roles.guard';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 
 interface JwtPayload {
   sub: string;
@@ -118,6 +120,45 @@ export class AuthController {
     res.clearCookie('refresh_token', cookieOptions);
 
     return { message: 'Logged out successfully' };
+  }
+
+  @Post('forgot-password')
+  @ApiOperation({ summary: 'Request a password reset link' })
+  @ApiBody({ type: ForgotPasswordDto })
+  @ApiResponse({
+    status: 200,
+    description: 'If an account exists, a reset link was sent to the provided email.',
+    schema: {
+      example: {
+        message: 'If an account exists, a reset link was sent.',
+      },
+    },
+  })
+  async forgotPassword(@Body() body: ForgotPasswordDto) {
+    const { email } = body;
+    if (!email) throw new BadRequestException('Email must be provided.');
+    await this.authService.sendPasswordResetEmail(email);
+    return { message: 'If an account exists, a reset link was sent.' };
+  }
+
+  @Post('reset-password')
+  @ApiOperation({ summary: 'Reset password using reset token' })
+  @ApiBody({ type: ResetPasswordDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Password has been reset successfully.',
+    schema: {
+      example: {
+        message: 'Password has been reset successfully.',
+      },
+    },
+  })
+  async resetPassword(@Body() body: ResetPasswordDto) {
+    const { token, newPassword } = body;
+    if (!token || !newPassword)
+      throw new BadRequestException('Token and new password are required.');
+    await this.authService.resetPassword(token, newPassword);
+    return { message: 'Password has been reset successfully.' };
   }
 
   // ================= GOOGLE =================
