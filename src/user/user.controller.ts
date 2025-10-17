@@ -96,7 +96,7 @@ export class UserController {
       },
     });
 
-    const { access_token, refresh_token, user } =
+    const { access_token, refresh_token, user, academy } =
       await this.authService.generateToken(createdUser);
 
     res.cookie('access_token', access_token, {
@@ -111,6 +111,7 @@ export class UserController {
     return {
       message: 'Registration successful',
       user,
+      academy,
       // Return tokens for cross-origin requests (same as login)
       tokens: {
         access_token,

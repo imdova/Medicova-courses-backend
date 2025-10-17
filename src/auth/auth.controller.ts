@@ -50,7 +50,7 @@ export class AuthController {
       normalizedEmail,
       password,
     );
-    const { access_token, refresh_token, user } =
+    const { access_token, refresh_token, user, academy } =
       await this.authService.generateToken(dbUser);
 
     res.cookie('access_token', access_token, {
@@ -64,7 +64,7 @@ export class AuthController {
     });
 
     return {
-      message: 'Login successful', user, tokens: {
+      message: 'Login successful', user, academy, tokens: {
         access_token,
         refresh_token,
       }
