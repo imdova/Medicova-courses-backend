@@ -14,6 +14,7 @@ import { CourseStudent } from './entities/course-student.entity';
 import { User } from 'src/user/entities/user.entity';
 import { CourseProgress } from './course-progress/entities/course-progress.entity';
 import { CourseSectionItem } from './course-section/entities/course-section-item.entity';
+import { CourseFavorite } from './entities/course-favorite.entity';
 
 export const COURSE_PAGINATION_CONFIG: QueryConfig<Course> = {
   sortableColumns: ['created_at', 'name', 'category', 'status'],
@@ -40,6 +41,8 @@ export class StudentCourseService {
     private readonly progressRepo: Repository<CourseProgress>,
     @InjectRepository(CourseSectionItem)
     private readonly courseSectionItemRepo: Repository<CourseSectionItem>,
+    @InjectRepository(CourseFavorite)
+    private readonly courseFavoriteRepository: Repository<CourseFavorite>,
     private readonly dataSource: DataSource
   ) { }
 
@@ -690,5 +693,61 @@ export class StudentCourseService {
     });
 
     return progressMap;
+  }
+
+  async toggleFavorite(courseId: string, userId: string) {
+    const course = await this.courseRepo.findOne({
+      where: { id: courseId, deleted_at: null },
+    });
+    if (!course) throw new NotFoundException('Course not found');
+
+    const existing = await this.courseFavoriteRepository.findOne({
+      where: { course: { id: courseId }, student: { id: userId } },
+    });
+
+    if (existing) {
+      await this.courseFavoriteRepository.remove(existing);
+      return { message: 'Removed from favorites' };
+    }
+
+    const favorite = this.courseFavoriteRepository.create({
+      course,
+      student: { id: userId } as any,
+    });
+    await this.courseFavoriteRepository.save(favorite);
+
+    return { message: 'Added to favorites' };
+  }
+
+  async getFavoriteCourses(userId: string) {
+    const currency = await this.getCurrencyForUser(userId);
+
+    const qb = this.courseRepo
+      .createQueryBuilder('course')
+      .innerJoin('course_favorite', 'favorite', 'favorite.course_id = course.id')
+      .where('favorite.student_id = :userId', { userId })
+      .leftJoinAndSelect('course.pricings', 'pricing')
+      .leftJoinAndSelect('course.instructor', 'instructor')
+      .leftJoinAndSelect('instructor.profile', 'instructorProfile')
+      .andWhere('course.deleted_at IS NULL')
+      .loadRelationCountAndMap('course.studentCount', 'course.enrollments');
+
+    const favorites = await qb.getMany();
+
+    // Filter pricings
+    if (currency) {
+      favorites.forEach((course: any) => {
+        course.pricings = course.pricings.filter(
+          (p) => p.currencyCode === currency,
+        );
+      });
+    }
+
+    // Simplify instructor
+    favorites.forEach((course: any) => {
+      course.instructor = this.mapInstructor(course);
+    });
+
+    return favorites;
   }
 }
