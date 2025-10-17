@@ -174,13 +174,38 @@ export class CouponService {
       );
     }
 
-    const coupon = this.couponRepository.create({
-      ...dto,
-      created_by: userId,
-      course_ids: courseIds,
-    });
+    try {
+      const coupon = this.couponRepository.create({
+        ...dto,
+        created_by: userId,
+        course_ids: courseIds,
+      });
 
-    return this.couponRepository.save(coupon);
+      return await this.couponRepository.save(coupon);
+    } catch (err: any) {
+      // ✅ Handle Postgres duplicate key error (e.g., duplicate coupon code)
+      if (err?.code === '23505') {
+        const detail = err?.detail ?? '';
+        if (detail.includes('(code)')) {
+          throw new HttpException(
+            `Coupon code "${dto.code}" already exists.`,
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+
+        throw new HttpException(
+          'Duplicate entry detected. Please use unique values.',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      // Unknown error
+      console.error('Coupon creation (with courses) failed:', err);
+      throw new HttpException(
+        'An unexpected error occurred while creating the coupon.',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   async findAll(
