@@ -93,6 +93,11 @@ export class AuthService {
         userName: fullUser.profile?.userName ?? null,
         photo: fullUser.profile?.photoUrl ?? null,
       },
+      academy: {
+        id: fullUser.academy?.id ?? null,
+        name: fullUser.academy?.name ?? null,
+        slug: fullUser.academy?.slug ?? null,
+      }
     };
   }
 
