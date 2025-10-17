@@ -54,6 +54,7 @@ import { CourseRating } from './course/entities/course-rating.entity';
 import { ProfileRating } from './profile/entities/profile-rating.entity';
 import { CourseCommunity } from './course/course-community/entities/course-community.entity';
 import { CourseNote } from './course/course-notes/entities/course-note.entity';
+import { CourseFavorite } from './course/entities/course-favorite.entity';
 
 @Module({
   imports: [
@@ -101,7 +102,8 @@ import { CourseNote } from './course/course-notes/entities/course-note.entity';
         CourseRating,
         ProfileRating,
         CourseCommunity,
-        CourseNote
+        CourseNote,
+        CourseFavorite
       ],
       synchronize: true,
       extra: {
