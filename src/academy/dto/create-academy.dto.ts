@@ -18,6 +18,15 @@ export class CreateAcademyDto {
   description?: string;
 
   @ApiProperty({
+    description: 'URL or path to the academy image',
+    example: 'https://example.com/images/bright-future.png',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  image?: string;
+
+  @ApiProperty({
     description: 'Slug for SEO-friendly URLs',
     example: 'web-development',
   })

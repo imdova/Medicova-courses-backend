@@ -17,6 +17,14 @@ export class Academy extends BasicEntity {
   @Column({ nullable: true })
   description?: string;
 
+  @ApiProperty({
+    description: 'URL or path to the academy image',
+    example: 'https://example.com/images/academy-logo.png',
+    nullable: true,
+  })
+  @Column({ nullable: true })
+  image?: string;
+
   @ApiProperty({ description: 'Slug for SEO-friendly URLs' })
   @Column({ length: 255, unique: true })
   slug: string;
