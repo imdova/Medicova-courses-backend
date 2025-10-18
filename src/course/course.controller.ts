@@ -10,6 +10,8 @@ import {
   UseGuards,
   Req,
   ForbiddenException,
+  BadRequestException,
+  Query,
 } from '@nestjs/common';
 import { CourseService } from './course.service';
 import { CreateCourseDto } from './dto/create-course.dto';
@@ -145,6 +147,46 @@ export class CourseController {
       academyId,
       role,
     );
+  }
+
+  @Get('public')
+  @ApiOperation({
+    summary:
+      'Get all published and active courses by instructor or academy (public endpoint)',
+  })
+  @ApiQuery({
+    name: 'instructorId',
+    required: false,
+    description: 'Filter by instructor UUID',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiQuery({
+    name: 'academyId',
+    required: false,
+    description: 'Filter by academy UUID',
+    example: '770e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of published and active courses',
+    type: [Course],
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Missing or invalid query parameters',
+  })
+  async getPublicCourses(
+    @Paginate() query: PaginateQuery,
+    @Query('instructorId') instructorId?: string,
+    @Query('academyId') academyId?: string,
+  ) {
+    if ((!instructorId && !academyId) || (instructorId && academyId)) {
+      throw new BadRequestException(
+        'You must provide either instructorId or academyId (but not both)',
+      );
+    }
+
+    return this.courseService.getPublicCourses(query, instructorId, academyId);
   }
 
   @Get('tags')

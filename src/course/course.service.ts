@@ -621,4 +621,41 @@ export class CourseService {
       reviews,
     };
   }
+
+  async getPublicCourses(
+    query: PaginateQuery,
+    instructorId?: string,
+    academyId?: string,
+  ): Promise<Paginated<Course>> {
+    const qb = this.courseRepository
+      .createQueryBuilder('course')
+      .leftJoinAndSelect('course.category', 'category')
+      .leftJoinAndSelect('course.subCategory', 'subCategory')
+      .leftJoinAndSelect('course.instructor', 'instructor')
+      .leftJoinAndSelect('instructor.profile', 'instructorProfile')
+      .leftJoinAndSelect('course.pricings', 'pricing')
+      .where('course.status = :status', { status: 'published' })
+      .andWhere('course.isActive = true')
+      .andWhere('course.deleted_at IS NULL');
+
+    if (instructorId) {
+      qb.andWhere('course.created_by = :instructorId', { instructorId });
+    } else if (academyId) {
+      qb.andWhere('course.academy_id = :academyId', { academyId });
+    }
+
+    // ✅ Reuse your global pagination config
+    const result = await paginate(query, qb, COURSE_PAGINATION_CONFIG);
+
+    // Map instructor data like in your other methods
+    result.data = result.data.map(
+      (course) =>
+      ({
+        ...course,
+        instructor: this.mapInstructor(course),
+      } as unknown as Course),
+    );
+
+    return result;
+  }
 }
