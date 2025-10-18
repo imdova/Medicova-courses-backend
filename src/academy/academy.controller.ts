@@ -33,11 +33,11 @@ import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Academies')
 @Controller('academies')
-@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class AcademyController {
   constructor(private readonly academyService: AcademyService) { }
 
   @Post()
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('academy:create')
   @ApiOperation({ summary: 'Create a new academy (admin only)' })
   @ApiBody({ description: 'Academy details', type: CreateAcademyDto })
@@ -54,6 +54,7 @@ export class AcademyController {
   }
 
   @Get()
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('academy:list')
   @ApiOperation({ summary: 'List all academies (admin only)' })
   @ApiResponse({ status: HttpStatus.OK, description: 'List of all academies' })
@@ -62,6 +63,7 @@ export class AcademyController {
   }
 
   @Get(':id')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('academy:get_by_id')
   @ApiOperation({ summary: 'Get an academy by ID' })
   @ApiParam({ name: 'id', type: String, description: 'ID of the academy' })
@@ -84,8 +86,9 @@ export class AcademyController {
     return this.academyService.findOne(id);
   }
 
-  @RequirePermissions('academy:get_by_slug')
   @Get('slug/:slug')
+  // @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  // @RequirePermissions('academy:get_by_slug')
   @ApiOperation({ summary: 'Get an academy by Slug' })
   @ApiParam({ name: 'slug', description: 'Slug of academy' })
   @ApiResponse({
@@ -99,6 +102,7 @@ export class AcademyController {
   }
 
   @Patch(':id')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('academy:update')
   @ApiOperation({ summary: 'Update an academy by ID' })
   @ApiParam({ name: 'id', type: String, description: 'ID of the academy' })
@@ -123,6 +127,7 @@ export class AcademyController {
   }
 
   @Delete(':id')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('academy:delete')
   @ApiOperation({ summary: 'Delete an academy by ID' })
   @ApiParam({ name: 'id', type: String, description: 'ID of the academy' })
@@ -143,6 +148,7 @@ export class AcademyController {
 
   // ---------- New endpoint to add academy user under this academy ----------
   @Post(':id/users')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('academy_user:add')
   @ApiOperation({ summary: 'Add a new user under a specific academy' })
   @ApiParam({ name: 'id', type: String, description: 'ID of the academy' })
@@ -168,6 +174,7 @@ export class AcademyController {
 
   // ---------- New endpoint to get all users under an academy ----------
   @Get(':id/users')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('academy_user:list')
   @ApiOperation({ summary: 'Get all users under a specific academy' })
   @ApiParam({ name: 'id', type: String, description: 'ID of the academy' })
@@ -188,6 +195,7 @@ export class AcademyController {
 
   // ---------- New endpoint to add academy instructor ----------
   @Post(':id/instructors')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('academy_instructor:add')
   @ApiOperation({
     summary: 'Add an instructor profile under a specific academy (non-user)',
@@ -221,6 +229,7 @@ export class AcademyController {
 
   // ---------- New endpoint to get all instructors under an academy ----------
   @Get(':id/instructors')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('academy_instructor:list')
   @ApiOperation({
     summary: 'Get all instructor profiles under a specific academy (non-users)',
@@ -241,6 +250,7 @@ export class AcademyController {
 
   // ---------- New endpoint to get one instructor under an academy ----------
   @Get(':id/instructors/:instructorId')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('academy_instructor:get')
   @ApiOperation({
     summary: 'Get One instructor profiles under a specific academy (non-users)',
@@ -270,6 +280,7 @@ export class AcademyController {
 
   // ---------- New endpoint to update academy instructor ----------
   @Patch(':id/instructors/:instructorId')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('academy_instructor:update')
   @ApiOperation({
     summary: 'Update an instructor profile under a specific academy (non-user)',
