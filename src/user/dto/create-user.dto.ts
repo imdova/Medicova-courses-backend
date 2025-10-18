@@ -72,6 +72,7 @@ export class CreateUserDto {
       name: 'Nested Academy',
       description: 'Optional academy details for reference',
       slug: 'nested-academy',
+      image: 'https://example.com/images/nested-academy.png',
     },
   })
   @IsOptional()

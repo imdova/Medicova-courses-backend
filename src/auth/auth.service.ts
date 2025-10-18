@@ -99,6 +99,8 @@ export class AuthService {
         id: fullUser.academy?.id ?? null,
         name: fullUser.academy?.name ?? null,
         slug: fullUser.academy?.slug ?? null,
+        image: fullUser.academy?.image ?? null,
+        description: fullUser.academy?.description ?? null,
       }
     };
   }
