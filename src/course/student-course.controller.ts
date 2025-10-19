@@ -160,7 +160,7 @@ export class StudentCourseController {
 
   @Get('activity')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('course:get_student_activity')
+  @RequirePermissions('course:get_student_activity')
   @ApiOperation({
     summary: 'Get activity statistics for the authenticated student',
     description:
