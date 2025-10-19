@@ -158,6 +158,21 @@ export class StudentCourseController {
     return this.studentCourseService.getFavoriteCourses(req.user.sub);
   }
 
+  @Get('activity')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('course:get_student_activity')
+  @ApiOperation({
+    summary: 'Get activity statistics for the authenticated student',
+    description:
+      'Returns statistics for the authenticated student including courses in progress, completed courses, and community participation.',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Student not found' })
+  async getMyActivity(@Req() req) {
+    return this.studentCourseService.getStudentActivity(req.user.sub);
+  }
+
   @Get('enrolled/related')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('course:list_related_for_enrolled')

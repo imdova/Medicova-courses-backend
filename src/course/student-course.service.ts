@@ -15,6 +15,7 @@ import { User } from 'src/user/entities/user.entity';
 import { CourseProgress } from './course-progress/entities/course-progress.entity';
 import { CourseSectionItem } from './course-section/entities/course-section-item.entity';
 import { CourseFavorite } from './entities/course-favorite.entity';
+import { CourseCommunity } from './course-community/entities/course-community.entity';
 
 export const COURSE_PAGINATION_CONFIG: QueryConfig<Course> = {
   sortableColumns: ['created_at', 'name', 'category', 'status'],
@@ -270,6 +271,8 @@ export class StudentCourseService {
         'related.name AS name',
         'related.course_image AS "courseImage"',
         'COUNT(enrollments.id) AS "studentCount"',
+        // ✅ NEW: Check if course is favorited by current user
+        `(SELECT COUNT(cf.id) > 0 FROM course_favorite cf WHERE cf.course_id = related.id AND cf.student_id = '${user.sub}') AS "isFavorite"`,
       ])
       .groupBy('related.id')
       .addGroupBy('related.name')
@@ -284,6 +287,7 @@ export class StudentCourseService {
       name: r.name,
       courseImage: r.courseImage,
       studentCount: Number(r.studentCount) || 0,
+      isFavorite: r.isFavorite === true || r.isFavorite === 't' || r.isFavorite === '1',
     }));
 
     // ✅ Map instructor data into a compact format and add related courses
@@ -600,6 +604,8 @@ export class StudentCourseService {
         'related.course_image AS "courseImage"',
         // ✅ Use subquery for accurate and efficient student count
         `(SELECT COUNT(cs.id) FROM course_student cs WHERE cs.course_id = related.id) AS "studentCount"`,
+        // ✅ NEW: Check if course is favorited by current user
+        `(SELECT COUNT(cf.id) > 0 FROM course_favorite cf WHERE cf.course_id = related.id AND cf.student_id = '${userId}') AS "isFavorite"`,
       ])
       .orderBy('"studentCount"', 'DESC')
       .limit(12);
@@ -612,6 +618,7 @@ export class StudentCourseService {
       name: r.name,
       courseImage: r.courseImage,
       studentCount: Number(r.studentCount) || 0,
+      isFavorite: r.isFavorite === true || r.isFavorite === 't' || r.isFavorite === '1', // Handle different boolean representations
     }));
 
     return relatedCourses;
@@ -749,5 +756,104 @@ export class StudentCourseService {
     });
 
     return favorites;
+  }
+
+  async getStudentActivity(studentId: string): Promise<any> {
+    // 1️⃣ Get student with profile
+    const student = await this.dataSource
+      .getRepository(User)
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.profile', 'profile')
+      .where('user.id = :studentId', { studentId })
+      .select([
+        'user.id',
+        'user.email',
+        'profile.firstName',
+        'profile.lastName',
+        'profile.photoUrl',
+        'profile.phoneNumber',
+        'profile.city',
+      ])
+      .getOne();
+
+    if (!student) {
+      throw new NotFoundException('Student not found');
+    }
+
+    // 2️⃣ Get course progress statistics for this student
+    const progressStats = await this.dataSource.query(
+      `
+    WITH course_items AS (
+      SELECT 
+        cs.student_id,
+        cs.course_id,
+        COUNT(DISTINCT csi.id) as total_items
+      FROM course_student cs
+      INNER JOIN course_sections csec ON csec.course_id = cs.course_id
+      INNER JOIN course_section_items csi ON csi.section_id = csec.id
+      WHERE cs.student_id = $1
+      GROUP BY cs.student_id, cs.course_id
+    ),
+    completed_items AS (
+      SELECT 
+        cs.student_id,
+        cs.course_id,
+        COUNT(DISTINCT cp.item_id) as completed_count
+      FROM course_student cs
+      INNER JOIN course_progress cp ON cp.course_student_id = cs.id
+      WHERE cs.student_id = $1 AND cp.completed = true
+      GROUP BY cs.student_id, cs.course_id
+    )
+    SELECT 
+      ci.student_id,
+      COUNT(CASE 
+        WHEN COALESCE(comp.completed_count, 0) > 0 
+         AND COALESCE(comp.completed_count, 0) < ci.total_items 
+        THEN 1 
+      END) as courses_in_progress,
+      COUNT(CASE 
+        WHEN COALESCE(comp.completed_count, 0) = ci.total_items 
+         AND ci.total_items > 0 
+        THEN 1 
+      END) as courses_completed
+    FROM course_items ci
+    LEFT JOIN completed_items comp 
+      ON ci.student_id = comp.student_id 
+      AND ci.course_id = comp.course_id
+    GROUP BY ci.student_id
+    `,
+      [studentId]
+    );
+
+    // 3️⃣ Get community support count for this student
+    const communityCount = await this.dataSource
+      .getRepository(CourseCommunity)
+      .createQueryBuilder('cc')
+      .where('cc.user.id = :studentId', { studentId })
+      .getCount();
+
+    // 4️⃣ Extract progress data
+    const progress = progressStats[0] || {
+      courses_in_progress: 0,
+      courses_completed: 0,
+    };
+
+    // 5️⃣ Build the response
+    const profile = student.profile;
+
+    return {
+      id: student.id,
+      name: profile
+        ? `${profile.firstName} ${profile.lastName}`
+        : 'Unknown',
+      avatar: profile?.photoUrl || null,
+      phone: profile?.phoneNumber || null,
+      email: student.email,
+      address: profile?.city || null,
+      coursesInProgress: parseInt(progress.courses_in_progress) || 0,
+      coursesCompleted: parseInt(progress.courses_completed) || 0,
+      certificatesEarned: parseInt(progress.courses_completed) || 0, //Temporary until we make certifications
+      communitySupport: communityCount,
+    };
   }
 }
