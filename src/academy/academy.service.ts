@@ -18,6 +18,7 @@ import { CreateAcademyInstructorDto } from './dto/create-academy-instructor.dto'
 import { AcademyInstructor } from './entities/academy-instructors.entity';
 import { UpdateAcademyInstructorDto } from './dto/update-academy-instructor.dto';
 import { User } from 'src/user/entities/user.entity';
+import { CourseStudent } from 'src/course/entities/course-student.entity';
 
 @Injectable()
 export class AcademyService {
@@ -28,6 +29,8 @@ export class AcademyService {
     private academyInstructorRepository: Repository<AcademyInstructor>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(CourseStudent)
+    private readonly courseStudentRepository: Repository<CourseStudent>,
     @Inject(forwardRef(() => UserService))
     private userService: UserService,
   ) { }
@@ -50,46 +53,42 @@ export class AcademyService {
   }
 
   async findAll(): Promise<any[]> {
-    // 1) load academies and instructors in one query
+    // 1) Load academies with instructors in one go
     const academies = await this.academyRepository.find({
       relations: ['instructors'],
     });
 
     if (academies.length === 0) return [];
 
-    // 2) collect unique creator ids and academy ids
+    // 2) Collect unique creator IDs and academy IDs
     const createdByIds = Array.from(
       new Set(academies.map((a) => a.created_by).filter(Boolean)),
     );
-
     const academyIds = academies.map((a) => a.id);
 
-    // 3) fetch creators in one query (profile + role)
+    // 3) Fetch creators (profile + role)
     const creators = await this.userRepository.find({
       where: { id: In(createdByIds) },
       relations: ['profile', 'role'],
     });
-
     const creatorsById = new Map(creators.map((c) => [c.id, c]));
 
-    // 4) fetch students counts grouped by academy in one query
-    // Note: adjust 'academyId' property name if your DB column is named differently (e.g., 'academy_id').
-    const studentCountsRaw = await this.userRepository
-      .createQueryBuilder('user')
-      .select('user.academyId', 'academyId')
-      .addSelect('COUNT(user.id)', 'count')
-      .innerJoin('user.role', 'role', 'role.name = :studentRole', {
-        studentRole: 'student',
-      })
-      .where('user.academyId IN (:...academyIds)', { academyIds })
-      .groupBy('user.academyId')
+    // 4) Fetch student counts per academy (via enrolled courses)
+    // This counts DISTINCT students across all courses in an academy
+    const studentCountsRaw = await this.courseStudentRepository
+      .createQueryBuilder('cs')
+      .select('course.academy_id', 'academyId')
+      .addSelect('COUNT(DISTINCT cs.student_id)', 'count')
+      .innerJoin('cs.course', 'course')
+      .where('course.academy_id IN (:...academyIds)', { academyIds })
+      .groupBy('course.academy_id')
       .getRawMany();
 
     const studentsCountMap = new Map(
       studentCountsRaw.map((r) => [r.academyId as string, Number(r.count)]),
     );
 
-    // 5) merge results
+    // 5) Merge everything into formatted result
     const result = academies.map((academy) => {
       const creator = creatorsById.get(academy.created_by);
 
@@ -105,24 +104,15 @@ export class AcademyService {
       const instructors = (academy.instructors || []).map((inst) => ({
         id: inst.id,
         name: inst.name,
-        title: inst.biography ? inst.biography.split('\n')[0] : null, // or any title logic
+        title: inst.biography ? inst.biography.split('\n')[0] : null,
         photo: inst.photoUrl || null,
-        rate: undefined, // if you don't store rate, keep undefined or compute externally
         bio: inst.biography || null,
       }));
 
       const studentsCount = studentsCountMap.get(academy.id) || 0;
 
-      // clone academy but remove sensitive or circular relations as needed
-      const {
-        // remove fields you don't want in response (example)
-        // instructors: _instructors,
-        // users: _users,
-        ...academyPlain
-      } = academy as any;
-
       return {
-        ...academyPlain,
+        ...academy,
         createdBy,
         instructors,
         studentsCount,
@@ -145,13 +135,14 @@ export class AcademyService {
       relations: ['profile', 'role'],
     });
 
-    const studentsCount = await this.userRepository.count({
-      where: {
-        academy: { id: academy.id },
-        role: { name: 'student' },
-      },
-      relations: ['role'],
-    });
+    const studentCountRaw = await this.courseStudentRepository
+      .createQueryBuilder('cs')
+      .select('COUNT(DISTINCT cs.student_id)', 'count')
+      .innerJoin('cs.course', 'course')
+      .where('course.academy_id = :academyId', { academyId: id })
+      .getRawOne();
+
+    const studentsCount = Number(studentCountRaw?.count || 0);
 
     return {
       ...academy,
@@ -187,13 +178,14 @@ export class AcademyService {
       relations: ['profile', 'role'],
     });
 
-    const studentsCount = await this.userRepository.count({
-      where: {
-        academy: { id: academy.id },
-        role: { name: 'student' },
-      },
-      relations: ['role'],
-    });
+    const studentCountRaw = await this.courseStudentRepository
+      .createQueryBuilder('cs')
+      .select('COUNT(DISTINCT cs.student_id)', 'count')
+      .innerJoin('cs.course', 'course')
+      .where('course.academy_id = :academyId', { academyId: academy.id })
+      .getRawOne();
+
+    const studentsCount = Number(studentCountRaw?.count || 0);
 
     return {
       ...academy,
