@@ -128,7 +128,7 @@ export class AcademyService {
   async addTeacherToAcademy(
     academyId: string,
     createAcademyInstructorDto: CreateAcademyInstructorDto,
-  ): Promise<{ message: string }> {
+  ): Promise<any> {
     const academy = await this.findOne(academyId);
     if (!academy) throw new NotFoundException('Academy not found');
 
@@ -137,9 +137,12 @@ export class AcademyService {
       academy,
     });
 
-    await this.academyInstructorRepository.save(teacher);
+    const createdTeacher = await this.academyInstructorRepository.save(teacher);
 
-    return { message: 'Instructor profile created successfully' };
+    // Optionally remove academy relation before returning
+    const { academy: _, ...data } = createdTeacher;
+
+    return { message: 'Instructor profile created successfully', data };
   }
 
   async findInstructors(academyId: string): Promise<AcademyInstructor[]> {
