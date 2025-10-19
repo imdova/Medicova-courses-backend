@@ -271,6 +271,8 @@ export class StudentCourseService {
         'related.name AS name',
         'related.course_image AS "courseImage"',
         'COUNT(enrollments.id) AS "studentCount"',
+        // ✅ NEW: Check if course is favorited by current user
+        `(SELECT COUNT(cf.id) > 0 FROM course_favorite cf WHERE cf.course_id = related.id AND cf.student_id = '${user.sub}') AS "isFavorite"`,
       ])
       .groupBy('related.id')
       .addGroupBy('related.name')
@@ -285,6 +287,7 @@ export class StudentCourseService {
       name: r.name,
       courseImage: r.courseImage,
       studentCount: Number(r.studentCount) || 0,
+      isFavorite: r.isFavorite === true || r.isFavorite === 't' || r.isFavorite === '1',
     }));
 
     // ✅ Map instructor data into a compact format and add related courses
@@ -601,6 +604,8 @@ export class StudentCourseService {
         'related.course_image AS "courseImage"',
         // ✅ Use subquery for accurate and efficient student count
         `(SELECT COUNT(cs.id) FROM course_student cs WHERE cs.course_id = related.id) AS "studentCount"`,
+        // ✅ NEW: Check if course is favorited by current user
+        `(SELECT COUNT(cf.id) > 0 FROM course_favorite cf WHERE cf.course_id = related.id AND cf.student_id = '${userId}') AS "isFavorite"`,
       ])
       .orderBy('"studentCount"', 'DESC')
       .limit(12);
@@ -613,6 +618,7 @@ export class StudentCourseService {
       name: r.name,
       courseImage: r.courseImage,
       studentCount: Number(r.studentCount) || 0,
+      isFavorite: r.isFavorite === true || r.isFavorite === 't' || r.isFavorite === '1', // Handle different boolean representations
     }));
 
     return relatedCourses;
