@@ -124,15 +124,12 @@ export class UserService {
 
     const normalizedEmail = email.trim().toLowerCase();
 
-    // 1. Create the academy via AcademyService
-    const newAcademy = await this.academyService.create(academyDto);
-
-    // 2. Hash password for the user
+    // 🔐 1. Hash password for the user
     const hashedPassword = await bcrypt.hash(userData.password, 10);
 
-    //Get role entity
+    // 🎭 2. Get the academy_admin role
     const roleEntity = await this.roleRepository.findOne({
-      where: { name: 'academy_admin' }, // or whatever role name
+      where: { name: 'academy_admin' },
     });
 
     if (!roleEntity) {
@@ -141,19 +138,25 @@ export class UserService {
 
     const verificationToken = uuidv4();
 
-    // 3. Create user and link to academy
+    // 👤 3. Create the user first (without academy yet)
     const user = this.userRepository.create({
       ...userData,
       email: normalizedEmail,
       password: hashedPassword,
-      role: roleEntity, // ✅ correct
-      academy: newAcademy,
+      role: roleEntity,
       emailVerificationToken: verificationToken,
     });
 
     const savedUser = await this.userRepository.save(user);
 
-    // 4. Create instructor profile
+    // 🏫 4. Create the academy and link created_by to the new user
+    const newAcademy = await this.academyService.create(academyDto, savedUser.id);
+
+    // 🔗 5. Associate academy to the user and save
+    savedUser.academy = newAcademy;
+    await this.userRepository.save(savedUser);
+
+    // 👩‍🏫 6. Create instructor profile
     await this.profileService.createProfile(savedUser.id, {
       firstName: firstName || '',
       lastName: lastName || '',

@@ -8,7 +8,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Academy } from './entities/academy.entity';
 import { CreateAcademyDto } from './dto/create-academy.dto';
 import { UpdateAcademyDto } from './dto/update-academy.dto';
@@ -17,6 +17,8 @@ import { UserService } from 'src/user/user.service';
 import { CreateAcademyInstructorDto } from './dto/create-academy-instructor.dto';
 import { AcademyInstructor } from './entities/academy-instructors.entity';
 import { UpdateAcademyInstructorDto } from './dto/update-academy-instructor.dto';
+import { User } from 'src/user/entities/user.entity';
+import { CourseStudent } from 'src/course/entities/course-student.entity';
 
 @Injectable()
 export class AcademyService {
@@ -25,12 +27,19 @@ export class AcademyService {
     private academyRepository: Repository<Academy>,
     @InjectRepository(AcademyInstructor)
     private academyInstructorRepository: Repository<AcademyInstructor>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    @InjectRepository(CourseStudent)
+    private readonly courseStudentRepository: Repository<CourseStudent>,
     @Inject(forwardRef(() => UserService))
     private userService: UserService,
   ) { }
 
-  async create(createAcademyDto: CreateAcademyDto): Promise<Academy> {
-    const academy = this.academyRepository.create(createAcademyDto);
+  async create(createAcademyDto: CreateAcademyDto, userId: string): Promise<Academy> {
+    const academy = this.academyRepository.create({
+      ...createAcademyDto,
+      created_by: userId, // automatically set the creator
+    });
     try {
       return await this.academyRepository.save(academy);
     } catch (error) {
@@ -43,22 +52,160 @@ export class AcademyService {
     }
   }
 
-  findAll() {
-    return this.academyRepository.find();
-  }
-
-  findOne(id: string) {
-    return this.academyRepository.findOne({ where: { id } });
-  }
-
-  async findOneBySlug(slug: string): Promise<Academy> {
-    const course = await this.academyRepository.findOne({
-      where: { slug, deleted_at: null },
+  async findAll(): Promise<any[]> {
+    // 1) Load academies with instructors in one go
+    const academies = await this.academyRepository.find({
+      relations: ['instructors'],
     });
 
-    if (!course) throw new NotFoundException('Academy not found');
+    if (academies.length === 0) return [];
 
-    return course;
+    // 2) Collect unique creator IDs and academy IDs
+    const createdByIds = Array.from(
+      new Set(academies.map((a) => a.created_by).filter(Boolean)),
+    );
+    const academyIds = academies.map((a) => a.id);
+
+    // 3) Fetch creators (profile + role)
+    const creators = await this.userRepository.find({
+      where: { id: In(createdByIds) },
+      relations: ['profile', 'role'],
+    });
+    const creatorsById = new Map(creators.map((c) => [c.id, c]));
+
+    // 4) Fetch student counts per academy (via enrolled courses)
+    // This counts DISTINCT students across all courses in an academy
+    const studentCountsRaw = await this.courseStudentRepository
+      .createQueryBuilder('cs')
+      .select('course.academy_id', 'academyId')
+      .addSelect('COUNT(DISTINCT cs.student_id)', 'count')
+      .innerJoin('cs.course', 'course')
+      .where('course.academy_id IN (:...academyIds)', { academyIds })
+      .groupBy('course.academy_id')
+      .getRawMany();
+
+    const studentsCountMap = new Map(
+      studentCountsRaw.map((r) => [r.academyId as string, Number(r.count)]),
+    );
+
+    // 5) Merge everything into formatted result
+    const result = academies.map((academy) => {
+      const creator = creatorsById.get(academy.created_by);
+
+      const createdBy = creator
+        ? {
+          id: creator.id,
+          name: `${creator.profile?.firstName || ''} ${creator.profile?.lastName || ''}`.trim(),
+          photo: creator.profile?.photoUrl || null,
+          role: creator.role?.name || null,
+        }
+        : null;
+
+      const instructors = (academy.instructors || []).map((inst) => ({
+        id: inst.id,
+        name: inst.name,
+        title: inst.biography ? inst.biography.split('\n')[0] : null,
+        photo: inst.photoUrl || null,
+        bio: inst.biography || null,
+      }));
+
+      const studentsCount = studentsCountMap.get(academy.id) || 0;
+
+      return {
+        ...academy,
+        createdBy,
+        instructors,
+        studentsCount,
+      };
+    });
+
+    return result;
+  }
+
+  async findOne(id: string): Promise<any> {
+    const academy = await this.academyRepository.findOne({
+      where: { id },
+      relations: ['instructors'],
+    });
+
+    if (!academy) throw new NotFoundException('Academy not found');
+
+    const creator = await this.userRepository.findOne({
+      where: { id: academy.created_by },
+      relations: ['profile', 'role'],
+    });
+
+    const studentCountRaw = await this.courseStudentRepository
+      .createQueryBuilder('cs')
+      .select('COUNT(DISTINCT cs.student_id)', 'count')
+      .innerJoin('cs.course', 'course')
+      .where('course.academy_id = :academyId', { academyId: id })
+      .getRawOne();
+
+    const studentsCount = Number(studentCountRaw?.count || 0);
+
+    return {
+      ...academy,
+      createdBy: creator
+        ? {
+          id: creator.id,
+          name: `${creator.profile?.firstName || ''} ${creator.profile?.lastName || ''}`.trim(),
+          photo: creator.profile?.photoUrl || null,
+          role: creator.role?.name || null,
+        }
+        : null,
+      instructors: academy.instructors?.map((inst) => ({
+        id: inst.id,
+        name: inst.name,
+        title: inst.biography ? inst.biography.slice(0, 40) + '...' : '',
+        photo: inst.photoUrl || null,
+        bio: inst.biography || null,
+      })) || [],
+      studentsCount,
+    };
+  }
+
+  async findOneBySlug(slug: string): Promise<any> {
+    const academy = await this.academyRepository.findOne({
+      where: { slug, deleted_at: null },
+      relations: ['instructors'],
+    });
+
+    if (!academy) throw new NotFoundException('Academy not found');
+
+    const creator = await this.userRepository.findOne({
+      where: { id: academy.created_by },
+      relations: ['profile', 'role'],
+    });
+
+    const studentCountRaw = await this.courseStudentRepository
+      .createQueryBuilder('cs')
+      .select('COUNT(DISTINCT cs.student_id)', 'count')
+      .innerJoin('cs.course', 'course')
+      .where('course.academy_id = :academyId', { academyId: academy.id })
+      .getRawOne();
+
+    const studentsCount = Number(studentCountRaw?.count || 0);
+
+    return {
+      ...academy,
+      createdBy: creator
+        ? {
+          id: creator.id,
+          name: `${creator.profile?.firstName || ''} ${creator.profile?.lastName || ''}`.trim(),
+          photo: creator.profile?.photoUrl || null,
+          role: creator.role?.name || null,
+        }
+        : null,
+      instructors: academy.instructors?.map((inst) => ({
+        id: inst.id,
+        name: inst.name,
+        title: inst.biography ? inst.biography.slice(0, 40) + '...' : '',
+        photo: inst.photoUrl || null,
+        bio: inst.biography || null,
+      })) || [],
+      studentsCount,
+    };
   }
 
   async update(id: string, updateAcademyDto: UpdateAcademyDto) {
@@ -128,7 +275,7 @@ export class AcademyService {
   async addTeacherToAcademy(
     academyId: string,
     createAcademyInstructorDto: CreateAcademyInstructorDto,
-  ): Promise<{ message: string }> {
+  ): Promise<any> {
     const academy = await this.findOne(academyId);
     if (!academy) throw new NotFoundException('Academy not found');
 
@@ -137,9 +284,12 @@ export class AcademyService {
       academy,
     });
 
-    await this.academyInstructorRepository.save(teacher);
+    const createdTeacher = await this.academyInstructorRepository.save(teacher);
 
-    return { message: 'Instructor profile created successfully' };
+    // Optionally remove academy relation before returning
+    const { academy: _, ...data } = createdTeacher;
+
+    return { message: 'Instructor profile created successfully', data };
   }
 
   async findInstructors(academyId: string): Promise<AcademyInstructor[]> {

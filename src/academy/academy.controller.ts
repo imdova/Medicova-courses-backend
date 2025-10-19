@@ -49,8 +49,9 @@ export class AcademyController {
     status: HttpStatus.BAD_REQUEST,
     description: 'Invalid request data',
   })
-  create(@Body() createAcademyDto: CreateAcademyDto) {
-    return this.academyService.create(createAcademyDto);
+  create(@Body() createAcademyDto: CreateAcademyDto, @Req() req) {
+    const userId = req.user.sub;
+    return this.academyService.create(createAcademyDto, userId);
   }
 
   @Get()
