@@ -16,6 +16,7 @@ import { CourseProgress } from './course-progress/entities/course-progress.entit
 import { CourseSectionItem } from './course-section/entities/course-section-item.entity';
 import { CourseFavorite } from './entities/course-favorite.entity';
 import { CourseCommunity } from './course-community/entities/course-community.entity';
+import { AcademyInstructor } from 'src/academy/entities/academy-instructors.entity';
 
 export const COURSE_PAGINATION_CONFIG: QueryConfig<Course> = {
   sortableColumns: ['created_at', 'name', 'category', 'status'],
@@ -44,6 +45,8 @@ export class StudentCourseService {
     private readonly courseSectionItemRepo: Repository<CourseSectionItem>,
     @InjectRepository(CourseFavorite)
     private readonly courseFavoriteRepository: Repository<CourseFavorite>,
+    @InjectRepository(AcademyInstructor)
+    private readonly academyInstructorRepository: Repository<AcademyInstructor>,
     private readonly dataSource: DataSource
   ) { }
 
@@ -74,6 +77,8 @@ export class StudentCourseService {
     const qb = this.courseRepo
       .createQueryBuilder('course')
       .leftJoinAndSelect('course.pricings', 'pricing')
+      .leftJoin('course.academy', 'academy') // 👈 ADD THIS LINE
+      .addSelect(['academy.id'])             // 👈 include only academy.id
       .leftJoinAndSelect('course.instructor', 'instructor')
       .leftJoinAndSelect('instructor.profile', 'instructorProfile')
       .andWhere('course.deleted_at IS NULL')
@@ -118,11 +123,13 @@ export class StudentCourseService {
       });
     }
 
-    // ✅ Map instructor to compact form
-    result.data = result.data.map((course: any) => ({
-      ...course,
-      instructor: this.mapInstructor(course),
-    }));
+    result.data = await Promise.all(
+      result.data.map(async (course) => ({
+        ...(course as any),
+        instructor: this.mapInstructor(course),
+        academyInstructors: await this.getAcademyInstructors(course),
+      })),
+    );
 
     return result;
   }
@@ -192,6 +199,8 @@ export class StudentCourseService {
         .createQueryBuilder('course')
         .leftJoinAndSelect('course.pricings', 'pricing')
         .leftJoinAndSelect('course.instructor', 'instructor')
+        .leftJoin('course.academy', 'academy') // 👈 ADD THIS LINE
+        .addSelect(['academy.id'])             // 👈 include only academy.id
         .leftJoinAndSelect('instructor.profile', 'instructorProfile')
         .leftJoinAndSelect('course.category', 'category')
         .leftJoinAndSelect('course.subCategory', 'subCategory')
@@ -294,7 +303,7 @@ export class StudentCourseService {
     return {
       ...course,
       instructor: this.mapInstructor(course),
-      relatedCourses, // ✅ NEW: Add related courses here
+      academyInstructors: await this.getAcademyInstructors(course),
     } as unknown as Course;
   }
 
@@ -331,6 +340,8 @@ export class StudentCourseService {
       })
       .leftJoinAndSelect('course.pricings', 'pricing')
       .leftJoinAndSelect('course.instructor', 'instructor')
+      .leftJoin('course.academy', 'academy') // 👈 ADD THIS LINE
+      .addSelect(['academy.id'])             // 👈 include only academy.id
       .leftJoinAndSelect('instructor.profile', 'instructorProfile')
       .andWhere('course.deleted_at IS NULL')
 
@@ -383,10 +394,13 @@ export class StudentCourseService {
     });
 
     // ✅ Map instructor data into a compact structure
-    result.data = result.data.map((course: any) => ({
-      ...course,
-      instructor: this.mapInstructor(course),
-    }));
+    result.data = await Promise.all(
+      result.data.map(async (course) => ({
+        ...(course as any),
+        instructor: this.mapInstructor(course),
+        academyInstructors: await this.getAcademyInstructors(course),
+      })),
+    );
 
     return result;
   }
@@ -855,5 +869,16 @@ export class StudentCourseService {
       certificatesEarned: parseInt(progress.courses_completed) || 0, //Temporary until we make certifications
       communitySupport: communityCount,
     };
+  }
+
+  private async getAcademyInstructors(course: Course) {
+    if (!course.academy?.id || !course.academyInstructorIds?.length) {
+      return [];
+    }
+
+    return this.academyInstructorRepository.findBy({
+      id: In(course.academyInstructorIds),
+      academy: { id: course.academy.id },
+    });
   }
 }

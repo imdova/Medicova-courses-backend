@@ -25,6 +25,7 @@ import { CourseCategory } from 'src/course/course-category/entities/course-categ
 import { CourseRating } from './entities/course-rating.entity';
 import { RateCourseDto } from './dto/rate-course.dto';
 import { User } from 'src/user/entities/user.entity';
+import { AcademyInstructor } from 'src/academy/entities/academy-instructors.entity';
 
 export const COURSE_PAGINATION_CONFIG: QueryConfig<Course> = {
   sortableColumns: ['created_at', 'name', 'category', 'status'],
@@ -57,6 +58,8 @@ export class CourseService {
     private courseCategoryRepository: Repository<CourseCategory>,
     @InjectRepository(CourseRating)
     private courseRatingRepository: Repository<CourseRating>,
+    @InjectRepository(AcademyInstructor)
+    private readonly academyInstructorRepository: Repository<AcademyInstructor>,
   ) { }
 
   // All methods are checked for performance
@@ -135,6 +138,8 @@ export class CourseService {
     qb.leftJoinAndSelect('course.category', 'category')
       .leftJoinAndSelect('course.subCategory', 'subCategory')
       .leftJoinAndSelect('course.instructor', 'instructor')
+      .leftJoin('course.academy', 'academy') // 👈 ADD THIS LINE
+      .addSelect(['academy.id'])             // 👈 include only academy.id
       .leftJoinAndSelect('instructor.profile', 'instructorProfile')
       .loadRelationCountAndMap('course.studentCount', 'course.enrollments')
       // ✅ Count lectures via nested joins
@@ -171,12 +176,12 @@ export class CourseService {
 
     const result = await paginate(query, qb, COURSE_PAGINATION_CONFIG);
 
-    result.data = result.data.map(
-      (course) =>
-      ({
-        ...course,
+    result.data = await Promise.all(
+      result.data.map(async (course) => ({
+        ...(course as any),
         instructor: this.mapInstructor(course),
-      } as unknown as Course),
+        academyInstructors: await this.getAcademyInstructors(course),
+      })),
     );
 
     return result;
@@ -237,6 +242,7 @@ export class CourseService {
     return {
       ...course,
       instructor: this.mapInstructor(course),
+      academyInstructors: await this.getAcademyInstructors(course),
     } as unknown as Course;
   }
 
@@ -313,6 +319,7 @@ export class CourseService {
     return {
       ...course,
       instructor: this.mapInstructor(course),
+      academyInstructors: await this.getAcademyInstructors(course),
     } as unknown as Course;
   }
 
@@ -677,14 +684,25 @@ export class CourseService {
     const result = await paginate(query, qb, COURSE_PAGINATION_CONFIG);
 
     // Map instructor data like in your other methods
-    result.data = result.data.map(
-      (course) =>
-      ({
-        ...course,
+    result.data = await Promise.all(
+      result.data.map(async (course) => ({
+        ...(course as any),
         instructor: this.mapInstructor(course),
-      } as unknown as Course),
+        academyInstructors: await this.getAcademyInstructors(course),
+      })),
     );
 
     return result;
+  }
+
+  private async getAcademyInstructors(course: Course) {
+    if (!course.academy?.id || !course.academyInstructorIds?.length) {
+      return [];
+    }
+
+    return this.academyInstructorRepository.findBy({
+      id: In(course.academyInstructorIds),
+      academy: { id: course.academy.id },
+    });
   }
 }
