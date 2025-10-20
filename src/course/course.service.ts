@@ -636,7 +636,36 @@ export class CourseService {
       .leftJoinAndSelect('course.pricings', 'pricing')
       .where('course.status = :status', { status: 'published' })
       .andWhere('course.isActive = true')
-      .andWhere('course.deleted_at IS NULL');
+      .andWhere('course.deleted_at IS NULL')
+
+      // ✅ Count enrolled students
+      .loadRelationCountAndMap('course.studentCount', 'course.enrollments')
+
+      // ✅ Count lectures through sections → items
+      .loadRelationCountAndMap(
+        'course.lecturesCount',
+        'course.sections',
+        'sectionLectures',
+        (qb) =>
+          qb
+            .leftJoin('sectionLectures.items', 'lectureItems')
+            .andWhere('lectureItems.curriculumType = :lectureType', {
+              lectureType: 'lecture',
+            }),
+      )
+
+      // ✅ Count quizzes through sections → items
+      .loadRelationCountAndMap(
+        'course.quizzesCount',
+        'course.sections',
+        'sectionQuizzes',
+        (qb) =>
+          qb
+            .leftJoin('sectionQuizzes.items', 'quizItems')
+            .andWhere('quizItems.curriculumType = :quizType', {
+              quizType: 'quiz',
+            }),
+      );
 
     if (instructorId) {
       qb.andWhere('course.created_by = :instructorId', { instructorId });
