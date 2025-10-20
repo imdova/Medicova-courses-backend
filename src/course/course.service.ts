@@ -138,11 +138,10 @@ export class CourseService {
     qb.leftJoinAndSelect('course.category', 'category')
       .leftJoinAndSelect('course.subCategory', 'subCategory')
       .leftJoinAndSelect('course.instructor', 'instructor')
-      .leftJoin('course.academy', 'academy') // 👈 ADD THIS LINE
-      .addSelect(['academy.id'])             // 👈 include only academy.id
+      .leftJoin('course.academy', 'academy')
+      .addSelect(['academy.id'])
       .leftJoinAndSelect('instructor.profile', 'instructorProfile')
       .loadRelationCountAndMap('course.studentCount', 'course.enrollments')
-      // ✅ Count lectures via nested joins
       .loadRelationCountAndMap(
         'course.lecturesCount',
         'course.sections',
@@ -154,7 +153,6 @@ export class CourseService {
               lectureType: 'lecture',
             }),
       )
-      // ✅ Count quizzes via nested joins
       .loadRelationCountAndMap(
         'course.quizzesCount',
         'course.sections',
@@ -176,13 +174,17 @@ export class CourseService {
 
     const result = await paginate(query, qb, COURSE_PAGINATION_CONFIG);
 
-    result.data = await Promise.all(
-      result.data.map(async (course) => ({
-        ...(course as any),
-        instructor: this.mapInstructor(course),
-        academyInstructors: await this.getAcademyInstructors(course),
-      })),
+    // ✅ OPTIMIZED: Bulk fetch all academy instructors in one query
+    const academyInstructorsMap = await this.getAcademyInstructorsBulk(
+      result.data as Course[],
     );
+
+    // ✅ Map instructors to each course
+    result.data = result.data.map((course) => ({
+      ...(course as any),
+      instructor: this.mapInstructor(course),
+      academyInstructors: academyInstructorsMap.get(course.id) || [],
+    }));
 
     return result;
   }
@@ -203,11 +205,7 @@ export class CourseService {
       .leftJoinAndSelect('instructor.profile', 'instructorProfile')
       .andWhere('course.id = :id', { id })
       .andWhere('course.deleted_at IS NULL')
-
-      // ✅ Count enrolled students
       .loadRelationCountAndMap('course.studentCount', 'course.enrollments')
-
-      // ✅ Count lectures through sections → items
       .loadRelationCountAndMap(
         'course.lecturesCount',
         'course.sections',
@@ -219,8 +217,6 @@ export class CourseService {
               lectureType: 'lecture',
             }),
       )
-
-      // ✅ Count quizzes through sections → items
       .loadRelationCountAndMap(
         'course.quizzesCount',
         'course.sections',
@@ -239,10 +235,13 @@ export class CourseService {
 
     this.checkOwnership(course, userId, academyId, role);
 
+    // ✅ For single course, direct fetch is fine
+    const academyInstructors = await this.getAcademyInstructorsForCourse(course);
+
     return {
       ...course,
       instructor: this.mapInstructor(course),
-      academyInstructors: await this.getAcademyInstructors(course),
+      academyInstructors,
     } as unknown as Course;
   }
 
@@ -264,11 +263,7 @@ export class CourseService {
       .andWhere('course.deleted_at IS NULL')
       .orderBy('section.order', 'ASC')
       .addOrderBy('item.order', 'ASC')
-
-      // ✅ Count enrolled students
       .loadRelationCountAndMap('course.studentCount', 'course.enrollments')
-
-      // ✅ Count lectures
       .loadRelationCountAndMap(
         'course.lecturesCount',
         'course.sections',
@@ -280,8 +275,6 @@ export class CourseService {
               lectureType: 'lecture',
             }),
       )
-
-      // ✅ Count quizzes
       .loadRelationCountAndMap(
         'course.quizzesCount',
         'course.sections',
@@ -316,10 +309,13 @@ export class CourseService {
       }),
     }));
 
+    // ✅ For single course, direct fetch is fine
+    const academyInstructors = await this.getAcademyInstructorsForCourse(course);
+
     return {
       ...course,
       instructor: this.mapInstructor(course),
-      academyInstructors: await this.getAcademyInstructors(course),
+      academyInstructors,
     } as unknown as Course;
   }
 
@@ -641,14 +637,12 @@ export class CourseService {
       .leftJoinAndSelect('course.instructor', 'instructor')
       .leftJoinAndSelect('instructor.profile', 'instructorProfile')
       .leftJoinAndSelect('course.pricings', 'pricing')
+      .leftJoin('course.academy', 'academy')
+      .addSelect(['academy.id']) // ✅ Include academy.id for instructor lookup
       .where('course.status = :status', { status: 'published' })
       .andWhere('course.isActive = true')
       .andWhere('course.deleted_at IS NULL')
-
-      // ✅ Count enrolled students
       .loadRelationCountAndMap('course.studentCount', 'course.enrollments')
-
-      // ✅ Count lectures through sections → items
       .loadRelationCountAndMap(
         'course.lecturesCount',
         'course.sections',
@@ -660,8 +654,6 @@ export class CourseService {
               lectureType: 'lecture',
             }),
       )
-
-      // ✅ Count quizzes through sections → items
       .loadRelationCountAndMap(
         'course.quizzesCount',
         'course.sections',
@@ -680,29 +672,79 @@ export class CourseService {
       qb.andWhere('course.academy_id = :academyId', { academyId });
     }
 
-    // ✅ Reuse your global pagination config
     const result = await paginate(query, qb, COURSE_PAGINATION_CONFIG);
 
-    // Map instructor data like in your other methods
-    result.data = await Promise.all(
-      result.data.map(async (course) => ({
-        ...(course as any),
-        instructor: this.mapInstructor(course),
-        academyInstructors: await this.getAcademyInstructors(course),
-      })),
+    // ✅ OPTIMIZED: Bulk fetch all academy instructors in one query
+    const academyInstructorsMap = await this.getAcademyInstructorsBulk(
+      result.data as Course[],
     );
+
+    // ✅ Map instructors to each course
+    result.data = result.data.map((course) => ({
+      ...(course as any),
+      instructor: this.mapInstructor(course),
+      academyInstructors: academyInstructorsMap.get(course.id) || [],
+    }));
 
     return result;
   }
 
-  private async getAcademyInstructors(course: Course) {
+  private async getAcademyInstructorsBulk(
+    courses: Course[],
+  ): Promise<Map<string, any[]>> {
+    // Filter courses that have academy instructors
+    const coursesWithAcademy = courses.filter(
+      (c) => c.academy?.id && c.academyInstructorIds?.length,
+    );
+
+    if (coursesWithAcademy.length === 0) {
+      return new Map();
+    }
+
+    // Collect all unique instructor IDs
+    const allInstructorIds = new Set<string>();
+    coursesWithAcademy.forEach((course) => {
+      course.academyInstructorIds?.forEach((id) => allInstructorIds.add(id));
+    });
+
+    if (allInstructorIds.size === 0) {
+      return new Map();
+    }
+
+    // ✅ Single query to fetch all instructors
+    const instructors = await this.academyInstructorRepository
+      .createQueryBuilder('instructor')
+      .where('instructor.id IN (:...ids)', { ids: Array.from(allInstructorIds) })
+      .getMany();
+
+    // Create a lookup map: instructorId -> instructor data
+    const instructorMap = new Map(instructors.map((i) => [i.id, i]));
+
+    // Map instructors back to their courses
+    const courseInstructorsMap = new Map<string, any[]>();
+
+    coursesWithAcademy.forEach((course) => {
+      const courseInstructors = (course.academyInstructorIds || [])
+        .map((id) => instructorMap.get(id))
+        .filter(Boolean); // Remove any undefined values
+
+      courseInstructorsMap.set(course.id, courseInstructors);
+    });
+
+    return courseInstructorsMap;
+  }
+
+  private async getAcademyInstructorsForCourse(course: Course) {
     if (!course.academy?.id || !course.academyInstructorIds?.length) {
       return [];
     }
 
-    return this.academyInstructorRepository.findBy({
-      id: In(course.academyInstructorIds),
-      academy: { id: course.academy.id },
-    });
+    return this.academyInstructorRepository
+      .createQueryBuilder('instructor')
+      .where('instructor.id IN (:...ids)', { ids: course.academyInstructorIds })
+      .andWhere('instructor.academyId = :academyId', {
+        academyId: course.academy.id,
+      })
+      .getMany();
   }
 }

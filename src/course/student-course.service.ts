@@ -123,13 +123,16 @@ export class StudentCourseService {
       });
     }
 
-    result.data = await Promise.all(
-      result.data.map(async (course) => ({
-        ...(course as any),
-        instructor: this.mapInstructor(course),
-        academyInstructors: await this.getAcademyInstructors(course),
-      })),
+    // ✅ OPTIMIZED: Bulk fetch all academy instructors in one query
+    const academyInstructorsMap = await this.getAcademyInstructorsBulk(
+      result.data as Course[],
     );
+
+    result.data = result.data.map((course) => ({
+      ...(course as any),
+      instructor: this.mapInstructor(course),
+      academyInstructors: academyInstructorsMap.get(course.id) || [],
+    }));
 
     return result;
   }
@@ -299,11 +302,14 @@ export class StudentCourseService {
       isFavorite: r.isFavorite === true || r.isFavorite === 't' || r.isFavorite === '1',
     }));
 
+    // ✅ For single course, direct fetch is fine
+    const academyInstructors = await this.getAcademyInstructorsForCourse(course);
+
     // ✅ Map instructor data into a compact format and add related courses
     return {
       ...course,
       instructor: this.mapInstructor(course),
-      academyInstructors: await this.getAcademyInstructors(course),
+      academyInstructors,
     } as unknown as Course;
   }
 
@@ -393,14 +399,17 @@ export class StudentCourseService {
       course.progressPercentage = progressMap.get(course.id) || 0;
     });
 
-    // ✅ Map instructor data into a compact structure
-    result.data = await Promise.all(
-      result.data.map(async (course) => ({
-        ...(course as any),
-        instructor: this.mapInstructor(course),
-        academyInstructors: await this.getAcademyInstructors(course),
-      })),
+    // ✅ OPTIMIZED: Bulk fetch all academy instructors in one query
+    const academyInstructorsMap = await this.getAcademyInstructorsBulk(
+      result.data as Course[],
     );
+
+    // ✅ Map instructor data into a compact structure
+    result.data = result.data.map((course) => ({
+      ...(course as any),
+      instructor: this.mapInstructor(course),
+      academyInstructors: academyInstructorsMap.get(course.id) || [],
+    }));
 
     return result;
   }
@@ -871,14 +880,62 @@ export class StudentCourseService {
     };
   }
 
-  private async getAcademyInstructors(course: Course) {
+  private async getAcademyInstructorsBulk(
+    courses: Course[],
+  ): Promise<Map<string, any[]>> {
+    // Filter courses that have academy instructors
+    const coursesWithAcademy = courses.filter(
+      (c) => c.academy?.id && c.academyInstructorIds?.length,
+    );
+
+    if (coursesWithAcademy.length === 0) {
+      return new Map();
+    }
+
+    // Collect all unique instructor IDs
+    const allInstructorIds = new Set<string>();
+    coursesWithAcademy.forEach((course) => {
+      course.academyInstructorIds?.forEach((id) => allInstructorIds.add(id));
+    });
+
+    if (allInstructorIds.size === 0) {
+      return new Map();
+    }
+
+    // ✅ Single query to fetch all instructors
+    const instructors = await this.academyInstructorRepository
+      .createQueryBuilder('instructor')
+      .where('instructor.id IN (:...ids)', { ids: Array.from(allInstructorIds) })
+      .getMany();
+
+    // Create a lookup map: instructorId -> instructor data
+    const instructorMap = new Map(instructors.map((i) => [i.id, i]));
+
+    // Map instructors back to their courses
+    const courseInstructorsMap = new Map<string, any[]>();
+
+    coursesWithAcademy.forEach((course) => {
+      const courseInstructors = (course.academyInstructorIds || [])
+        .map((id) => instructorMap.get(id))
+        .filter(Boolean); // Remove any undefined values
+
+      courseInstructorsMap.set(course.id, courseInstructors);
+    });
+
+    return courseInstructorsMap;
+  }
+
+  private async getAcademyInstructorsForCourse(course: Course) {
     if (!course.academy?.id || !course.academyInstructorIds?.length) {
       return [];
     }
 
-    return this.academyInstructorRepository.findBy({
-      id: In(course.academyInstructorIds),
-      academy: { id: course.academy.id },
-    });
+    return this.academyInstructorRepository
+      .createQueryBuilder('instructor')
+      .where('instructor.id IN (:...ids)', { ids: course.academyInstructorIds })
+      .andWhere('instructor.academyId = :academyId', {
+        academyId: course.academy.id,
+      })
+      .getMany();
   }
 }
