@@ -23,6 +23,7 @@ import { CourseCommunityModule } from './course-community/course-community.modul
 import { CourseNotesModule } from './course-notes/course-notes.module';
 import { CourseProgress } from './course-progress/entities/course-progress.entity';
 import { CourseFavorite } from './entities/course-favorite.entity';
+import { AcademyInstructor } from 'src/academy/entities/academy-instructors.entity';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { CourseFavorite } from './entities/course-favorite.entity';
       CourseRating,
       CourseProgress,
       CourseFavorite,
+      AcademyInstructor,
     ]),
     CoursePricingModule,
     CourseSectionModule,
