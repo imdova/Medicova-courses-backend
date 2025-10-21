@@ -83,8 +83,6 @@ export class CreateUserDto {
       address: '123 Innovation Street, San Francisco, CA',
       city: { name: 'San Francisco', code: 'SF' },
       country: { name: 'United States', code: 'US' },
-      email: 'contact@brightfuture.edu',
-      contactEmail: 'info@brightfuture.edu',
       phone: '+1 555 123 4567',
       socialLinks: {
         website: 'https://brightfuture.edu',

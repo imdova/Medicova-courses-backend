@@ -112,15 +112,6 @@ export class CreateAcademyDto {
   address?: string;
 
   @ApiProperty({
-    description: 'Registration email for the academy account',
-    example: 'admin@brightfutureacademy.com',
-    required: false,
-  })
-  @IsOptional()
-  @IsString()
-  email?: string;
-
-  @ApiProperty({
     description: 'Public contact email (for inquiries)',
     example: 'contact@brightfutureacademy.com',
     required: false,
