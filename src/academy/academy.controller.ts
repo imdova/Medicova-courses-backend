@@ -51,7 +51,8 @@ export class AcademyController {
   })
   create(@Body() createAcademyDto: CreateAcademyDto, @Req() req) {
     const userId = req.user.sub;
-    return this.academyService.create(createAcademyDto, userId);
+    const email = req.user.email;
+    return this.academyService.create(createAcademyDto, userId, email);
   }
 
   @Get()

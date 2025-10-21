@@ -35,10 +35,12 @@ export class AcademyService {
     private userService: UserService,
   ) { }
 
-  async create(createAcademyDto: CreateAcademyDto, userId: string): Promise<Academy> {
+  async create(createAcademyDto: CreateAcademyDto, userId: string, email: string): Promise<Academy> {
     const academy = this.academyRepository.create({
       ...createAcademyDto,
       created_by: userId, // automatically set the creator
+      email: email, // set contact email to creator's email
+      contactEmail: email, // set contact email to creator's email
     });
     try {
       return await this.academyRepository.save(academy);

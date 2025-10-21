@@ -60,6 +60,7 @@ export class AuthService {
 
     const payload = {
       sub: fullUser.id,
+      email: fullUser.email,
       role: fullUser.role?.name ?? null,
       academyId: fullUser.academy?.id ?? null,
       isEmailVerified: fullUser.isEmailVerified ?? null,
@@ -221,6 +222,7 @@ export class AuthService {
     // ✅ Only generate a new access token — not a new refresh token
     const payload = {
       sub: user.id,
+      email: user.email,
       role: user.role?.name ?? null,
       academyId: user.academy?.id ?? null,
       isEmailVerified: user.isEmailVerified ?? null,
