@@ -150,7 +150,7 @@ export class UserService {
     const savedUser = await this.userRepository.save(user);
 
     // 🏫 4. Create the academy and link created_by to the new user
-    const newAcademy = await this.academyService.create(academyDto, savedUser.id);
+    const newAcademy = await this.academyService.create(academyDto, savedUser.id, savedUser.email);
 
     // 🔗 5. Associate academy to the user and save
     savedUser.academy = newAcademy;

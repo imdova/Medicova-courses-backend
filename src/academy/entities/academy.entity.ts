@@ -122,9 +122,9 @@ export class Academy extends BasicEntity {
   @Column({ type: 'int', nullable: true })
   studentsCount?: number;
 
-  // @ApiProperty({ description: 'Custom fake student count', nullable: true })
-  // @Column({ type: 'int', nullable: true })
-  // fakeStudentsCount?: number;
+  @ApiProperty({ description: 'Custom fake student count', nullable: true })
+  @Column({ type: 'int', nullable: true })
+  fakeStudentsCount?: number;
 
   @ApiProperty({ description: 'Display real student count instead of fake', nullable: true })
   @Column({ default: true })
