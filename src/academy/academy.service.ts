@@ -180,14 +180,19 @@ export class AcademyService {
       relations: ['profile', 'role'],
     });
 
-    const studentCountRaw = await this.courseStudentRepository
-      .createQueryBuilder('cs')
-      .select('COUNT(DISTINCT cs.student_id)', 'count')
-      .innerJoin('cs.course', 'course')
-      .where('course.academy_id = :academyId', { academyId: academy.id })
-      .getRawOne();
+    let studentsCount = academy.fakeStudentsCount ?? 0;
 
-    const studentsCount = Number(studentCountRaw?.count || 0);
+    // Only query real student count if needed
+    if (academy.displayRealStudentsCount) {
+      const studentCountRaw = await this.courseStudentRepository
+        .createQueryBuilder('cs')
+        .select('COUNT(DISTINCT cs.student_id)', 'count')
+        .innerJoin('cs.course', 'course')
+        .where('course.academy_id = :academyId', { academyId: academy.id })
+        .getRawOne();
+
+      studentsCount = Number(studentCountRaw?.count || 0);
+    }
 
     return {
       ...academy,

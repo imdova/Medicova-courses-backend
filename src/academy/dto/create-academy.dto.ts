@@ -179,4 +179,13 @@ export class CreateAcademyDto {
   @IsOptional()
   @IsBoolean()
   displayRealStudentsCount?: boolean;
+
+  @ApiProperty({
+    description: 'Custom fake student count for public display',
+    example: 1200,
+    required: false,
+  })
+  @IsOptional()
+  @IsInt()
+  fakeStudentsCount?: number;
 }
