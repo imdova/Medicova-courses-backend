@@ -19,6 +19,8 @@ import { AcademyInstructor } from './entities/academy-instructors.entity';
 import { UpdateAcademyInstructorDto } from './dto/update-academy-instructor.dto';
 import { User } from 'src/user/entities/user.entity';
 import { CourseStudent } from 'src/course/entities/course-student.entity';
+import { CreateAcademyKeywordDto } from './dto/create-academy-keyword.dto';
+import { AcademyKeyword } from './entities/academy-keywords.entity';
 
 @Injectable()
 export class AcademyService {
@@ -31,24 +33,44 @@ export class AcademyService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(CourseStudent)
     private readonly courseStudentRepository: Repository<CourseStudent>,
+    @InjectRepository(AcademyKeyword)
+    private readonly academyKeywordRepository: Repository<AcademyKeyword>,
     @Inject(forwardRef(() => UserService))
     private userService: UserService,
   ) { }
 
   async create(createAcademyDto: CreateAcademyDto, userId: string, email: string): Promise<Academy> {
+    const { keyWords = [] } = createAcademyDto;
+
+    // Validate keywords
+    if (keyWords.length > 0) {
+      const foundKeywords = await this.academyKeywordRepository
+        .createQueryBuilder('kw')
+        .where('kw.name IN (:...keyWords)', { keyWords })
+        .getMany();
+
+      const foundNames = foundKeywords.map(k => k.name);
+      const invalidKeywords = keyWords.filter(k => !foundNames.includes(k));
+
+      if (invalidKeywords.length > 0) {
+        throw new BadRequestException(
+          `Invalid keywords: ${invalidKeywords.join(', ')}`
+        );
+      }
+    }
+
     const academy = this.academyRepository.create({
       ...createAcademyDto,
-      created_by: userId, // automatically set the creator
-      email: email, // set contact email to creator's email
-      contactEmail: email, // set contact email to creator's email
+      created_by: userId,
+      email,
+      contactEmail: email,
     });
+
     try {
       return await this.academyRepository.save(academy);
     } catch (error) {
       if ((error as any).code === '23505') {
-        throw new ConflictException(
-          'Academy with this name or slug already exists.',
-        );
+        throw new ConflictException('Academy with this name or slug already exists.');
       }
       throw new InternalServerErrorException('Failed to create academy.');
     }
@@ -217,8 +239,27 @@ export class AcademyService {
 
   async update(id: string, updateAcademyDto: UpdateAcademyDto) {
     try {
+      // Validate provided keywords (if present)
+      if (updateAcademyDto.keyWords && updateAcademyDto.keyWords.length > 0) {
+        const { keyWords } = updateAcademyDto;
+
+        const foundKeywords = await this.academyKeywordRepository
+          .createQueryBuilder('kw')
+          .where('kw.name IN (:...keyWords)', { keyWords })
+          .getMany();
+
+        const foundNames = foundKeywords.map(k => k.name);
+        const invalidKeywords = keyWords.filter(k => !foundNames.includes(k));
+
+        if (invalidKeywords.length > 0) {
+          throw new BadRequestException(
+            `Invalid keywords: ${invalidKeywords.join(', ')}`
+          );
+        }
+      }
+
       await this.academyRepository.update(id, updateAcademyDto);
-      return this.findOne(id); // fetch the updated entity
+      return this.findOne(id); // fetch and return the updated entity
     } catch (error) {
       if ((error as any).code === '23505') {
         throw new ConflictException(
@@ -342,5 +383,21 @@ export class AcademyService {
     Object.assign(instructor, updateAcademyInstructorDto);
 
     return this.academyInstructorRepository.save(instructor);
+  }
+
+  async createKeyword(dto: CreateAcademyKeywordDto) {
+    const exists = await this.academyKeywordRepository.findOne({ where: { name: dto.name } });
+    if (exists) {
+      throw new BadRequestException('Keyword already exists');
+    }
+
+    const keyword = this.academyKeywordRepository.create(dto);
+    return this.academyKeywordRepository.save(keyword);
+  }
+
+  async findAllKeywords() {
+    return this.academyKeywordRepository.find({
+      order: { name: 'ASC' },
+    });
   }
 }
