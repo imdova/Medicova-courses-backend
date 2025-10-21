@@ -30,6 +30,7 @@ import { UpdateAcademyInstructorDto } from './dto/update-academy-instructor.dto'
 import { Academy } from './entities/academy.entity';
 import { PermissionsGuard } from 'src/auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
+import { CreateAcademyKeywordDto } from './dto/create-academy-keyword.dto';
 
 @ApiTags('Academies')
 @Controller('academies')
@@ -55,6 +56,24 @@ export class AcademyController {
     return this.academyService.create(createAcademyDto, userId, email);
   }
 
+  // ---------- Admin: Add new academy keyword ----------
+  @Post('keywords')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('academy_keyword:create')
+  @ApiOperation({ summary: 'Create a new academy keyword (admin only)' })
+  @ApiBody({ description: 'Keyword details', type: CreateAcademyKeywordDto })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Keyword successfully created',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Keyword already exists or invalid data',
+  })
+  createKeyword(@Body() dto: CreateAcademyKeywordDto) {
+    return this.academyService.createKeyword(dto);
+  }
+
   @Get()
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('academy:list')
@@ -62,6 +81,17 @@ export class AcademyController {
   @ApiResponse({ status: HttpStatus.OK, description: 'List of all academies' })
   findAll() {
     return this.academyService.findAll();
+  }
+
+  // ---------- Public: Get all available academy keywords ----------
+  @Get('keywords')
+  @ApiOperation({ summary: 'Get all active academy keywords (public)' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'List of active academy keywords',
+  })
+  findAllKeywords() {
+    return this.academyService.findAllKeywords();
   }
 
   @Get(':id')
