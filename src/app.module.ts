@@ -56,6 +56,7 @@ import { CourseCommunity } from './course/course-community/entities/course-commu
 import { CourseNote } from './course/course-notes/entities/course-note.entity';
 import { CourseFavorite } from './course/entities/course-favorite.entity';
 import { AcademyKeyword } from './academy/entities/academy-keywords.entity';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -133,6 +134,7 @@ import { AcademyKeyword } from './academy/entities/academy-keywords.entity';
     ChatModule,
     AssignmentModule,
     PaymentModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService, DatabaseService],
