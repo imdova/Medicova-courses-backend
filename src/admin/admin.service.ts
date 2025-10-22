@@ -8,15 +8,18 @@ import { Role } from '../user/entities/roles.entity';
 
 @Injectable()
 export class AdminService {
+  // 🧩 Cache role IDs (UUIDs)
+  private cachedRoles: Record<string, string> = {};
+
   constructor(
     @InjectRepository(User)
-    private userRepository: Repository<User>,
+    private readonly userRepository: Repository<User>,
     @InjectRepository(Course)
-    private courseRepository: Repository<Course>,
+    private readonly courseRepository: Repository<Course>,
     @InjectRepository(Profile)
-    private profileRepository: Repository<Profile>,
+    private readonly profileRepository: Repository<Profile>,
     @InjectRepository(Role)
-    private roleRepository: Repository<Role>,
+    private readonly roleRepository: Repository<Role>,
   ) { }
 
   async getDashboardStats(): Promise<any> {
@@ -27,262 +30,204 @@ export class AdminService {
       this.getTopInstructors(),
     ]);
 
-    return {
-      students,
-      newStudents,
-      courses,
-      topInstructors,
-    };
+    return { students, newStudents, courses, topInstructors };
   }
 
+  /** ----------------- STUDENT STATS ----------------- */
   private async getStudentStats(): Promise<any> {
-    // Get student role
-    const studentRole = await this.roleRepository.findOne({
-      where: { name: 'student' },
-    });
+    const studentRoleId = await this.getRoleId('student');
+    if (!studentRoleId) return { total: 0, yearOverYearChange: 0 };
 
-    if (!studentRole) {
-      return { total: 0, yearOverYearChange: 0 };
-    }
+    const oneYearAgo = this.subYears(new Date(), 1);
 
-    // Total students
-    const total = await this.userRepository.count({
-      where: { role: { id: studentRole.id } },
-    });
-
-    // Calculate year-over-year change
-    const oneYearAgo = new Date();
-    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-
-    // Students created before one year ago (students that existed last year)
-    const studentsLastYear = await this.userRepository
-      .createQueryBuilder('user')
-      .where('user.roleId = :roleId', { roleId: studentRole.id })
-      .andWhere('user.created_at <= :oneYearAgo', { oneYearAgo })
-      .getCount();
-
-    const yearOverYearChange =
-      studentsLastYear > 0
-        ? ((total - studentsLastYear) / studentsLastYear) * 100
-        : total > 0
-          ? 100
-          : 0;
+    const [total, studentsLastYear] = await Promise.all([
+      this.userRepository.count({ where: { role: { id: studentRoleId } } }),
+      this.userRepository
+        .createQueryBuilder('user')
+        .where('user.roleId = :roleId', { roleId: studentRoleId })
+        .andWhere('user.created_at <= :oneYearAgo', { oneYearAgo })
+        .getCount(),
+    ]);
 
     return {
       total,
-      yearOverYearChange: Math.round(yearOverYearChange * 10) / 10,
+      yearOverYearChange: this.calcPercentChange(total, studentsLastYear),
     };
   }
 
   private async getNewStudentStats(): Promise<any> {
-    const studentRole = await this.roleRepository.findOne({
-      where: { name: 'student' },
-    });
-
-    if (!studentRole) {
-      return { newThisMonth: 0, monthOverMonthChange: 0 };
-    }
+    const studentRoleId = await this.getRoleId('student');
+    if (!studentRoleId) return { newThisMonth: 0, monthOverMonthChange: 0 };
 
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+    const startOfMonth = this.startOfMonth(now);
+    const [startOfLastMonth, endOfLastMonth] = this.lastMonthRange(now);
 
-    // New students this month
-    const newThisMonth = await this.userRepository
-      .createQueryBuilder('user')
-      .where('user.roleId = :roleId', { roleId: studentRole.id })
-      .andWhere('user.created_at >= :startOfMonth', { startOfMonth })
-      .getCount();
-
-    // New students last month
-    const newLastMonth = await this.userRepository
-      .createQueryBuilder('user')
-      .where('user.roleId = :roleId', { roleId: studentRole.id })
-      .andWhere('user.created_at >= :startOfLastMonth', { startOfLastMonth })
-      .andWhere('user.created_at <= :endOfLastMonth', { endOfLastMonth })
-      .getCount();
-
-    const monthOverMonthChange =
-      newLastMonth > 0
-        ? ((newThisMonth - newLastMonth) / newLastMonth) * 100
-        : newThisMonth > 0
-          ? 100
-          : 0;
+    const [newThisMonth, newLastMonth] = await Promise.all([
+      this.userRepository
+        .createQueryBuilder('user')
+        .where('user.roleId = :roleId', { roleId: studentRoleId })
+        .andWhere('user.created_at >= :startOfMonth', { startOfMonth })
+        .getCount(),
+      this.userRepository
+        .createQueryBuilder('user')
+        .where('user.roleId = :roleId', { roleId: studentRoleId })
+        .andWhere('user.created_at BETWEEN :startOfLastMonth AND :endOfLastMonth', {
+          startOfLastMonth,
+          endOfLastMonth,
+        })
+        .getCount(),
+    ]);
 
     return {
       newThisMonth,
-      monthOverMonthChange: Math.round(monthOverMonthChange * 10) / 10,
+      monthOverMonthChange: this.calcPercentChange(newThisMonth, newLastMonth),
     };
   }
 
+  /** ----------------- COURSE STATS ----------------- */
   private async getCourseStats(): Promise<any> {
-    // Total active courses
-    const totalActive = await this.courseRepository.count({
-      where: {
-        status: CourseStatus.PUBLISHED,
-        isActive: true,
-      },
-    });
-
-    // New courses this month
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfMonth = this.startOfMonth(now);
 
-    const newThisMonth = await this.courseRepository
-      .createQueryBuilder('course')
-      .where('course.status = :status', { status: CourseStatus.PUBLISHED })
-      .andWhere('course.isActive = :isActive', { isActive: true })
-      .andWhere('course.created_at >= :startOfMonth', { startOfMonth })
-      .getCount();
+    const [totalActive, newThisMonth] = await Promise.all([
+      this.courseRepository.count({
+        where: { status: CourseStatus.PUBLISHED, isActive: true },
+      }),
+      this.courseRepository
+        .createQueryBuilder('course')
+        .where('course.status = :status', { status: CourseStatus.PUBLISHED })
+        .andWhere('course.isActive = true')
+        .andWhere('course.created_at >= :startOfMonth', { startOfMonth })
+        .getCount(),
+    ]);
 
-    return {
-      totalActive,
-      newThisMonth,
-    };
+    return { totalActive, newThisMonth };
   }
 
-  private async getTopInstructors(limit: number = 10): Promise<any[]> {
-    // Get instructor role
-    const instructorRole = await this.roleRepository.findOne({
-      where: { name: 'instructor' },
-    });
+  /** ----------------- TOP INSTRUCTORS ----------------- */
+  private async getTopInstructors(limit = 10): Promise<any[]> {
+    const instructorRoleId = await this.getRoleId('instructor');
+    if (!instructorRoleId) return [];
 
-    if (!instructorRole) {
-      return [];
-    }
-
-    // Build query - Fixed to get user ID and proper field names
     const topInstructors = await this.profileRepository
       .createQueryBuilder('profile')
       .innerJoin('profile.user', 'user')
       .leftJoin('profile.ratings', 'ratings')
       .leftJoin(Course, 'course', 'course.createdBy = user.id')
       .select([
-        'user.id AS userId', // Get user ID instead of profile ID
+        'user.id AS userId',
         'profile.firstName AS firstName',
         'profile.lastName AS lastName',
         'profile.photoUrl AS photoUrl',
         'profile.metadata AS metadata',
-        'COALESCE(AVG(ratings.rating), 0) AS calculatedAverageRating',
+        'COALESCE(AVG(ratings.rating), 0) AS avgRating',
         'COUNT(DISTINCT ratings.id) AS totalRatings',
-        'COUNT(DISTINCT course.id) AS totalCourses'
+        'COUNT(DISTINCT course.id) AS totalCourses',
       ])
-      .where('user.roleId = :roleId', { roleId: instructorRole.id })
-      .groupBy('user.id') // Group by user ID
-      .addGroupBy('profile.firstName')
-      .addGroupBy('profile.lastName')
-      .addGroupBy('profile.photoUrl')
-      .addGroupBy('profile.metadata')
-      .orderBy('calculatedAverageRating', 'DESC')
+      .where('user.roleId = :roleId', { roleId: instructorRoleId })
+      .groupBy('user.id, profile.firstName, profile.lastName, profile.photoUrl, profile.metadata')
+      .orderBy('avgRating', 'DESC')
       .addOrderBy('totalRatings', 'DESC')
       .addOrderBy('totalCourses', 'DESC')
       .limit(limit)
       .getRawMany();
 
-    return topInstructors.map((instructor) => {
-      const title = this.extractTitle(instructor.metadata);
-      const averageRating = parseFloat(instructor.calculatedaveragerating) || 0;
+    return topInstructors.map((i) => ({
+      id: i.userid,
+      name: `${i.firstname || ''} ${i.lastname || ''}`.trim(),
+      photoUrl: i.photourl || null,
+      title: this.extractTitle(i.metadata),
+      averageRating: Math.round(parseFloat(i.avgrating) * 10) / 10,
+      totalRatings: parseInt(i.totalratings) || 0,
+      totalCourses: parseInt(i.totalcourses) || 0,
+    }));
+  }
 
-      return {
-        id: instructor.userid, // Use user ID instead of profile ID
-        name: `${instructor.firstname || ''} ${instructor.lastname || ''}`.trim(), // Handle undefined names
-        photoUrl: instructor.photourl || null,
-        title,
-        averageRating: Math.round(averageRating * 10) / 10,
-        totalRatings: parseInt(instructor.totalratings) || 0,
-        totalCourses: parseInt(instructor.totalcourses) || 0,
-      };
-    });
+  /** ----------------- STUDENT LISTING ----------------- */
+  async getAllStudents(page = 1, limit = 10): Promise<any> {
+    const studentRoleId = await this.getRoleId('student');
+    if (!studentRoleId) {
+      return { students: [], pagination: this.paginationMeta(1, limit, 0) };
+    }
+
+    const pageNum = Math.max(1, parseInt(page + '', 10) || 1);
+    const limitNum = Math.min(Math.max(1, parseInt(limit + '', 10) || 10), 100);
+    const skip = (pageNum - 1) * limitNum;
+
+    const [students, total] = await this.userRepository
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.profile', 'profile')
+      .where('user.roleId = :roleId', { roleId: studentRoleId })
+      .orderBy('user.created_at', 'DESC')
+      .skip(skip)
+      .take(limitNum)
+      .getManyAndCount();
+
+    return {
+      students: students.map((s) => ({
+        studentId: s.id,
+        name: s.profile
+          ? `${s.profile.firstName || ''} ${s.profile.lastName || ''}`.trim()
+          : 'N/A',
+        email: s.email,
+        joinDate: this.formatDate(s.created_at),
+      })),
+      pagination: this.paginationMeta(pageNum, limitNum, total),
+    };
+  }
+
+  /** ----------------- UTILITIES ----------------- */
+  private async getRoleId(name: string): Promise<string | null> {
+    if (this.cachedRoles[name]) return this.cachedRoles[name];
+    const role = await this.roleRepository.findOne({ where: { name } });
+    if (role?.id) this.cachedRoles[name] = role.id;
+    return role?.id || null;
+  }
+
+  private startOfMonth(date: Date): Date {
+    return new Date(date.getFullYear(), date.getMonth(), 1);
+  }
+
+  private lastMonthRange(date: Date): [Date, Date] {
+    const start = new Date(date.getFullYear(), date.getMonth() - 1, 1);
+    const end = new Date(date.getFullYear(), date.getMonth(), 0, 23, 59, 59, 999);
+    return [start, end];
+  }
+
+  private subYears(date: Date, years: number): Date {
+    const d = new Date(date);
+    d.setFullYear(d.getFullYear() - years);
+    return d;
+  }
+
+  private calcPercentChange(current: number, previous: number): number {
+    if (previous > 0) return Math.round(((current - previous) / previous) * 1000) / 10;
+    return current > 0 ? 100 : 0;
+  }
+
+  private paginationMeta(page: number, limit: number, total: number) {
+    const totalPages = Math.ceil(total / limit);
+    return {
+      page,
+      limit,
+      total,
+      totalPages,
+      hasNext: page < totalPages,
+      hasPrev: page > 1,
+    };
   }
 
   private extractTitle(metadata: any): string {
-    // Extract academic title from metadata
-    if (metadata?.academicTitle) {
-      return metadata.academicTitle;
-    }
-    if (metadata?.title) {
-      return metadata.title;
-    }
-    return 'Instructor';
-  }
-
-  // In the service - add parsing logic
-  async getAllStudents(page: any = 1, limit: any = 10): Promise<any> {
-    try {
-      // Parse to numbers
-      const pageNumber = parseInt(page, 10) || 1;
-      const limitNumber = parseInt(limit, 10) || 10;
-
-      // Ensure positive numbers
-      const parsedPage = Math.max(1, pageNumber);
-      const parsedLimit = Math.max(1, Math.min(limitNumber, 100)); // Cap at 100 per page
-
-      const studentRole = await this.roleRepository.findOne({
-        where: { name: 'student' },
-      });
-
-      if (!studentRole) {
-        return {
-          students: [],
-          pagination: {
-            page: parsedPage,
-            limit: parsedLimit,
-            total: 0,
-            totalPages: 0,
-          },
-        };
-      }
-
-      const skip = (parsedPage - 1) * parsedLimit;
-
-      // Get students with their profiles
-      const [students, total] = await this.userRepository
-        .createQueryBuilder('user')
-        .leftJoinAndSelect('user.profile', 'profile')
-        .where('user.roleId = :roleId', { roleId: studentRole.id })
-        .orderBy('user.created_at', 'DESC')
-        .skip(skip)
-        .take(parsedLimit)
-        .getManyAndCount();
-
-      // Format the response
-      const formattedStudents = students.map(student => ({
-        studentId: student.id,
-        name: student.profile
-          ? `${student.profile.firstName || ''} ${student.profile.lastName || ''}`.trim()
-          : 'N/A',
-        email: student.email,
-        joinDate: this.formatDate(student.created_at),
-      }));
-
-      const totalPages = Math.ceil(total / parsedLimit);
-
-      return {
-        students: formattedStudents,
-        pagination: {
-          page: parsedPage,
-          limit: parsedLimit,
-          total,
-          totalPages,
-          hasNext: parsedPage < totalPages,
-          hasPrev: parsedPage > 1,
-        },
-      };
-    } catch (error) {
-      throw new Error(`Failed to fetch students: ${error.message}`);
-    }
+    return metadata?.academicTitle || metadata?.title || 'Instructor';
   }
 
   private formatDate(date: Date): string {
     if (!date) return 'N/A';
-
-    const options: Intl.DateTimeFormatOptions = {
+    return new Date(date).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
-    };
-
-    return new Date(date).toLocaleDateString('en-US', options);
+    });
   }
 }
