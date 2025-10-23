@@ -262,8 +262,10 @@ export class AdminService {
       return {
         totalCourses: 0,
         newCoursesThisMonth: 0,
-        averageEnrollment: 0,
-        averageCompletionRate: 0,
+        // averageEnrollment: 0,
+        // averageCompletionRate: 0,
+        totalEnrollments: 0,
+        completionRate: 0,
         topCourses: [],
       };
     }
@@ -285,10 +287,10 @@ export class AdminService {
       return sum + count;
     }, 0);
 
-    const averageEnrollment =
-      enrollmentStats.length > 0
-        ? Math.round((totalEnrollments / enrollmentStats.length) * 10) / 10
-        : 0;
+    // const averageEnrollment =
+    //   enrollmentStats.length > 0
+    //     ? Math.round((totalEnrollments / enrollmentStats.length) * 10) / 10
+    //     : 0;
 
     // Create enrollment map for quick lookup (handle both cases)
     const enrollmentMap = new Map<string, number>(
@@ -307,8 +309,13 @@ export class AdminService {
       })
       .map((stat) => stat.courseid || stat.courseId);
 
-    let averageCompletionRate = 0;
+    //let averageCompletionRate = 0;
+    let completionRate = 0; // Changed from averageCompletionRate
     let completionStatsMap = new Map<string, { completed: number; total: number }>();
+
+    // Track global totals for completion rate calculation
+    let totalCompletedCoursesGlobal = 0;
+    let totalEnrolledStudentsGlobal = 0;
 
     /** 3️⃣ Calculate completion rate only if there are enrolled students */
     if (courseIdsWithEnrollments.length > 0) {
@@ -370,21 +377,32 @@ export class AdminService {
         }
       });
 
-      // Calculate average completion rate across all courses with enrollments
-      let totalCompletionRate = 0;
-      let coursesWithEnrollments = 0;
+      // // Calculate average completion rate across all courses with enrollments
+      // let totalCompletionRate = 0;
+      // let coursesWithEnrollments = 0;
 
+      // completionStatsMap.forEach((stats) => {
+      //   if (stats.total > 0) {
+      //     const rate = (stats.completed / stats.total) * 100;
+      //     totalCompletionRate += rate;
+      //     coursesWithEnrollments += 1;
+      //   }
+      // });
+
+      // averageCompletionRate =
+      //   coursesWithEnrollments > 0
+      //     ? Math.round((totalCompletionRate / coursesWithEnrollments) * 10) / 10
+      //     : 0;
+
+      // 💡 New: Calculate GLOBAL completion rate (Sum of all completions / Sum of all enrollments)
       completionStatsMap.forEach((stats) => {
-        if (stats.total > 0) {
-          const rate = (stats.completed / stats.total) * 100;
-          totalCompletionRate += rate;
-          coursesWithEnrollments += 1;
-        }
+        totalCompletedCoursesGlobal += stats.completed;
+        totalEnrolledStudentsGlobal += stats.total;
       });
 
-      averageCompletionRate =
-        coursesWithEnrollments > 0
-          ? Math.round((totalCompletionRate / coursesWithEnrollments) * 10) / 10
+      completionRate =
+        totalEnrolledStudentsGlobal > 0
+          ? Math.round((totalCompletedCoursesGlobal / totalEnrolledStudentsGlobal) * 1000) / 10
           : 0;
     }
 
@@ -421,8 +439,10 @@ export class AdminService {
     return {
       totalCourses,
       newCoursesThisMonth,
-      averageEnrollment,
-      averageCompletionRate,
+      // averageEnrollment,
+      // averageCompletionRate,
+      totalEnrollments,           // 💡 Returns the total number of enrollments
+      completionRate,             // 💡 Returns the platform-wide completion rate
       topCourses: topCoursesWithCompletion,
     };
   }
