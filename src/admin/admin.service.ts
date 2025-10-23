@@ -5,6 +5,8 @@ import { User } from '../user/entities/user.entity';
 import { Course, CourseStatus } from '../course/entities/course.entity';
 import { Profile } from '../profile/entities/profile.entity';
 import { Role } from '../user/entities/roles.entity';
+import { CourseSectionItem } from 'src/course/course-section/entities/course-section-item.entity';
+import { CourseProgress } from 'src/course/course-progress/entities/course-progress.entity';
 
 @Injectable()
 export class AdminService {
@@ -18,6 +20,10 @@ export class AdminService {
     private readonly courseRepository: Repository<Course>,
     @InjectRepository(Profile)
     private readonly profileRepository: Repository<Profile>,
+    @InjectRepository(CourseSectionItem)
+    private readonly courseSectionItemRepo: Repository<CourseSectionItem>,
+    @InjectRepository(CourseProgress)
+    private readonly progressRepo: Repository<CourseProgress>,
     @InjectRepository(Role)
     private readonly roleRepository: Repository<Role>,
   ) { }
@@ -229,5 +235,130 @@ export class AdminService {
       month: 'long',
       day: 'numeric',
     });
+  }
+
+  async getCourseOverview(): Promise<any> {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    /** 1️⃣ Total courses and new courses this month */
+    const [totalCourses, newCoursesThisMonth] = await Promise.all([
+      this.courseRepository.count({
+        where: { status: CourseStatus.PUBLISHED, isActive: true },
+      }),
+      this.courseRepository
+        .createQueryBuilder('course')
+        .where('course.status = :status', { status: CourseStatus.PUBLISHED })
+        .andWhere('course.isActive = true')
+        .andWhere('course.created_at >= :startOfMonth', { startOfMonth })
+        .getCount(),
+    ]);
+
+    /** 2️⃣ Average enrollments per course */
+    const enrollmentStats = await this.courseRepository
+      .createQueryBuilder('course')
+      .leftJoin('course.enrollments', 'enrollments')
+      .select('course.id', 'courseId')
+      .addSelect('COUNT(enrollments.id)', 'enrollmentCount')
+      .groupBy('course.id')
+      .getRawMany();
+
+    const totalEnrollments = enrollmentStats.reduce(
+      (sum, c) => sum + (parseInt(c.enrollmentcount, 10) || 0),
+      0,
+    );
+
+    const averageEnrollment =
+      enrollmentStats.length > 0
+        ? Math.round((totalEnrollments / enrollmentStats.length) * 10) / 10
+        : 0;
+
+    /** 3️⃣ Completion rate across all courses */
+    const courseIds = (await this.courseRepository.find({
+      select: ['id'],
+      where: { status: CourseStatus.PUBLISHED, isActive: true },
+    })).map((c) => c.id);
+
+    // total items per course
+    const totalItemsQuery = await this.courseSectionItemRepo
+      .createQueryBuilder('item')
+      .select('course.id', 'courseId')
+      .addSelect('COUNT(item.id)', 'totalCount')
+      .leftJoin('item.section', 'section')
+      .leftJoin('section.course', 'course')
+      .where('course.id IN (:...courseIds)', { courseIds })
+      .groupBy('course.id')
+      .getRawMany();
+
+    const totalItemsMap = new Map<string, number>(
+      totalItemsQuery.map((row) => [row.courseId, parseInt(row.totalCount, 10) || 0]),
+    );
+
+    // completed items per course (all students)
+    const completedItemsQuery = await this.progressRepo
+      .createQueryBuilder('progress')
+      .select('course.id', 'courseId')
+      .addSelect('COUNT(progress.id)', 'completedCount')
+      .leftJoin('progress.item', 'item')
+      .leftJoin('item.section', 'section')
+      .leftJoin('section.course', 'course')
+      .where('progress.completed = :completed', { completed: true })
+      .andWhere('course.id IN (:...courseIds)', { courseIds })
+      .groupBy('course.id')
+      .getRawMany();
+
+    const completedItemsMap = new Map<string, number>(
+      completedItemsQuery.map((row) => [row.courseId, parseInt(row.completedCount, 10) || 0]),
+    );
+
+    // compute completion rate per course
+    const completionStatsMap = new Map<string, number>();
+    courseIds.forEach((courseId) => {
+      const total = totalItemsMap.get(courseId) || 0;
+      const completed = completedItemsMap.get(courseId) || 0;
+      const completionRate = total > 0 ? (completed / total) * 100 : 0;
+      completionStatsMap.set(courseId, completionRate);
+    });
+
+    const completionValues = Array.from(completionStatsMap.values());
+    const averageCompletionRate =
+      completionValues.length > 0
+        ? Math.round(
+          (completionValues.reduce((a, b) => a + b, 0) / completionValues.length) * 10,
+        ) / 10
+        : 0;
+
+    /** 4️⃣ Top 5 performing courses (by enrollment count) */
+    const topCourses = await this.courseRepository
+      .createQueryBuilder('course')
+      .leftJoin('course.enrollments', 'enrollments')
+      .select('course.id', 'id')
+      .addSelect('course.name', 'name')
+      .addSelect('COUNT(enrollments.id)', 'enrollments')
+      .where('course.status = :status', { status: CourseStatus.PUBLISHED })
+      .andWhere('course.isActive = true')
+      .groupBy('course.id')
+      .orderBy('enrollments', 'DESC')
+      .limit(5)
+      .getRawMany();
+
+    const topCoursesWithCompletion = topCourses.map((course) => {
+      const completionRate = completionStatsMap.get(course.id) || 0;
+      return {
+        id: course.id,
+        name: course.name,
+        enrollments: parseInt(course.enrollments, 10) || 0,
+        completionRate: Math.round(completionRate * 10) / 10,
+      };
+    });
+
+    /** ✅ Final return */
+    return {
+      totalCourses,
+      newCoursesThisMonth,
+      averageEnrollment,
+      averageCompletionRate,
+      topCourses: topCoursesWithCompletion,
+    };
   }
 }

@@ -6,9 +6,11 @@ import { Course } from 'src/course/entities/course.entity';
 import { Profile } from 'src/profile/entities/profile.entity';
 import { Role } from 'src/user/entities/roles.entity';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { CourseProgress } from 'src/course/course-progress/entities/course-progress.entity';
+import { CourseSectionItem } from 'src/course/course-section/entities/course-section-item.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Course, Profile, Role])],
+  imports: [TypeOrmModule.forFeature([User, Course, Profile, Role, CourseSectionItem, CourseProgress])],
   controllers: [AdminController],
   providers: [AdminService],
 })

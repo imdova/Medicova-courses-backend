@@ -52,4 +52,17 @@ export class AdminController {
   ): Promise<any> {
     return this.adminService.getAllStudents(page, limit);
   }
+
+  // @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  // @RequirePermissions('admin:courses:overview')
+  @Get('courses/overview')
+  @ApiOperation({ summary: 'Get course overview statistics' })
+  @ApiResponse({
+    status: 200,
+    description: 'Course overview statistics retrieved successfully',
+  })
+  async getCourseOverview(): Promise<any> {
+    return this.adminService.getCourseOverview();
+  }
+
 }
