@@ -128,9 +128,8 @@ export class AcademyService {
       const instructors = (academy.instructors || []).map((inst) => ({
         id: inst.id,
         name: inst.name,
-        title: inst.biography ? inst.biography.split('\n')[0] : null,
-        photo: inst.photoUrl || null,
-        bio: inst.biography || null,
+        photoUrl: inst.photoUrl || null,
+        biography: inst.biography || null,
       }));
 
       const studentsCount = studentsCountMap.get(academy.id) || 0;
@@ -181,9 +180,8 @@ export class AcademyService {
       instructors: academy.instructors?.map((inst) => ({
         id: inst.id,
         name: inst.name,
-        title: inst.biography ? inst.biography.slice(0, 40) + '...' : '',
-        photo: inst.photoUrl || null,
-        bio: inst.biography || null,
+        photoUrl: inst.photoUrl || null,
+        biography: inst.biography || null,
       })) || [],
       studentsCount,
     };
@@ -229,9 +227,8 @@ export class AcademyService {
       instructors: academy.instructors?.map((inst) => ({
         id: inst.id,
         name: inst.name,
-        title: inst.biography ? inst.biography.slice(0, 40) + '...' : '',
-        photo: inst.photoUrl || null,
-        bio: inst.biography || null,
+        photoUrl: inst.photoUrl || null,
+        biography: inst.biography || null,
       })) || [],
       studentsCount,
     };
