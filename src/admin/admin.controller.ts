@@ -94,8 +94,8 @@ export class AdminController {
   }
 
   // New Endpoint for Time-Series Statistics
-  // @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  // @RequirePermissions('admin:dashboard:time-series')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:dashboard:time-series')
   @Get('stats/time-series')
   @ApiOperation({ summary: 'Get time-series statistics (Courses, Students, or Instructors) over a period.' })
   @ApiQuery({
