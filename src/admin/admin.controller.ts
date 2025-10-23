@@ -52,4 +52,32 @@ export class AdminController {
   ): Promise<any> {
     return this.adminService.getAllStudents(page, limit);
   }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:courses:overview')
+  @Get('courses/overview')
+  @ApiOperation({ summary: 'Get course overview statistics' })
+  @ApiResponse({
+    status: 200,
+    description: 'Course overview statistics retrieved successfully',
+  })
+  async getCourseOverview(): Promise<any> {
+    return this.adminService.getCourseOverview();
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:courses:weekly-sales')
+  @Get('courses/weekly-sales')
+  @ApiOperation({ summary: 'Retrieve weekly course sales and earnings data.' })
+  async getWeeklySales() {
+    return this.adminService.getWeeklySales();
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:instructors:top')
+  @Get('instructors/top')
+  @ApiOperation({ summary: 'Retrieve data for the “Top Instructors” section.' })
+  async getTopInstructorsAnalytics() {
+    return this.adminService.getTopInstructorsAnalytics();
+  }
 }
