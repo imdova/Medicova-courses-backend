@@ -7,6 +7,7 @@ import { Profile } from '../profile/entities/profile.entity';
 import { Role } from '../user/entities/roles.entity';
 import { CourseSectionItem } from 'src/course/course-section/entities/course-section-item.entity';
 import { CourseProgress } from 'src/course/course-progress/entities/course-progress.entity';
+import { CourseStudent } from 'src/course/entities/course-student.entity';
 
 @Injectable()
 export class AdminService {
@@ -24,6 +25,8 @@ export class AdminService {
     private readonly courseSectionItemRepo: Repository<CourseSectionItem>,
     @InjectRepository(CourseProgress)
     private readonly progressRepo: Repository<CourseProgress>,
+    @InjectRepository(CourseStudent)
+    private readonly courseStudentRepo: Repository<CourseStudent>,
     @InjectRepository(Role)
     private readonly roleRepository: Repository<Role>,
   ) { }
@@ -422,5 +425,32 @@ export class AdminService {
       averageCompletionRate,
       topCourses: topCoursesWithCompletion,
     };
+  }
+
+  async getWeeklySales(): Promise<
+    { courseId: string; courseName: string; totalSales: number }[]
+  > {
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+    const sales = await this.courseStudentRepo
+      .createQueryBuilder('courseStudent')
+      .innerJoin('courseStudent.course', 'course')
+      .select('course.id', 'courseId')
+      .addSelect('course.name', 'courseName')
+      .addSelect('COUNT(courseStudent.id)', 'totalsales') // alias in lowercase
+      .where('courseStudent.created_at >= :oneWeekAgo', { oneWeekAgo })
+      .andWhere('course.status = :status', { status: CourseStatus.PUBLISHED })
+      .andWhere('course.isActive = true')
+      .groupBy('course.id')
+      .addGroupBy('course.name')
+      .orderBy('"totalsales"', 'DESC') // preserve alias casing
+      .getRawMany();
+
+    return sales.map((s) => ({
+      courseId: s.courseid || s.courseId,
+      courseName: s.coursename || s.courseName,
+      totalSales: parseInt(s.totalsales || s.totalSales, 10) || 0,
+    }));
   }
 }

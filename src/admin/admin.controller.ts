@@ -65,4 +65,11 @@ export class AdminController {
     return this.adminService.getCourseOverview();
   }
 
+  @Get('weekly-sales')
+  // @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  // @RequirePermissions('admin:courses:overview')
+  async getWeeklySales() {
+    return this.adminService.getWeeklySales();
+  }
+
 }
