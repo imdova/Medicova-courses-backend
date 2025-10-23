@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CourseCategory } from './entities/course-category.entity';
@@ -10,8 +10,9 @@ export class CourseCategoryService {
   constructor(
     @InjectRepository(CourseCategory)
     private readonly courseCategoryRepository: Repository<CourseCategory>,
-  ) {}
+  ) { }
 
+  // --- CourseCategoryService ---
   async create(
     dto: CreateCourseCategoryDto,
     userId: string,
@@ -22,6 +23,7 @@ export class CourseCategoryService {
       parent = await this.courseCategoryRepository.findOne({
         where: { id: dto.parentId },
       });
+
       if (!parent) {
         throw new NotFoundException('Parent category not found');
       }
@@ -33,7 +35,31 @@ export class CourseCategoryService {
       parent,
     });
 
-    return this.courseCategoryRepository.save(category);
+    try {
+      // 💡 Attempt to save the new category
+      return await this.courseCategoryRepository.save(category);
+    } catch (err: any) {
+      // ⚠️ Handle PostgreSQL unique constraint error (code '23505')
+      if (err?.code === '23505') {
+        const detail = err?.detail ?? '';
+
+        if (detail.includes('(name)')) {
+          throw new BadRequestException(
+            `A category with the name "${dto.name}" already exists.`,
+          );
+        }
+        if (detail.includes('(slug)')) {
+          throw new BadRequestException(
+            `A category with the slug "${dto.slug}" already exists.`,
+          );
+        }
+        // Fallback for other unique constraint errors
+        throw new BadRequestException('A duplicate entry was detected. Please check your unique fields.');
+      }
+
+      // Re-throw if it's not the unique constraint error
+      throw err;
+    }
   }
 
   async findAll(): Promise<CourseCategory[]> {
@@ -72,7 +98,32 @@ export class CourseCategoryService {
     }
 
     Object.assign(category, dto);
-    return this.courseCategoryRepository.save(category);
+    try {
+      // 💡 Attempt to save the updated category
+      return await this.courseCategoryRepository.save(category);
+    } catch (err: any) {
+      // ⚠️ Handle PostgreSQL unique constraint error (code '23505')
+      if (err?.code === '23505') {
+        const detail = err?.detail ?? '';
+
+        // Check if the duplicate error is for name or slug
+        if (detail.includes('(name)')) {
+          throw new BadRequestException(
+            `A category with the name "${dto.name}" already exists.`,
+          );
+        }
+        if (detail.includes('(slug)')) {
+          throw new BadRequestException(
+            `A category with the slug "${dto.slug}" already exists.`,
+          );
+        }
+        // Fallback for other unique constraint errors
+        throw new BadRequestException('A duplicate entry was detected. Please check your unique fields.');
+      }
+
+      // Re-throw if it's not the unique constraint error
+      throw err;
+    }
   }
 
   async remove(id: string) {

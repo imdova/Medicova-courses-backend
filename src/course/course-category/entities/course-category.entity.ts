@@ -24,6 +24,14 @@ export class CourseCategory extends BasicEntity {
   @Column({ length: 500, nullable: true })
   description?: string;
 
+  // ✅ New priority field
+  @ApiPropertyOptional({
+    description: 'Priority of the category (higher number = higher priority)',
+    default: 0,
+  })
+  @Column({ type: 'int', default: 0 })
+  priority: number;
+
   @ApiPropertyOptional({ description: 'Image URL for category thumbnail' })
   @Column({ length: 500, nullable: true })
   image?: string;

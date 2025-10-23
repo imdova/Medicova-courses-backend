@@ -5,6 +5,9 @@ import {
   IsString,
   MaxLength,
   IsUUID,
+  IsNumber,
+  IsInt,
+  Min,
 } from 'class-validator';
 
 export class CreateCourseCategoryDto {
@@ -36,6 +39,19 @@ export class CreateCourseCategoryDto {
   @IsOptional()
   @MaxLength(500)
   description?: string;
+
+  // ✅ New priority field added
+  @ApiPropertyOptional({
+    description: 'Priority of the category (higher number = higher priority). Default is 0.',
+    type: Number,
+    default: 0,
+    minimum: 0,
+  })
+  @IsNumber()
+  @IsInt() // Ensures the number is an integer
+  @Min(0) // Priority should typically be a non-negative number
+  @IsOptional()
+  priority?: number;
 
   @ApiPropertyOptional({
     description: 'Image URL for category thumbnail',
