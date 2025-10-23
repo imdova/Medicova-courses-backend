@@ -29,6 +29,42 @@ export class FaqItemDto {
   answer?: string;
 }
 
+export class CourseSeoDto {
+  @ApiPropertyOptional({
+    description: 'Meta Title for SEO (e.g., used for the <title> tag)',
+    maxLength: 60,
+  })
+  @IsOptional()
+  @IsString()
+  metaTitle?: string;
+
+  @ApiPropertyOptional({
+    description: 'Comma-separated list of keywords for SEO',
+    type: [String],
+    example: ['nestjs', 'backend', 'typescript'],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  metaKeywords?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Meta Description for SEO (e.g., used in search snippets)',
+    maxLength: 160,
+  })
+  @IsOptional()
+  @IsString()
+  metaDescription?: string;
+
+  @ApiPropertyOptional({
+    description: 'URL or path for the SEO/Open Graph image (Meta Image)',
+    maxLength: 255,
+  })
+  @IsOptional()
+  @IsString()
+  metaImage?: string;
+}
+
 export class CourseMetadataDto {
   @ApiPropertyOptional({
     description: 'Detailed course overview (rich text supported)',
@@ -61,4 +97,13 @@ export class CourseMetadataDto {
   @ValidateNested({ each: true })
   @Type(() => FaqItemDto)
   faqs?: FaqItemDto[];
+
+  @ApiPropertyOptional({
+    description: 'Container for all SEO-related metadata',
+    type: CourseSeoDto,
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CourseSeoDto)
+  seo?: CourseSeoDto;
 }
