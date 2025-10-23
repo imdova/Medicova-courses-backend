@@ -453,4 +453,50 @@ export class AdminService {
       totalSales: parseInt(s.totalsales || s.totalSales, 10) || 0,
     }));
   }
+
+  async getTopInstructorsAnalytics(limit = 10): Promise<
+    {
+      instructorId: string;
+      name: string;
+      photoUrl: string | null;
+      totalEnrollments: number;
+      ranking: number;
+    }[]
+  > {
+    const instructorRoleId = await this.getRoleId('instructor');
+    if (!instructorRoleId) return [];
+
+    // 🧮 Aggregate total enrollments per instructor
+    const results = await this.courseStudentRepo
+      .createQueryBuilder('courseStudent')
+      .innerJoin('courseStudent.course', 'course')
+      .innerJoin('course.instructor', 'instructor')
+      .innerJoin('instructor.profile', 'profile')
+      .select('instructor.id', 'instructorId')
+      .addSelect(
+        `CONCAT(COALESCE(profile.firstName, ''), ' ', COALESCE(profile.lastName, ''))`,
+        'name',
+      )
+      .addSelect('profile.photoUrl', 'photoUrl')
+      .addSelect('COUNT(courseStudent.id)', 'totalEnrollments')
+      .where('instructor.roleId = :roleId', { roleId: instructorRoleId })
+      .andWhere('course.status = :status', { status: CourseStatus.PUBLISHED })
+      .andWhere('course.isActive = true')
+      .groupBy('instructor.id')
+      .addGroupBy('profile.firstName')
+      .addGroupBy('profile.lastName')
+      .addGroupBy('profile.photoUrl')
+      .orderBy('"totalEnrollments"', 'DESC') // double quotes = preserve alias casing
+      .limit(limit)
+      .getRawMany();
+
+    // 🥇 Add ranking position
+    return results.map((r, index) => ({
+      instructorId: r.instructorid || r.instructorId,
+      name: r.name?.trim() || 'Unknown Instructor',
+      photoUrl: r.photourl || r.photoUrl || null,
+      totalEnrollments: parseInt(r.totalenrollments || r.totalEnrollments, 10) || 0,
+      ranking: index + 1,
+    }));
+  }
 }
