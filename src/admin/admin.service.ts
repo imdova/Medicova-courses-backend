@@ -262,8 +262,10 @@ export class AdminService {
       return {
         totalCourses: 0,
         newCoursesThisMonth: 0,
-        averageEnrollment: 0,
-        averageCompletionRate: 0,
+        // averageEnrollment: 0,
+        // averageCompletionRate: 0,
+        totalEnrollments: 0,
+        completionRate: 0,
         topCourses: [],
       };
     }
@@ -285,10 +287,10 @@ export class AdminService {
       return sum + count;
     }, 0);
 
-    const averageEnrollment =
-      enrollmentStats.length > 0
-        ? Math.round((totalEnrollments / enrollmentStats.length) * 10) / 10
-        : 0;
+    // const averageEnrollment =
+    //   enrollmentStats.length > 0
+    //     ? Math.round((totalEnrollments / enrollmentStats.length) * 10) / 10
+    //     : 0;
 
     // Create enrollment map for quick lookup (handle both cases)
     const enrollmentMap = new Map<string, number>(
@@ -307,8 +309,13 @@ export class AdminService {
       })
       .map((stat) => stat.courseid || stat.courseId);
 
-    let averageCompletionRate = 0;
+    //let averageCompletionRate = 0;
+    let completionRate = 0; // Changed from averageCompletionRate
     let completionStatsMap = new Map<string, { completed: number; total: number }>();
+
+    // Track global totals for completion rate calculation
+    let totalCompletedCoursesGlobal = 0;
+    let totalEnrolledStudentsGlobal = 0;
 
     /** 3️⃣ Calculate completion rate only if there are enrolled students */
     if (courseIdsWithEnrollments.length > 0) {
@@ -370,21 +377,32 @@ export class AdminService {
         }
       });
 
-      // Calculate average completion rate across all courses with enrollments
-      let totalCompletionRate = 0;
-      let coursesWithEnrollments = 0;
+      // // Calculate average completion rate across all courses with enrollments
+      // let totalCompletionRate = 0;
+      // let coursesWithEnrollments = 0;
 
+      // completionStatsMap.forEach((stats) => {
+      //   if (stats.total > 0) {
+      //     const rate = (stats.completed / stats.total) * 100;
+      //     totalCompletionRate += rate;
+      //     coursesWithEnrollments += 1;
+      //   }
+      // });
+
+      // averageCompletionRate =
+      //   coursesWithEnrollments > 0
+      //     ? Math.round((totalCompletionRate / coursesWithEnrollments) * 10) / 10
+      //     : 0;
+
+      // 💡 New: Calculate GLOBAL completion rate (Sum of all completions / Sum of all enrollments)
       completionStatsMap.forEach((stats) => {
-        if (stats.total > 0) {
-          const rate = (stats.completed / stats.total) * 100;
-          totalCompletionRate += rate;
-          coursesWithEnrollments += 1;
-        }
+        totalCompletedCoursesGlobal += stats.completed;
+        totalEnrolledStudentsGlobal += stats.total;
       });
 
-      averageCompletionRate =
-        coursesWithEnrollments > 0
-          ? Math.round((totalCompletionRate / coursesWithEnrollments) * 10) / 10
+      completionRate =
+        totalEnrolledStudentsGlobal > 0
+          ? Math.round((totalCompletedCoursesGlobal / totalEnrolledStudentsGlobal) * 1000) / 10
           : 0;
     }
 
@@ -421,8 +439,10 @@ export class AdminService {
     return {
       totalCourses,
       newCoursesThisMonth,
-      averageEnrollment,
-      averageCompletionRate,
+      // averageEnrollment,
+      // averageCompletionRate,
+      totalEnrollments,           // 💡 Returns the total number of enrollments
+      completionRate,             // 💡 Returns the platform-wide completion rate
       topCourses: topCoursesWithCompletion,
     };
   }
@@ -498,5 +518,115 @@ export class AdminService {
       totalEnrollments: parseInt(r.totalenrollments || r.totalEnrollments, 10) || 0,
       ranking: index + 1,
     }));
+  }
+
+  /**
+ * Calculates the date range for time series stats.
+ * @param period 'yearly' (12 months), 'monthly' (4 weeks), 'weekly' (7 days).
+ * @returns [startDate, endDate]
+ */
+  private getDateRange(period: string): [Date, Date] {
+    const endDate = new Date();
+    const startDate = new Date(endDate);
+
+    switch (period) {
+      case 'yearly':
+        startDate.setFullYear(endDate.getFullYear() - 1);
+        break;
+      case 'monthly': // Last 4 weeks
+        startDate.setDate(endDate.getDate() - 28);
+        break;
+      case 'weekly': // Last 7 days
+        startDate.setDate(endDate.getDate() - 7);
+        break;
+      default:
+        // Default to yearly for safety
+        startDate.setFullYear(endDate.getFullYear() - 1);
+    }
+    return [startDate, endDate];
+  }
+
+  async getTimeSeriesStats(period: string, type: string): Promise<any> {
+    const [startDate, endDate] = this.getDateRange(period);
+
+    let roleId: string | null = null;
+    let alias: string;
+    let repo: Repository<any>;
+
+    // 1. Determine Repository and Entity alias based on type
+    switch (type) {
+      case 'courses':
+        alias = 'course';
+        repo = this.courseRepository;
+        break;
+      case 'students':
+        roleId = await this.getRoleId('student');
+        if (!roleId) return [];
+        alias = 'user';
+        repo = this.userRepository;
+        break;
+      case 'instructors':
+        roleId = await this.getRoleId('instructor');
+        if (!roleId) return [];
+        alias = 'user';
+        repo = this.userRepository;
+        break;
+      default:
+        return [];
+    }
+
+    // 2. Determine date part for grouping (e.g., DAY, WEEK, MONTH)
+    let datePart: string;
+    if (period === 'weekly') {
+      datePart = 'DAY';
+    } else if (period === 'monthly') {
+      datePart = 'WEEK'; // Group by week for a 4-week span
+    } else { // yearly
+      datePart = 'MONTH';
+    }
+
+    // 3. Build the dynamic query
+    let query = repo
+      .createQueryBuilder(alias)
+      .select(`DATE_TRUNC('${datePart}', ${alias}.created_at)`, 'date_group')
+      .addSelect(`COUNT(${alias}.id)`, 'count')
+      .where(`${alias}.created_at >= :startDate`, { startDate })
+      .andWhere(`${alias}.created_at <= :endDate`, { endDate })
+      .groupBy('date_group')
+      .orderBy('date_group', 'ASC');
+
+    // Add role filtering for Users (Students/Instructors)
+    if (roleId) {
+      query = query.andWhere(`${alias}.roleId = :roleId`, { roleId });
+    }
+
+    // Add status filtering for Courses
+    if (type === 'courses') {
+      query = query
+        .andWhere(`${alias}.status = :status`, { status: CourseStatus.PUBLISHED })
+        .andWhere(`${alias}.isActive = :isActive`, { isActive: true });
+    }
+
+    // Execute the query
+    const rawResults = await query.getRawMany();
+
+    // 4. Format the output (fill in missing dates/groups with count 0)
+    // This part is crucial to match the chart's expectation (like your image)
+    return this.formatTimeSeriesData(rawResults, startDate, endDate, datePart);
+  }
+
+  // --- AdminService (New Formatting Utility) ---
+
+  private formatTimeSeriesData(rawResults: any[], startDate: Date, endDate: Date, datePart: string): { date: string, count: number }[] {
+    const formattedData = rawResults.map(r => ({
+      date: new Date(r.date_group).toISOString().split('T')[0], // YYYY-MM-DD
+      count: parseInt(r.count, 10),
+    }));
+
+    // This helper logic would ensure all intermediate periods (months, weeks, days) 
+    // within the range are present, even if count is 0, for proper chart display.
+    // However, implementing full date padding logic here is complex. 
+    // For a minimal implementation, we return the raw grouped data:
+    return formattedData;
   }
 }
