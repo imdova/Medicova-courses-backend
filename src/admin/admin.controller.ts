@@ -1,9 +1,21 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { PermissionsGuard } from 'src/auth/permission.guard';
 import { AuthGuard } from '@nestjs/passport';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
+
+// Define allowed periods for validation
+enum StatsPeriod {
+  YEARLY = 'yearly',
+  MONTHLY = 'monthly',
+  WEEKLY = 'weekly',
+}
+enum StatsType {
+  COURSES = 'courses',
+  STUDENTS = 'students',
+  INSTRUCTORS = 'instructors',
+}
 
 @ApiTags('Admin')
 @Controller('admin')
@@ -79,5 +91,44 @@ export class AdminController {
   @ApiOperation({ summary: 'Retrieve data for the “Top Instructors” section.' })
   async getTopInstructorsAnalytics() {
     return this.adminService.getTopInstructorsAnalytics();
+  }
+
+  // New Endpoint for Time-Series Statistics
+  // @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  // @RequirePermissions('admin:dashboard:time-series')
+  @Get('stats/time-series')
+  @ApiOperation({ summary: 'Get time-series statistics (Courses, Students, or Instructors) over a period.' })
+  @ApiQuery({
+    name: 'period',
+    required: true,
+    enum: StatsPeriod,
+    description: 'The aggregation period (yearly, monthly, or weekly)',
+  })
+  @ApiQuery({
+    name: 'type',
+    required: true,
+    enum: StatsType,
+    description: 'The type of entity to count (courses, students, or instructors)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Time-series statistics retrieved successfully.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid period or type requested.',
+  })
+  async getTimeSeriesStats(
+    @Query('period') period: StatsPeriod,
+    @Query('type') type: StatsType,
+  ): Promise<any> {
+    if (!Object.values(StatsPeriod).includes(period as StatsPeriod)) {
+      throw new BadRequestException('Invalid period. Must be yearly, monthly, or weekly.');
+    }
+    if (!Object.values(StatsType).includes(type as StatsType)) {
+      throw new BadRequestException('Invalid type. Must be courses, students, or instructors.');
+    }
+
+    return this.adminService.getTimeSeriesStats(period, type);
   }
 }
