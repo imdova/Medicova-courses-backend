@@ -8,6 +8,7 @@ import {
   IsNumber,
   IsInt,
   Min,
+  IsBoolean,
 } from 'class-validator';
 
 export class CreateCourseCategoryDto {
@@ -52,6 +53,15 @@ export class CreateCourseCategoryDto {
   @Min(0) // Priority should typically be a non-negative number
   @IsOptional()
   priority?: number;
+
+  // ✅ New isActive field added
+  @ApiPropertyOptional({
+    description: 'Whether the category is visible and active. Defaults to true.',
+    default: true,
+  })
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
 
   @ApiPropertyOptional({
     description: 'Image URL for category thumbnail',

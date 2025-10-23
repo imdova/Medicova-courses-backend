@@ -32,6 +32,14 @@ export class CourseCategory extends BasicEntity {
   @Column({ type: 'int', default: 0 })
   priority: number;
 
+  // ✅ New isActive field
+  @ApiPropertyOptional({
+    description: 'Whether the category is visible and active',
+    default: true,
+  })
+  @Column({ type: 'boolean', default: true })
+  isActive: boolean;
+
   @ApiPropertyOptional({ description: 'Image URL for category thumbnail' })
   @Column({ length: 500, nullable: true })
   image?: string;
