@@ -235,34 +235,35 @@ export class AcademyService {
   }
 
   async update(id: string, updateAcademyDto: UpdateAcademyDto) {
-    try {
-      // Validate provided keywords (if present)
-      if (updateAcademyDto.keyWords && updateAcademyDto.keyWords.length > 0) {
-        const { keyWords } = updateAcademyDto;
+    // Validate keywords (no try/catch here)
+    if (updateAcademyDto.keyWords && updateAcademyDto.keyWords.length > 0) {
+      const { keyWords } = updateAcademyDto;
 
-        const foundKeywords = await this.academyKeywordRepository
-          .createQueryBuilder('kw')
-          .where('kw.name IN (:...keyWords)', { keyWords })
-          .getMany();
+      const foundKeywords = await this.academyKeywordRepository
+        .createQueryBuilder('kw')
+        .where('kw.name IN (:...keyWords)', { keyWords })
+        .getMany();
 
-        const foundNames = foundKeywords.map(k => k.name);
-        const invalidKeywords = keyWords.filter(k => !foundNames.includes(k));
+      const foundNames = foundKeywords.map(k => k.name);
+      const invalidKeywords = keyWords.filter(k => !foundNames.includes(k));
 
-        if (invalidKeywords.length > 0) {
-          throw new BadRequestException(
-            `Invalid keywords: ${invalidKeywords.join(', ')}`
-          );
-        }
+      if (invalidKeywords.length > 0) {
+        throw new BadRequestException(
+          `Invalid keywords: ${invalidKeywords.join(', ')}`
+        );
       }
+    }
 
+    try {
       await this.academyRepository.update(id, updateAcademyDto);
-      return this.findOne(id); // fetch and return the updated entity
+      return this.findOne(id);
     } catch (error) {
       if ((error as any).code === '23505') {
         throw new ConflictException(
           'Academy with this name or slug already exists.',
         );
       }
+      console.error(error);
       throw new InternalServerErrorException('Failed to update academy.');
     }
   }
