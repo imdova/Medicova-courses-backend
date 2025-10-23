@@ -215,10 +215,10 @@ export class CouponService {
   ): Promise<Paginated<Coupon>> {
     const qb = this.couponRepository.createQueryBuilder('coupon');
 
-    // ✅ Admins can view all coupons
-    if (role.toLowerCase() !== 'admin') {
-      qb.where('coupon.created_by = :userId', { userId });
-    }
+    // // ✅ Admins can view all coupons
+    // if (role.toLowerCase() !== 'admin') {
+    //   qb.where('coupon.created_by = :userId', { userId });
+    // }
 
     return paginate(query, qb, COUPON_PAGINATION_CONFIG);
   }
@@ -229,24 +229,41 @@ export class CouponService {
     return coupon;
   }
 
-  async update(id: string, updateCouponDto: UpdateCouponDto): Promise<Coupon> {
-    const coupon = await this.findOne(id);
+  async update(
+    id: string,
+    updateCouponDto: UpdateCouponDto,
+    userId: string, // User ID from req.user.sub
+    userRole: string, // User Role from req.user.role
+  ): Promise<Coupon> {
+    // 1. Find the coupon (findOne should throw NotFoundException if not found)
+    const coupon = await this.findOne(id); // Assume this method retrieves the entity
+
+    // 2. Authorization Check (New Logic)
+    const isAdmin = userRole === 'admin'; // Case-sensitive check
+    const isOwner = coupon.created_by === userId; // Assuming 'createdBy' stores the user ID
+
+    if (!isAdmin && !isOwner) {
+      throw new HttpException(
+        'You do not have permission to update this coupon. Only the creator or an admin can modify it.',
+        HttpStatus.FORBIDDEN, // Use 403 Forbidden for authorization failure
+      );
+    }
+
+    // 3. Proceed with update logic
     Object.assign(coupon, updateCouponDto);
 
     try {
       return await this.couponRepository.save(coupon);
     } catch (err: any) {
+      // ... your existing duplicate key handling logic remains the same ...
       if (err?.code === '23505') {
         const detail = err?.detail ?? '';
-
         if (detail.includes('(code)')) {
           throw new HttpException(
             `Coupon code "${updateCouponDto.code}" already exists.`,
             HttpStatus.BAD_REQUEST,
           );
         }
-
-        // Generic duplicate constraint fallback
         throw new HttpException(
           `Duplicate entry detected. Please use unique values.`,
           HttpStatus.BAD_REQUEST,
@@ -261,8 +278,26 @@ export class CouponService {
     }
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(
+    id: string,
+    userId: string, // User ID from req.user.sub
+    userRole: string, // User Role from req.user.role
+  ): Promise<void> {
+    // 1. Find the coupon
     const coupon = await this.findOne(id);
+
+    // 2. Authorization Check (New Logic)
+    const isAdmin = userRole === 'admin';
+    const isOwner = coupon.created_by === userId; // Assuming 'createdBy' stores the user ID
+
+    if (!isAdmin && !isOwner) {
+      throw new HttpException(
+        'You do not have permission to delete this coupon. Only the creator or an admin can delete it.',
+        HttpStatus.FORBIDDEN, // Use 403 Forbidden
+      );
+    }
+
+    // 3. Proceed with soft delete
     await this.couponRepository.softRemove(coupon);
   }
 
