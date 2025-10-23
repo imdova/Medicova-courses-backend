@@ -255,6 +255,13 @@ export class CreateCourseDto {
           answer: 'Yes, upon successful completion of the course.',
         },
       ],
+      seo: {
+        metaTitle: 'Master NestJS Backend Development | Build Scalable APIs',
+        metaKeywords: ['nestjs', 'backend', 'typescript', 'api development'],
+        metaDescription:
+          'A comprehensive course covering NestJS fundamentals, API design, TypeORM, and deployment. Start building modern, scalable backend applications today.',
+        metaImage: 'https://cdn.example.com/course-images/nestjs-seo.png',
+      },
     },
   })
   @IsOptional()
