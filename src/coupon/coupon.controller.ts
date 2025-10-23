@@ -129,8 +129,9 @@ export class CouponController {
   async patch(
     @Param('id') id: string,
     @Body() updateCouponDto: UpdateCouponDto,
+    @Req() req,
   ): Promise<Coupon> {
-    return this.couponService.update(id, updateCouponDto);
+    return this.couponService.update(id, updateCouponDto, req.user.sub, req.user.role);
   }
 
   @Delete(':id')
@@ -139,7 +140,7 @@ export class CouponController {
   @ApiNoContentResponse({ description: 'Coupon deleted successfully' })
   @ApiNotFoundResponse({ description: 'Coupon not found' })
   @ApiResponse({ status: 204, description: 'Coupon deleted successfully' })
-  async remove(@Param('id') id: string): Promise<void> {
-    return this.couponService.remove(id);
+  async remove(@Param('id') id: string, @Req() req,): Promise<void> {
+    return this.couponService.remove(id, req.user.sub, req.user.role);
   }
 }
