@@ -648,7 +648,7 @@ export class AdminService {
   /**
    * Admin function to approve a submission and update user status.
    */
-  async approveIdentitySubmission(submissionId: string): Promise<IdentityVerification> {
+  async approveIdentitySubmission(submissionId: string, reviewerId: string): Promise<IdentityVerification> {
     const submission = await this.identityRepository.findOne({
       where: { id: submissionId },
       relations: ['user'],
@@ -664,6 +664,7 @@ export class AdminService {
     // 1. Update submission status
     submission.status = IdentityVerificationStatus.APPROVED;
     submission.rejectionReason = null; // Clear rejection reason if re-approved
+    submission.reviewedBy = { id: reviewerId } as User;
     const approvedSubmission = await this.identityRepository.save(submission);
 
     // 2. Update user verification status
@@ -686,7 +687,8 @@ export class AdminService {
    */
   async rejectIdentitySubmission(
     submissionId: string,
-    rejectionReason: string
+    rejectionReason: string,
+    reviewerId: string,
   ): Promise<IdentityVerification> {
     const submission = await this.identityRepository.findOne({
       where: { id: submissionId },
@@ -703,6 +705,7 @@ export class AdminService {
     // 1. Update submission status and reason
     submission.status = IdentityVerificationStatus.REJECTED;
     submission.rejectionReason = rejectionReason;
+    submission.reviewedBy = { id: reviewerId } as User;
     const rejectedSubmission = await this.identityRepository.save(submission);
 
     // 2. Update user verification status to false

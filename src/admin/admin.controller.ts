@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiParam, ApiBody } from '@nestjs/swagger';
 import { PermissionsGuard } from 'src/auth/permission.guard';
@@ -170,8 +170,8 @@ export class AdminController {
   })
   @ApiParam({ name: 'id', type: String, description: 'UUID of the Identity Verification submission' })
   @ApiResponse({ status: 200, description: 'Identity verification approved. User status updated.' })
-  async approveIdentity(@Param('id') submissionId: string) {
-    await this.adminService.approveIdentitySubmission(submissionId);
+  async approveIdentity(@Param('id') submissionId: string, @Req() req) {
+    await this.adminService.approveIdentitySubmission(submissionId, req.user.sub);
     return { message: 'Identity verification approved. User status updated.' };
   }
 
@@ -196,6 +196,7 @@ export class AdminController {
   async rejectIdentity(
     @Param('id') submissionId: string,
     @Body() rejectIdentityDto: RejectIdentityDto,
+    @Req() req
   ) {
     if (!rejectIdentityDto.rejectionReason) {
       throw new BadRequestException('Rejection reason is required.');
@@ -203,6 +204,7 @@ export class AdminController {
     await this.adminService.rejectIdentitySubmission(
       submissionId,
       rejectIdentityDto.rejectionReason,
+      req.user.sub
     );
     return { message: 'Identity verification rejected. User status updated.' };
   }
