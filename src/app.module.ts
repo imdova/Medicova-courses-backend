@@ -57,6 +57,7 @@ import { CourseNote } from './course/course-notes/entities/course-note.entity';
 import { CourseFavorite } from './course/entities/course-favorite.entity';
 import { AcademyKeyword } from './academy/entities/academy-keywords.entity';
 import { AdminModule } from './admin/admin.module';
+import { IdentityVerification } from './user/entities/identity-verification.entity';
 
 @Module({
   imports: [
@@ -106,7 +107,8 @@ import { AdminModule } from './admin/admin.module';
         CourseCommunity,
         CourseNote,
         CourseFavorite,
-        AcademyKeyword
+        AcademyKeyword,
+        IdentityVerification,
       ],
       synchronize: true,
       extra: {

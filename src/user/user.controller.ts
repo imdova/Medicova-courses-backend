@@ -33,6 +33,7 @@ import { PermissionsGuard } from '../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 import { EmailService } from '../common/email.service';
 import { cookieOptions } from '../auth/auth.controller';
+import { SubmitIdentityDto } from './dto/submit-identity.dto';
 
 @ApiTags('Users')
 @Controller('users')
@@ -275,5 +276,30 @@ export class UserController {
   })
   async updateAccount(@Req() req, @Body() dto: UpdateSecuritySettingsDto) {
     return this.userService.updateSecuritySettings(req.user.sub, dto);
+  }
+
+  // ====================================================================
+  // 🟢 IDENTITY VERIFICATION ENDPOINTS (USER-FACING)
+  // ====================================================================
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @Post('verify/identity')
+  @ApiOperation({
+    summary: 'Submit identity verification documents',
+    description: 'Allows a logged-in user to submit an array of document URLs and optional notes for admin review.',
+  })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Identity submission received and is pending review.' })
+  @ApiBody({ type: SubmitIdentityDto })
+  async submitIdentity(
+    @Req() req,
+    @Body() submitIdentityDto: SubmitIdentityDto,
+  ) {
+    const user = req.user.sub;
+    await this.userService.submitIdentity(
+      user,
+      submitIdentityDto.fileUrls,
+      submitIdentityDto.notes,
+    );
+    return { message: 'Identity verification submission successful. Status: PENDING' };
   }
 }

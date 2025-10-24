@@ -7,6 +7,7 @@ import { Exclude } from 'class-transformer';
 import { CourseStudent } from 'src/course/entities/course-student.entity';
 import { Payment } from 'src/payment/entities/payment.entity';
 import { Role } from './roles.entity';
+import { IdentityVerification } from './identity-verification.entity';
 
 @Entity()
 export class User extends BasicEntity {
@@ -66,6 +67,25 @@ export class User extends BasicEntity {
 
   @Column({ type: 'bigint', nullable: true })
   passwordResetExpiresAt?: number;
+
+  // 🟢 New Fields for Identity Verification
+  @ApiProperty({ description: 'Has the user submitted and passed identity verification?', default: false })
+  @Column({ default: false, name: 'is_identity_verified' })
+  isIdentityVerified: boolean;
+
+  @ApiProperty({
+    description: 'Overall verification status (True if isEmailVerified AND isIdentityVerified OR manually set by admin)',
+    default: false,
+  })
+  @Column({ default: false, name: 'is_verified' })
+  isVerified: boolean;
+
+  // 🟢 One-to-One relationship to the current active identity verification submission
+  @OneToOne(() => IdentityVerification, (iv) => iv.user, {
+    nullable: true,
+    cascade: true, // Optional: if you want to save the submission with the user
+  })
+  identityVerification?: IdentityVerification;
 
   get permissions(): string[] {
     return this.role?.rolePermissions?.map(rp => rp.permission.name) || [];
