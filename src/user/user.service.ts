@@ -354,10 +354,18 @@ export class UserService {
       where: { emailVerificationToken: token },
     });
 
-    if (!user) throw new NotFoundException('Invalid or expired verification token');
+    if (!user) {
+      throw new NotFoundException('Invalid or expired verification token');
+    }
 
+    // 1. Set email as verified
     user.isEmailVerified = true;
     user.emailVerificationToken = null; // clear token
+
+    // 2. 🟢 Update overall verification status
+    // isVerified should be true ONLY if both email and identity are verified.
+    user.isVerified = user.isEmailVerified && user.isIdentityVerified;
+
     return this.userRepository.save(user);
   }
 
