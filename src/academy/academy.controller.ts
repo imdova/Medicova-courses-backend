@@ -350,4 +350,47 @@ export class AcademyController {
       updateAcademyInstructorDto,
     );
   }
+
+  // ---------- New endpoint to delete academy instructor ----------
+  @Delete(':id/instructors/:instructorId')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('academy_instructor:delete') // 🟢 NEW PERMISSION
+  @ApiOperation({
+    summary: 'Delete an instructor profile under a specific academy (non-user)',
+    description: 'Removes the instructor profile record permanently.',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'ID of the academy' })
+  @ApiParam({
+    name: 'instructorId',
+    type: String,
+    description: 'ID of the instructor to delete',
+  })
+  @ApiResponse({
+    status: HttpStatus.NO_CONTENT,
+    description: 'Instructor successfully deleted.',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Instructor not found in this academy.',
+  })
+  async deleteInstructorFromAcademy(
+    @Param('id') academyId: string,
+    @Param('instructorId') instructorId: string,
+    @Req() req,
+  ) {
+    // Role check to ensure academy_admin can only delete from their own academy
+    if (req.user.role === 'academy_admin') {
+      if (req.user.academyId !== academyId) {
+        throw new ForbiddenException(
+          'You are not allowed to delete instructors from this academy',
+        );
+      }
+    }
+
+    // Call the service method
+    await this.academyService.removeInstructor(academyId, instructorId);
+
+    // Return a 204 No Content status
+    return { statusCode: HttpStatus.NO_CONTENT, message: 'Instructor successfully deleted' };
+  }
 }

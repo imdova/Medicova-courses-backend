@@ -415,6 +415,29 @@ export class AcademyService {
     return this.academyInstructorRepository.save(instructor);
   }
 
+  async removeInstructor(
+    academyId: string,
+    instructorId: string,
+  ): Promise<void> {
+
+    // Find the instructor by ID and verify the academy relationship
+    const instructor = await this.academyInstructorRepository.findOne({
+      where: {
+        id: instructorId,
+        academy: { id: academyId },
+      },
+    });
+
+    if (!instructor) {
+      throw new NotFoundException(
+        `Instructor with ID ${instructorId} not found in this academy.`,
+      );
+    }
+
+    // Perform the deletion
+    await this.academyInstructorRepository.remove(instructor);
+  }
+
   async createKeyword(dto: CreateAcademyKeywordDto) {
     const exists = await this.academyKeywordRepository.findOne({ where: { name: dto.name } });
     if (exists) {
