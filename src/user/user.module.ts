@@ -16,10 +16,11 @@ import { Permission } from './entities/permission.entity';
 import { RolePermission } from './entities/roles-permission.entity';
 import { UserPermissionsController } from './user-permissions.controller';
 import { EmailService } from '../common/email.service';
+import { IdentityVerification } from './entities/identity-verification.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Course, Profile, Role, Permission, RolePermission]),
+    TypeOrmModule.forFeature([User, Course, Profile, Role, Permission, RolePermission, IdentityVerification]),
     forwardRef(() => AuthModule),
     forwardRef(() => ProfileModule),
     forwardRef(() => AcademyModule),

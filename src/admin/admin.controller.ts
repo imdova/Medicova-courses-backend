@@ -1,9 +1,11 @@
-import { BadRequestException, Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service';
-import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiParam, ApiBody } from '@nestjs/swagger';
 import { PermissionsGuard } from 'src/auth/permission.guard';
 import { AuthGuard } from '@nestjs/passport';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
+import { IdentityVerificationStatus } from 'src/user/entities/identity-verification.entity';
+import { RejectIdentityDto } from './dto/reject-identity.dto';
 
 // Define allowed periods for validation
 enum StatsPeriod {
@@ -130,5 +132,111 @@ export class AdminController {
     }
 
     return this.adminService.getTimeSeriesStats(period, type);
+  }
+
+  // ---
+  // 🟢 IDENTITY VERIFICATION ENDPOINTS
+  // ---
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:identity:list') // Requires new permission
+  @Get('identity')
+  @ApiOperation({
+    summary: 'List all identity verification submissions',
+    description: 'Admin endpoint to retrieve a list of all identity verification submissions, with optional filtering by status.',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: IdentityVerificationStatus,
+    description: 'Filter submissions by status (pending, approved, rejected).'
+  })
+  @ApiResponse({ status: 200, description: 'List of identity verification submissions retrieved successfully.' })
+  async listIdentitySubmissions(
+    @Query('status') status?: IdentityVerificationStatus,
+  ): Promise<any> {
+    if (status && !Object.values(IdentityVerificationStatus).includes(status)) {
+      throw new BadRequestException('Invalid status filter. Must be pending, approved, or rejected.');
+    }
+    return this.adminService.listIdentitySubmissions(status);
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:identity:approve') // Requires new permission
+  @Post('identity/:id/approve')
+  @ApiOperation({
+    summary: 'Approve an identity verification submission',
+    description: 'Approves the submission, setting the user\'s isIdentityVerified and isVerified status to true.',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'UUID of the Identity Verification submission' })
+  @ApiResponse({ status: 200, description: 'Identity verification approved. User status updated.' })
+  async approveIdentity(@Param('id') submissionId: string, @Req() req) {
+    await this.adminService.approveIdentitySubmission(submissionId, req.user.sub);
+    return { message: 'Identity verification approved. User status updated.' };
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:identity:reject') // Requires new permission
+  @Post('identity/:id/reject')
+  @ApiOperation({
+    summary: 'Reject an identity verification submission',
+    description: 'Rejects the submission, setting the user\'s isIdentityVerified and isVerified status to false and storing the reason.',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'UUID of the Identity Verification submission' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        rejectionReason: { type: 'string', example: 'Document blurry or expired.', description: 'The reason for rejection.' },
+      },
+      required: ['rejectionReason'],
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Identity verification rejected.' })
+  async rejectIdentity(
+    @Param('id') submissionId: string,
+    @Body() rejectIdentityDto: RejectIdentityDto,
+    @Req() req
+  ) {
+    if (!rejectIdentityDto.rejectionReason) {
+      throw new BadRequestException('Rejection reason is required.');
+    }
+    await this.adminService.rejectIdentitySubmission(
+      submissionId,
+      rejectIdentityDto.rejectionReason,
+      req.user.sub
+    );
+    return { message: 'Identity verification rejected. User status updated.' };
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:user:set_verified') // Admin manual override permission
+  @Patch('identity/:userId/is-verified')
+  @ApiOperation({
+    summary: 'Admin manual override for user overall verification status',
+    description: 'Allows an administrator to manually set the overall isVerified status for a user (true/false). This bypasses email and identity checks.',
+  })
+  @ApiParam({ name: 'userId', type: String, description: 'UUID of the User' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        isVerified: { type: 'boolean', example: true, description: 'The new overall verification status.' },
+      },
+      required: ['isVerified'],
+    },
+  })
+  @ApiResponse({ status: 200, description: 'User overall verification status manually updated.' })
+  async adminSetIsVerified(
+    @Param('userId') userId: string,
+    @Body('isVerified') isVerified: boolean,
+  ) {
+    // Note: NestJS should handle the type coercion for simple boolean values from JSON body,
+    // but explicit type check is robust.
+    if (typeof isVerified !== 'boolean') {
+      throw new BadRequestException('The body must contain a boolean value for isVerified.');
+    }
+    await this.adminService.adminSetIsVerified(userId, isVerified);
+    return { message: `User overall verification status manually set to ${isVerified}.` };
   }
 }

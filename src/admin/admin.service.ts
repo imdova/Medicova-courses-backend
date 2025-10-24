@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../user/entities/user.entity';
@@ -8,6 +8,7 @@ import { Role } from '../user/entities/roles.entity';
 import { CourseSectionItem } from 'src/course/course-section/entities/course-section-item.entity';
 import { CourseProgress } from 'src/course/course-progress/entities/course-progress.entity';
 import { CourseStudent } from 'src/course/entities/course-student.entity';
+import { IdentityVerification, IdentityVerificationStatus } from 'src/user/entities/identity-verification.entity';
 
 @Injectable()
 export class AdminService {
@@ -27,6 +28,8 @@ export class AdminService {
     private readonly progressRepo: Repository<CourseProgress>,
     @InjectRepository(CourseStudent)
     private readonly courseStudentRepo: Repository<CourseStudent>,
+    @InjectRepository(IdentityVerification)
+    private readonly identityRepository: Repository<IdentityVerification>,
     @InjectRepository(Role)
     private readonly roleRepository: Repository<Role>,
   ) { }
@@ -628,5 +631,109 @@ export class AdminService {
     // However, implementing full date padding logic here is complex. 
     // For a minimal implementation, we return the raw grouped data:
     return formattedData;
+  }
+
+  /**
+   * Admin function to list all submissions, optionally filtered by status.
+   */
+  async listIdentitySubmissions(status?: IdentityVerificationStatus): Promise<IdentityVerification[]> {
+    const where = status ? { status } : {};
+    return this.identityRepository.find({
+      where,
+      relations: ['user', 'user.profile'], // Fetch user details for display
+      order: { created_at: 'DESC' }
+    });
+  }
+
+  /**
+   * Admin function to approve a submission and update user status.
+   */
+  async approveIdentitySubmission(submissionId: string, reviewerId: string): Promise<IdentityVerification> {
+    const submission = await this.identityRepository.findOne({
+      where: { id: submissionId },
+      relations: ['user'],
+    });
+
+    if (!submission) {
+      throw new NotFoundException('Identity submission not found.');
+    }
+    if (submission.status === IdentityVerificationStatus.APPROVED) {
+      throw new BadRequestException('Submission is already approved.');
+    }
+
+    // 1. Update submission status
+    submission.status = IdentityVerificationStatus.APPROVED;
+    submission.rejectionReason = null; // Clear rejection reason if re-approved
+    submission.reviewedBy = { id: reviewerId } as User;
+    const approvedSubmission = await this.identityRepository.save(submission);
+
+    // 2. Update user verification status
+    const user = submission.user;
+    if (!user) {
+      throw new NotFoundException('User associated with submission not found.');
+    }
+
+    user.isIdentityVerified = true;
+    // Set overall verified status: true only if email is also verified
+    user.isVerified = user.isEmailVerified && user.isIdentityVerified;
+
+    await this.userRepository.save(user);
+
+    return approvedSubmission;
+  }
+
+  /**
+   * Admin function to reject a submission and update user status.
+   */
+  async rejectIdentitySubmission(
+    submissionId: string,
+    rejectionReason: string,
+    reviewerId: string,
+  ): Promise<IdentityVerification> {
+    const submission = await this.identityRepository.findOne({
+      where: { id: submissionId },
+      relations: ['user'],
+    });
+
+    if (!submission) {
+      throw new NotFoundException('Identity submission not found.');
+    }
+    if (submission.status === IdentityVerificationStatus.REJECTED) {
+      throw new BadRequestException('Submission is already rejected.');
+    }
+
+    // 1. Update submission status and reason
+    submission.status = IdentityVerificationStatus.REJECTED;
+    submission.rejectionReason = rejectionReason;
+    submission.reviewedBy = { id: reviewerId } as User;
+    const rejectedSubmission = await this.identityRepository.save(submission);
+
+    // 2. Update user verification status to false
+    const user = submission.user;
+    if (!user) {
+      throw new NotFoundException('User associated with submission not found.');
+    }
+
+    user.isIdentityVerified = false;
+    user.isVerified = false; // Rejection implies overall verification is false
+
+    await this.userRepository.save(user);
+
+    return rejectedSubmission;
+  }
+
+  /**
+   * Admin function to manually set the overall isVerified status.
+   */
+  async adminSetIsVerified(userId: string, isVerified: boolean): Promise<User> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException(`User with id ${userId} not found`);
+    }
+
+    // Admin override logic: set the final flag directly
+    user.isVerified = isVerified;
+
+    return this.userRepository.save(user);
   }
 }

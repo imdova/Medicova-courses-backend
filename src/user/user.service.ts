@@ -25,6 +25,7 @@ import {
 import { QueryConfig } from 'src/common/utils/query-options';
 import { Role } from './entities/roles.entity';
 import { v4 as uuidv4 } from 'uuid';
+import { IdentityVerification, IdentityVerificationStatus } from './entities/identity-verification.entity';
 
 export const STUDENT_PAGINATION_CONFIG: QueryConfig<User> = {
   sortableColumns: [
@@ -53,6 +54,8 @@ export class UserService {
     private readonly academyService: AcademyService,
     @InjectRepository(Role)
     private roleRepository: Repository<Role>,
+    @InjectRepository(IdentityVerification)
+    private identityRepository: Repository<IdentityVerification>,
     @InjectRepository(Profile)
     private profileRepository: Repository<Profile>,
   ) { }
@@ -351,10 +354,18 @@ export class UserService {
       where: { emailVerificationToken: token },
     });
 
-    if (!user) throw new NotFoundException('Invalid or expired verification token');
+    if (!user) {
+      throw new NotFoundException('Invalid or expired verification token');
+    }
 
+    // 1. Set email as verified
     user.isEmailVerified = true;
     user.emailVerificationToken = null; // clear token
+
+    // 2. 🟢 Update overall verification status
+    // isVerified should be true ONLY if both email and identity are verified.
+    user.isVerified = user.isEmailVerified && user.isIdentityVerified;
+
     return this.userRepository.save(user);
   }
 
@@ -391,4 +402,41 @@ export class UserService {
     return age;
   }
 
+  /**
+   * Allows a user to submit identity documents for verification.
+   * Creates a new PENDING IdentityVerification record.
+   */
+  async submitIdentity(
+    userId: string,
+    fileUrls: string[],
+    notes?: string,
+  ): Promise<IdentityVerification> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+
+    if (!user) {
+      throw new NotFoundException('User not found.');
+    }
+
+    // Check if an existing PENDING submission exists
+    const existingSubmission = await this.identityRepository.findOne({
+      where: { userId, status: IdentityVerificationStatus.PENDING },
+    });
+
+    if (existingSubmission) {
+      throw new BadRequestException(
+        'An identity verification submission is already pending review.',
+      );
+    }
+
+    // Create new submission
+    const submission = this.identityRepository.create({
+      userId,
+      fileUrls,
+      notes,
+      status: IdentityVerificationStatus.PENDING,
+    });
+
+    // Save the submission
+    return this.identityRepository.save(submission);
+  }
 }
