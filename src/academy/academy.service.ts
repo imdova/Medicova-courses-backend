@@ -59,11 +59,19 @@ export class AcademyService {
       }
     }
 
+    // 🟢 Calculate initial completion percentage
+    const initialCompletionPercentage = this.calculateCompletionPercentage({
+      ...createAcademyDto,
+      contactEmail: email, // Since contactEmail is set here, include it in the calculation
+      keyWords,
+    });
+
     const academy = this.academyRepository.create({
       ...createAcademyDto,
       created_by: userId,
       email,
       contactEmail: email,
+      completionPercentage: initialCompletionPercentage, // 🟢 Set the calculated value
     });
 
     try {
@@ -136,6 +144,7 @@ export class AcademyService {
 
       return {
         ...academy,
+        completionPercentage: parseFloat(academy.completionPercentage as any),
         createdBy,
         instructors,
         studentsCount,
@@ -169,6 +178,7 @@ export class AcademyService {
 
     return {
       ...academy,
+      completionPercentage: parseFloat(academy.completionPercentage as any),
       createdBy: creator
         ? {
           id: creator.id,
@@ -216,6 +226,7 @@ export class AcademyService {
 
     return {
       ...academy,
+      completionPercentage: parseFloat(academy.completionPercentage as any),
       createdBy: creator
         ? {
           id: creator.id,
@@ -254,8 +265,29 @@ export class AcademyService {
       }
     }
 
+    // 1. Fetch current academy data
+    const existingAcademy = await this.academyRepository.findOneBy({ id });
+    if (!existingAcademy) {
+      throw new NotFoundException('Academy not found.');
+    }
+
+    // 2. Merge existing data with update DTO for calculation
+    const updatedEntity = {
+      ...existingAcademy,
+      ...updateAcademyDto,
+    };
+
+    // 3. 🟢 Calculate new percentage based on the merged entity
+    const newCompletionPercentage = this.calculateCompletionPercentage(updatedEntity);
+
+    // 4. Update the DTO to include the new percentage
+    const finalUpdateDto = {
+      ...updateAcademyDto,
+      completionPercentage: newCompletionPercentage, // 🟢 Add the new percentage to the update object
+    };
+
     try {
-      await this.academyRepository.update(id, updateAcademyDto);
+      await this.academyRepository.update(id, finalUpdateDto);
       return this.findOne(id);
     } catch (error) {
       if ((error as any).code === '23505') {
@@ -397,5 +429,55 @@ export class AcademyService {
     return this.academyKeywordRepository.find({
       order: { name: 'ASC' },
     });
+  }
+
+  /**
+   * Private method to calculate the profile completion percentage.
+   * Tracks 13 key fields for a well-rounded profile.
+   */
+  private calculateCompletionPercentage(academy: Partial<Academy>): number {
+    // Fields tracked for 100% completion (12 simple fields + 1 array field = 13 total checks)
+    const checklist: (keyof Academy)[] = [
+      'image', // Logo
+      'cover', // Cover image
+      'description', // Short description
+      'about', // Detailed about section
+      'type',
+      'size',
+      'foundedYear',
+      'address',
+      'city',
+      'country',
+      'contactEmail',
+      'phone',
+    ];
+
+    const TOTAL_POINTS = checklist.length + 1; // +1 point for keyWords array
+    let filledCount = 0;
+
+    // 1. Check simple fields
+    for (const field of checklist) {
+      const value = academy[field];
+      // Check for non-null, non-undefined, and non-empty string/object
+      if (value !== undefined && value !== null && value !== '') {
+        // Handle JSON columns (city/country) to ensure they aren't just empty objects
+        if (typeof value === 'object' && value !== null && Object.keys(value).length === 0) {
+          continue;
+        }
+        filledCount++;
+      }
+    }
+
+    // 2. Special check for keyWords array
+    if (
+      Array.isArray(academy.keyWords) &&
+      academy.keyWords.filter(k => k && k.trim() !== '').length > 0
+    ) {
+      filledCount++;
+    }
+
+    const percentage = (filledCount / TOTAL_POINTS) * 100;
+    // Return fixed to 2 decimal places
+    return parseFloat(percentage.toFixed(2));
   }
 }
