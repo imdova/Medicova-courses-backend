@@ -146,6 +146,13 @@ export class Academy extends BasicEntity {
   @Column({ default: false })
   isIdentityVerified?: boolean;
 
+  @ApiProperty({
+    description: 'Completion percentage of the academy profile (0.00 to 100.00)',
+    example: 65.45,
+  })
+  @Column({ type: 'decimal', precision: 5, scale: 2, default: 0.00 })
+  completionPercentage: number; // 🟢 NEW FIELD
+
   @OneToMany(() => User, (user) => user.academy)
   users: User[];
 
