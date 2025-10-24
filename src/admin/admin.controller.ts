@@ -139,7 +139,7 @@ export class AdminController {
   // ---
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('identity:list') // Requires new permission
+  @RequirePermissions('admin:identity:list') // Requires new permission
   @Get('identity')
   @ApiOperation({
     summary: 'List all identity verification submissions',
@@ -162,7 +162,7 @@ export class AdminController {
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('identity:approve') // Requires new permission
+  @RequirePermissions('admin:identity:approve') // Requires new permission
   @Post('identity/:id/approve')
   @ApiOperation({
     summary: 'Approve an identity verification submission',
@@ -176,7 +176,7 @@ export class AdminController {
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('identity:reject') // Requires new permission
+  @RequirePermissions('admin:identity:reject') // Requires new permission
   @Post('identity/:id/reject')
   @ApiOperation({
     summary: 'Reject an identity verification submission',
@@ -208,7 +208,7 @@ export class AdminController {
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('user:set_verified') // Admin manual override permission
+  @RequirePermissions('admin:user:set_verified') // Admin manual override permission
   @Patch('identity/:userId/is-verified')
   @ApiOperation({
     summary: 'Admin manual override for user overall verification status',
