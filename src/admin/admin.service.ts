@@ -9,6 +9,10 @@ import { CourseSectionItem } from 'src/course/course-section/entities/course-sec
 import { CourseProgress } from 'src/course/course-progress/entities/course-progress.entity';
 import { CourseStudent } from 'src/course/entities/course-student.entity';
 import { IdentityVerification, IdentityVerificationStatus } from 'src/user/entities/identity-verification.entity';
+import { Quiz } from 'src/quiz/entities/quiz.entity';
+import { QuizQuestion } from 'src/quiz/entities/quiz-question.entity';
+import { QuizAttempt } from 'src/quiz/entities/quiz-attempts.entity';
+import { Question } from 'src/quiz/entities/question.entity';
 
 @Injectable()
 export class AdminService {
@@ -32,6 +36,14 @@ export class AdminService {
     private readonly identityRepository: Repository<IdentityVerification>,
     @InjectRepository(Role)
     private readonly roleRepository: Repository<Role>,
+    @InjectRepository(Quiz)
+    private readonly quizRepository: Repository<Quiz>, // 👈 New injection
+    @InjectRepository(QuizQuestion)
+    private readonly quizQuestionRepository: Repository<QuizQuestion>, // 👈 New injection
+    @InjectRepository(Question)
+    private readonly questionRepository: Repository<Question>, // 👈 New injection
+    @InjectRepository(QuizAttempt)
+    private readonly quizAttemptRepository: Repository<QuizAttempt>, // 👈 New injection
   ) { }
 
   async getDashboardStats(): Promise<any> {
@@ -827,6 +839,88 @@ export class AdminService {
         } : null,
       })),
       pagination: this.paginationMeta(pageNum, limitNum, total),
+    };
+  }
+
+  /** ----------------- QUIZ LISTING FOR ADMIN ----------------- */
+  async getAllQuizzesForAdmin(page = 1, limit = 10, search?: string): Promise<any> {
+    const pageNum = Math.max(1, parseInt(page + '', 10) || 1);
+    const limitNum = Math.min(Math.max(1, parseInt(limit + '', 10) || 10), 100);
+    const skip = (pageNum - 1) * limitNum;
+
+    const quizAlias = 'quiz';
+
+    // 1. DEFINE LIST QUERY (without pagination applied yet)
+    let listQueryBase = this.quizRepository
+      .createQueryBuilder(quizAlias)
+      .leftJoin(`${quizAlias}.instructor`, 'instructor')
+      .leftJoin('instructor.profile', 'profile')
+      .leftJoin('quiz_questions', 'qq', `qq.quiz_id = ${quizAlias}.id`)
+      .leftJoin(QuizAttempt, 'attempt', `attempt.quiz_id = ${quizAlias}.id`)
+      .select([
+        `${quizAlias}.id AS id`,
+        `${quizAlias}.title AS title`,
+        `${quizAlias}.created_at AS date`,
+        `${quizAlias}.status AS status`,
+        `CONCAT(COALESCE(profile.firstName, ''), ' ', COALESCE(profile.lastName, '')) AS instructorName`,
+        `profile.photoUrl AS instructorPhotoUrl`,
+        `COUNT(DISTINCT qq.question_id) AS totalQuestions`,
+        `COUNT(DISTINCT attempt.id) AS totalEnrollments`,
+      ])
+      .groupBy(`${quizAlias}.id, ${quizAlias}.title, ${quizAlias}.created_at, ${quizAlias}.status, instructorName, instructorPhotoUrl`);
+
+    // Apply Search Filter to the base query
+    if (search) {
+      const searchTerm = `%${search.toLowerCase()}%`;
+      listQueryBase = listQueryBase.andWhere(
+        `(LOWER(${quizAlias}.title) LIKE :searchTerm OR LOWER(profile.firstName) LIKE :searchTerm OR LOWER(profile.lastName) LIKE :searchTerm)`,
+        { searchTerm },
+      );
+    }
+
+    // 2. ASSEMBLE PROMISES (run all necessary queries in parallel)
+    const [
+      totalQuizzes,
+      totalEnrollments,
+      totalQuestions,
+      totalFilteredQuizzes, // Count of quizzes AFTER applying the search filter
+      rawResults,
+    ] = await Promise.all([
+      // Global Overview Stats
+      this.quizRepository.count({ where: { status: 'published' as any } }),
+      this.quizAttemptRepository.count(),
+      this.questionRepository.count(),
+      // Count and Fetch the Filtered List Data
+      listQueryBase.getCount(), // Count total items matching the search filter
+      listQueryBase
+        .orderBy(`${quizAlias}.created_at`, 'DESC')
+        .offset(skip)
+        .limit(limitNum)
+        .getRawMany(),
+    ]);
+
+    // 3. FORMAT LIST RESULTS
+    const quizzes = rawResults.map((r, index) => ({
+      id: r.id,
+      title: r.title,
+      instructorName: r.instructorname?.trim() || 'N/A',
+      instructorPhotoUrl: r.instructorphotourl,
+      date: this.formatDate(r.date),
+      totalQuestions: parseInt(r.totalquestions) || 0,
+      isActive: r.status === 'published',
+      status: r.status,
+      totalEnrollments: parseInt(r.totalenrollments) || 0,
+    }));
+
+    // 4. RETURN COMBINED OBJECT
+    return {
+      // Overview Stats
+      totalQuizzes,
+      totalEnrollments,
+      totalQuestions,
+      // List Data
+      quizzes,
+      pagination: this.paginationMeta(pageNum, limitNum, totalFilteredQuizzes), // Use the filtered total for pagination
     };
   }
 }

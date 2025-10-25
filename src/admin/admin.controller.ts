@@ -211,6 +211,29 @@ export class AdminController {
     return this.adminService.getAllStudentsInformation(page, limit, search);
   }
 
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:quizzes:list') // Requires a new quiz listing permission
+  @Get('quizzes')
+  @ApiOperation({ summary: 'Get a paginated list of all quizzes with aggregated stats for admin dashboard.' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number for pagination (default: 1)'
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of items per page (default: 10)'
+  })
+  async getAllQuizzesForAdmin(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+  ): Promise<{ quizzes: any; pagination: any }> {
+    return this.adminService.getAllQuizzesForAdmin(page, limit);
+  }
+
   // ---
   // 🟢 IDENTITY VERIFICATION ENDPOINTS
   // ---
