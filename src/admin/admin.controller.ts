@@ -212,7 +212,7 @@ export class AdminController {
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('admin:quizzes:list') // Requires a new quiz listing permission
+  @RequirePermissions('admin:quizzes:list') // Requires a new quiz listing permission
   @Get('quizzes')
   @ApiOperation({ summary: 'Get a paginated list of all quizzes with aggregated stats for admin dashboard.' })
   @ApiQuery({
