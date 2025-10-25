@@ -18,6 +18,11 @@ enum StatsType {
   STUDENTS = 'students',
   INSTRUCTORS = 'instructors',
 }
+export enum GenderFilter {
+  ALL = 'all',
+  MALE = 'male',
+  FEMALE = 'female',
+}
 
 @ApiTags('Admin')
 @Controller('admin')
@@ -173,42 +178,102 @@ export class AdminController {
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:students:overview')
+  @Get('students/overview')
+  @ApiOperation({ summary: 'Get total students, courses, enrollments, and time-series data for the dashboard.' })
+  @ApiQuery({
+    name: 'period',
+    required: true,
+    enum: StatsPeriod,
+    description: 'The aggregation period for time-series data (yearly, monthly, or weekly)',
+  })
+  @ApiResponse({ status: 200, description: 'Student overview stats retrieved successfully.' })
+  async getStudentOverview(
+    @Query('period') period: StatsPeriod,
+  ): Promise<any> {
+    if (!Object.values(StatsPeriod).includes(period as StatsPeriod)) {
+      throw new BadRequestException('Invalid period. Must be yearly, monthly, or weekly.');
+    }
+    // We will implement a new service method for this combined stat fetch
+    return this.adminService.getStudentOverviewStats(period);
+  }
+
+  // -----------------------------------------------------------------
+  // 🟢 NEW: STUDENT GEOGRAPHIC STATS (SECTION 2)
+  // -----------------------------------------------------------------
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:students:geo-stats')
+  @Get('students/geo-stats')
+  @ApiOperation({ summary: 'Get student distribution aggregated by country/state.' })
+  @ApiResponse({ status: 200, description: 'Geographic statistics retrieved successfully.' })
+  async getStudentGeoStats(): Promise<any> {
+    return this.adminService.getStudentGeoStats();
+  }
+
+  // -----------------------------------------------------------------
+  // 🟢 MODIFIED: DETAILED STUDENTS LIST (SECTION 3)
+  // -----------------------------------------------------------------
+  // Note: We use the existing path /students-information but update the query parameters
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('admin:students:list:detailed')
   @Get('students-information')
-  @ApiOperation({ summary: 'Get all students in the system, paginated and searchable by name/email' })
+  @ApiOperation({ summary: 'Get detailed, filterable list of students with pagination.' })
   @ApiQuery({
-    name: 'page',
-    required: false,
-    type: Number,
-    description: 'Page number for pagination (default: 1)'
+    name: 'page', required: false, type: Number, description: 'Page number (default: 1)'
   })
   @ApiQuery({
-    name: 'limit',
-    required: false,
-    type: Number,
-    description: 'Number of items per page (default: 10)'
+    name: 'limit', required: false, type: Number, description: 'Items per page (default: 10)'
   })
-  @ApiQuery({ // 👈 New: Added search parameter to the API documentation
-    name: 'search',
-    required: false,
-    type: String,
-    description: 'Search term to filter students by first name, last name, or email.'
+  @ApiQuery({
+    name: 'search', required: false, type: String, description: 'Filter by name or email.'
   })
-  @ApiResponse({
-    status: 200,
-    description: 'List of students retrieved successfully',
+  @ApiQuery({
+    name: 'minAge', required: false, type: Number, description: 'Filter by minimum age.'
   })
-  @ApiResponse({
-    status: 500,
-    description: 'Internal server error',
+  @ApiQuery({
+    name: 'maxAge', required: false, type: Number, description: 'Filter by maximum age.'
   })
-  async getAllStudentsInformation( // 👈 Updated: Added search parameter to the method signature
+  @ApiQuery({
+    name: 'gender', required: false, enum: GenderFilter, description: 'Filter by gender.'
+  })
+  @ApiQuery({
+    name: 'category', required: false, type: String, description: 'Filter by Profile Category name or ID.'
+  })
+  @ApiQuery({
+    name: 'speciality', required: false, type: String, description: 'Filter by Profile Speciality name or ID.'
+  })
+  @ApiResponse({ status: 200, description: 'Detailed list of students retrieved successfully.' })
+  async getAllStudentsInformation(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('search') search?: string,
+    @Query('minAge') minAgeStr?: string,
+    @Query('maxAge') maxAgeStr?: string,
+    @Query('gender') gender?: GenderFilter,
+    @Query('category') category?: string,
+    @Query('speciality') speciality?: string,
   ): Promise<any> {
-    // Calling the updated service method
-    return this.adminService.getAllStudentsInformation(page, limit, search);
+    // Convert to number after checking for undefined/null/empty string
+    const minAge = minAgeStr ? parseInt(minAgeStr, 10) : undefined;
+    const maxAge = maxAgeStr ? parseInt(maxAgeStr, 10) : undefined;
+
+    // 🛑 FIX: Simplify the validation check to only check the PARSED number
+    // The previous check was comparing the original string/number input.
+    if ((minAge !== undefined && isNaN(minAge)) || (maxAge !== undefined && isNaN(maxAge))) {
+      throw new BadRequestException('minAge and maxAge must be numbers.');
+    }
+
+    // Also, ensure minAge is not greater than maxAge, if both are present
+    if (minAge !== undefined && maxAge !== undefined && minAge > maxAge) {
+      throw new BadRequestException('minAge cannot be greater than maxAge.');
+    }
+
+    return this.adminService.getAllStudentsInformation(
+      page, limit, search,
+      minAge, // Pass the parsed number
+      maxAge, // Pass the parsed number
+      gender, category, speciality
+    );
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
