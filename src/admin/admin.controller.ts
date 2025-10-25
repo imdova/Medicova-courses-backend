@@ -135,7 +135,7 @@ export class AdminController {
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('admin:instructors:list') // Requires new permission
+  @RequirePermissions('admin:instructors:list') // Requires new permission
   @Get('instructors')
   @ApiOperation({ summary: 'Get all instructors in the system, paginated and searchable by name' })
   @ApiQuery({
@@ -173,7 +173,7 @@ export class AdminController {
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  @RequirePermissions('admin:students:list')
+  @RequirePermissions('admin:students:list:detailed')
   @Get('students-information')
   @ApiOperation({ summary: 'Get all students in the system, paginated and searchable by name/email' })
   @ApiQuery({
