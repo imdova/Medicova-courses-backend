@@ -882,8 +882,6 @@ export class AdminService {
     speciality?: string,
   ): Promise<any> {
 
-    // ... (Role ID, Pagination setup, and initial query definition remain the same) ...
-
     const studentRoleId = await this.getRoleId('student');
     if (!studentRoleId) {
       return { students: [], pagination: this.paginationMeta(1, limit, 0) };
@@ -898,11 +896,12 @@ export class AdminService {
       .leftJoinAndSelect('user.profile', 'profile')
       .leftJoinAndSelect('profile.category', 'category') // Join to ProfileCategory
       .leftJoinAndSelect('profile.speciality', 'speciality') // Join to ProfileSpeciality
-      .leftJoin(CourseStudent, 'cs', 'cs.student_id = user.id')
+      // 🛑 Removed: .leftJoin(CourseStudent, 'cs', 'cs.student_id = user.id') 
       .where('user.roleId = :roleId', { roleId: studentRoleId })
-      .groupBy('user.id, profile.id, category.id, speciality.id');
-
-    // ... (All filter logic for search, age, gender, category, and speciality remains the same) ...
+      // 🛑 Removed: .groupBy('user.id, profile.id, category.id, speciality.id') 
+      .orderBy('user.created_at', 'DESC') // Ordering is now part of the main query
+      .offset(skip)
+      .limit(limitNum);
 
     // 🔍 1. Search Filter (by name/email)
     if (search) {
@@ -917,23 +916,24 @@ export class AdminService {
     const getDateOfBirth = (age: number, isMin: boolean) => {
       const today = new Date();
       const year = today.getFullYear() - age;
+      // Use precise dates for month/day boundaries
       return new Date(year, isMin ? 11 : 0, isMin ? 31 : 1);
     };
 
     // 👴 2. Age Filter (based on date_of_birth in Profile)
     if (minAge !== undefined) {
-      const maxDOB = getDateOfBirth(minAge, true);
-      query = query.andWhere('profile.date_of_birth <= :maxDOB', { maxDOB });
+      const maxDOB = getDateOfBirth(minAge, true); // Older than minAge means DOB is before maxDOB
+      query = query.andWhere('profile.dateOfBirth <= :maxDOB', { maxDOB });
     }
     if (maxAge !== undefined) {
-      const minDOB = getDateOfBirth(maxAge, false);
-      query = query.andWhere('profile.date_of_birth >= :minDOB', { minDOB });
+      const minDOB = getDateOfBirth(maxAge, false); // Younger than maxAge means DOB is after minDOB
+      query = query.andWhere('profile.dateOfBirth >= :minDOB', { minDOB });
     }
 
     // 🚻 3. Gender Filter
     if (gender && gender.toLowerCase() !== 'all') {
-      // 🛑 FIX: Explicitly cast the ENUM column (profile.gender) to TEXT before using LOWER()
-      query = query.andWhere(`LOWER(CAST(profile.gender AS TEXT)) = :gender`, { gender: gender.toLowerCase() });
+      // Use the simpler column name (TypeORM handles case) and rely on the database value
+      query = query.andWhere('profile.gender = :gender', { gender: gender.toLowerCase() });
     }
 
     // 🏷️ 4. Category Filter
@@ -946,52 +946,34 @@ export class AdminService {
       query = query.andWhere('(speciality.name ILIKE :speciality OR speciality.id = :speciality)', { speciality: `%${speciality}%` });
     }
 
+    // 🛑 EXECUTION: Use getManyAndCount to get both results and total count efficiently
+    const [users, total] = await query.getManyAndCount();
 
-    // 🛑 CORRECTION: Get the total count first using a separate query
-    // Create a count query based on the main query, but select only the count
-    const countQuery = query.clone().select('COUNT(DISTINCT user.id)', 'count');
-    const totalResult = await countQuery.getRawOne();
-    const total = parseInt(totalResult?.count || 0, 10);
-
-    // 2. Execute the list query with pagination applied
-    const rawResults = await query
-      .orderBy('user.created_at', 'DESC')
-      .offset(skip)
-      .limit(limitNum)
-      .getRawMany(); // Use getRawMany()
-
-    // ... (Mapping logic remains the same) ...
-
-    // To correctly handle raw results with joined data:
-    const students = rawResults.map(r => {
+    // 6. Final Mapping (No longer uses raw results, so it's much cleaner)
+    const students = users.map(user => {
       // Calculate age from date_of_birth (if available)
-      const age = r.profile_date_of_birth
-        ? Math.floor((new Date().getTime() - new Date(r.profile_date_of_birth).getTime()) / 3.15576e+10)
+      const age = user.profile?.dateOfBirth
+        ? Math.floor((new Date().getTime() - new Date(user.profile.dateOfBirth).getTime()) / 3.15576e+10)
         : null;
 
       return {
-        // Map User fields (aliased as user_)
-        id: r.user_id,
-        email: r.user_email,
-        createdAt: r.user_created_at,
-        // Map Profile fields (aliased as profile_)
+        id: user.id,
+        email: user.email,
+        createdAt: user.created_at,
         profile: {
-          firstName: r.profile_first_name,
-          lastName: r.profile_last_name,
-          fullName: `${r.profile_first_name || ''} ${r.profile_last_name || ''}`.trim() || 'N/A',
-          photoUrl: r.profile_photoUrl,
-          country: r.profile_country,
-          state: r.profile_state,
-          dateOfBirth: r.profile_date_of_birth,
-          gender: r.profile_gender,
+          firstName: user.profile.firstName,
+          lastName: user.profile.lastName,
+          fullName: `${user.profile.firstName || ''} ${user.profile.lastName || ''}`.trim() || 'N/A',
+          photoUrl: user.profile.photoUrl,
+          country: user.profile.country, // Assuming these are loaded relations/objects
+          state: user.profile.state,     // Assuming these are loaded relations/objects
+          dateOfBirth: user.profile.dateOfBirth,
+          gender: user.profile.gender,
           age: age, // Calculated age
-          // Map Category fields (aliased as category_)
-          category: r.category_id ? { id: r.category_id, name: r.category_name } : null,
-          // Map Speciality fields (aliased as speciality_)
-          speciality: r.speciality_id ? { id: r.speciality_id, name: r.speciality_name } : null,
+          category: user.profile.category || null,
+          speciality: user.profile.speciality || null,
         },
-        // Aggregated Data
-        enrollmentDate: this.formatDate(r.user_created_at), // Assuming first enrollment date is join date
+        // Enrollment data removed from the query, so it's not mapped
       };
     });
 
