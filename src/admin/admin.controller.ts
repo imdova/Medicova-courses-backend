@@ -134,6 +134,83 @@ export class AdminController {
     return this.adminService.getTimeSeriesStats(period, type);
   }
 
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:instructors:list') // Requires new permission
+  @Get('instructors')
+  @ApiOperation({ summary: 'Get all instructors in the system, paginated and searchable by name' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number for pagination (default: 1)'
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of items per page (default: 10)'
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Search term to filter instructors by first or last name'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of instructors retrieved successfully',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async getAllInstructors(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('search') search?: string,
+  ): Promise<any> {
+    return this.adminService.getAllInstructors(page, limit, search);
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:students:list:detailed')
+  @Get('students-information')
+  @ApiOperation({ summary: 'Get all students in the system, paginated and searchable by name/email' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number for pagination (default: 1)'
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of items per page (default: 10)'
+  })
+  @ApiQuery({ // 👈 New: Added search parameter to the API documentation
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Search term to filter students by first name, last name, or email.'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of students retrieved successfully',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async getAllStudentsInformation( // 👈 Updated: Added search parameter to the method signature
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('search') search?: string,
+  ): Promise<any> {
+    // Calling the updated service method
+    return this.adminService.getAllStudentsInformation(page, limit, search);
+  }
+
   // ---
   // 🟢 IDENTITY VERIFICATION ENDPOINTS
   // ---
