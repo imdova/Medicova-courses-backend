@@ -736,4 +736,52 @@ export class AdminService {
 
     return this.userRepository.save(user);
   }
+
+  /** ----------------- INSTRUCTOR LISTING ----------------- */
+  async getAllInstructors(page = 1, limit = 10, search?: string): Promise<any> {
+    const instructorRoleId = await this.getRoleId('instructor');
+    if (!instructorRoleId) {
+      // Return a standard empty structure
+      return { instructors: [], pagination: this.paginationMeta(1, limit, 0) };
+    }
+
+    const pageNum = Math.max(1, parseInt(page + '', 10) || 1);
+    const limitNum = Math.min(Math.max(1, parseInt(limit + '', 10) || 10), 100);
+    const skip = (pageNum - 1) * limitNum;
+
+    let query = this.userRepository
+      .createQueryBuilder('user')
+      // Use leftJoinAndSelect to fetch all fields from User and Profile
+      .leftJoinAndSelect('user.profile', 'profile')
+      .where('user.roleId = :roleId', { roleId: instructorRoleId });
+
+    // 🔍 Apply search filter if a term is provided
+    if (search) {
+      const searchTerm = `%${search.toLowerCase()}%`;
+      query = query.andWhere(
+        // Search by first name OR last name OR email
+        `(LOWER(profile.firstName) LIKE :searchTerm OR LOWER(profile.lastName) LIKE :searchTerm OR LOWER(user.email) LIKE :searchTerm)`,
+        { searchTerm },
+      );
+    }
+
+    // Get the full User and Profile entities
+    const [instructors, total] = await query
+      .orderBy('user.created_at', 'DESC')
+      .skip(skip)
+      .take(limitNum)
+      .getManyAndCount(); // getManyAndCount fetches all selected fields
+
+    // Return the full entity data and pagination metadata
+    return {
+      // Map to ensure the 'profile' is cleanly attached and add a 'fullName' for convenience
+      instructors: instructors.map((i) => ({
+        ...i, // Spread all fields from the User entity
+        profile: i.profile ? { // Spread all fields from the Profile entity
+          ...i.profile,
+        } : null,
+      })),
+      pagination: this.paginationMeta(pageNum, limitNum, total),
+    };
+  }
 }
