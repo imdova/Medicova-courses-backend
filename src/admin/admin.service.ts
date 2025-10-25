@@ -784,4 +784,49 @@ export class AdminService {
       pagination: this.paginationMeta(pageNum, limitNum, total),
     };
   }
+
+  /** ----------------- STUDENT LISTING ----------------- */
+  async getAllStudentsInformation(page = 1, limit = 10, search?: string): Promise<any> { // 👈 Updated: Added search parameter
+    const studentRoleId = await this.getRoleId('student');
+    if (!studentRoleId) {
+      return { students: [], pagination: this.paginationMeta(1, limit, 0) };
+    }
+
+    const pageNum = Math.max(1, parseInt(page + '', 10) || 1);
+    const limitNum = Math.min(Math.max(1, parseInt(limit + '', 10) || 10), 100);
+    const skip = (pageNum - 1) * limitNum;
+
+    let query = this.userRepository
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.profile', 'profile') // 👈 Select all profile data
+      .where('user.roleId = :roleId', { roleId: studentRoleId });
+
+    // 🔍 Apply search filter if a term is provided (logic reused from previous steps)
+    if (search) {
+      const searchTerm = `%${search.toLowerCase()}%`;
+      query = query.andWhere(
+        // Search by first name OR last name OR email
+        `(LOWER(profile.firstName) LIKE :searchTerm OR LOWER(profile.lastName) LIKE :searchTerm OR LOWER(user.email) LIKE :searchTerm)`,
+        { searchTerm },
+      );
+    }
+
+    // 👈 Get the full User and Profile entities
+    const [students, total] = await query
+      .orderBy('user.created_at', 'DESC')
+      .skip(skip)
+      .take(limitNum)
+      .getManyAndCount();
+
+    return {
+      // 👈 Return all entity data
+      students: students.map((s) => ({
+        ...s, // Spread all fields from the User entity
+        profile: s.profile ? { // Spread all fields from the Profile entity
+          ...s.profile,
+        } : null,
+      })),
+      pagination: this.paginationMeta(pageNum, limitNum, total),
+    };
+  }
 }
