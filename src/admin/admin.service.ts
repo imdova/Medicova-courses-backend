@@ -839,24 +839,32 @@ export class AdminService {
     const studentRoleId = await this.getRoleId('student');
     if (!studentRoleId) return [];
 
+    // Assuming this counts all students needed for the percentage denominator
     const totalStudents = await this.userRepository.count({ where: { role: { id: studentRoleId } } });
+
+    // 1. Define the alias as all lowercase: 'studentcount'
+    const GEO_COUNT_ALIAS = 'studentcount';
 
     const geoStats = await this.profileRepository
       .createQueryBuilder('profile')
       .innerJoin('profile.user', 'user')
       .select('profile.country', 'country')
-      .addSelect('COUNT(user.id)', 'studentCount')
+      // ✅ FIX 1: Use a clean, lowercase alias in addSelect
+      .addSelect('COUNT(user.id)', GEO_COUNT_ALIAS)
       .where('user.roleId = :roleId', { roleId: studentRoleId })
       .andWhere('profile.country IS NOT NULL')
       .groupBy('profile.country')
-      .orderBy('studentCount', 'DESC')
+      // ✅ FIX 2: Use the exact lowercase alias in orderBy
+      // This is necessary because TypeORM won't quote it if it's all lowercase.
+      .orderBy(GEO_COUNT_ALIAS, 'DESC')
       .getRawMany();
 
     return geoStats.map(stat => ({
       country: stat.country,
-      students: parseInt(stat.studentcount, 10),
+      // ✅ FIX 3: Access the property as all lowercase
+      students: parseInt(stat[GEO_COUNT_ALIAS], 10),
       percentage: totalStudents > 0 ?
-        Math.round((parseInt(stat.studentcount, 10) / totalStudents) * 1000) / 10 : 0, // e.g., 30.2
+        Math.round((parseInt(stat[GEO_COUNT_ALIAS], 10) / totalStudents) * 1000) / 10 : 0,
     }));
   }
 
