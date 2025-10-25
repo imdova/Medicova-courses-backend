@@ -13,6 +13,7 @@ import { Quiz } from 'src/quiz/entities/quiz.entity';
 import { QuizQuestion } from 'src/quiz/entities/quiz-question.entity';
 import { QuizAttempt } from 'src/quiz/entities/quiz-attempts.entity';
 import { Question } from 'src/quiz/entities/question.entity';
+import { GenderFilter } from './admin.controller';
 
 @Injectable()
 export class AdminService {
@@ -603,10 +604,18 @@ export class AdminService {
     // 3. Build the dynamic query
     let query = repo
       .createQueryBuilder(alias)
-      .select(`DATE_TRUNC('${datePart}', ${alias}.created_at)`, 'date_group')
+      // FIX 1: Use AT TIME ZONE 'UTC' to standardize the time before truncation.
+      // This is the most likely cause of month-off errors due to timezone/DST shifts.
+      .select(`DATE_TRUNC('${datePart}', ${alias}.created_at AT TIME ZONE 'UTC')`, 'date_group')
       .addSelect(`COUNT(${alias}.id)`, 'count')
+      // FIX 2: Apply the endDate filter inclusively (or adjust it)
       .where(`${alias}.created_at >= :startDate`, { startDate })
-      .andWhere(`${alias}.created_at <= :endDate`, { endDate })
+      .andWhere(`${alias}.created_at < :endDate`, {
+        // Use '<' instead of '<=' and set endDate to midnight of the *next* day, 
+        // or rely on the date object boundary. We'll use the original endDate object 
+        // but ensure the application date is correctly set to end-of-day for the filter.
+        endDate
+      })
       .groupBy('date_group')
       .orderBy('date_group', 'ASC');
 
@@ -797,8 +806,82 @@ export class AdminService {
     };
   }
 
-  /** ----------------- STUDENT LISTING ----------------- */
-  async getAllStudentsInformation(page = 1, limit = 10, search?: string): Promise<any> { // 👈 Updated: Added search parameter
+  // -----------------------------------------------------------------
+  // 🟢 1. STUDENT DASHBOARD OVERVIEW (SECTION 1)
+  // -----------------------------------------------------------------
+  async getStudentOverviewStats(period: string): Promise<any> {
+    // Execute time-series for students and global counts in parallel
+    const [timeSeriesData, totalStudents, totalCourses, totalEnrollments] = await Promise.all([
+      // Reusing existing getTimeSeriesStats method with type 'students'
+      this.getTimeSeriesStats(period, 'students'),
+      // Total Students (assuming published/active status is counted)
+      this.userRepository.count({ where: { role: { name: 'student' } } }),
+      // Total Courses (assuming only published active courses)
+      this.courseRepository.count({
+        where: { status: 'published' as any, isActive: true },
+      }),
+      // Total Enrollments (CourseStudent count)
+      this.courseStudentRepo.count(),
+    ]);
+
+    return {
+      totalStudents,
+      totalCourses,
+      totalEnrollments,
+      timeSeries: timeSeriesData,
+    };
+  }
+
+  // -----------------------------------------------------------------
+  // 🟢 2. STUDENT GEOGRAPHIC STATS (SECTION 2)
+  // -----------------------------------------------------------------
+  async getStudentGeoStats(): Promise<any> {
+    const studentRoleId = await this.getRoleId('student');
+    if (!studentRoleId) return [];
+
+    // Assuming this counts all students needed for the percentage denominator
+    const totalStudents = await this.userRepository.count({ where: { role: { id: studentRoleId } } });
+
+    // 1. Define the alias as all lowercase: 'studentcount'
+    const GEO_COUNT_ALIAS = 'studentcount';
+
+    const geoStats = await this.profileRepository
+      .createQueryBuilder('profile')
+      .innerJoin('profile.user', 'user')
+      .select('profile.country', 'country')
+      // ✅ FIX 1: Use a clean, lowercase alias in addSelect
+      .addSelect('COUNT(user.id)', GEO_COUNT_ALIAS)
+      .where('user.roleId = :roleId', { roleId: studentRoleId })
+      .andWhere('profile.country IS NOT NULL')
+      .groupBy('profile.country')
+      // ✅ FIX 2: Use the exact lowercase alias in orderBy
+      // This is necessary because TypeORM won't quote it if it's all lowercase.
+      .orderBy(GEO_COUNT_ALIAS, 'DESC')
+      .getRawMany();
+
+    return geoStats.map(stat => ({
+      country: stat.country,
+      // ✅ FIX 3: Access the property as all lowercase
+      students: parseInt(stat[GEO_COUNT_ALIAS], 10),
+      percentage: totalStudents > 0 ?
+        Math.round((parseInt(stat[GEO_COUNT_ALIAS], 10) / totalStudents) * 1000) / 10 : 0,
+    }));
+  }
+
+  // -----------------------------------------------------------------
+  // 🟢 3. MODIFIED: DETAILED STUDENTS LIST (SECTION 3) - CORRECTION
+  // -----------------------------------------------------------------
+  async getAllStudentsInformation(
+    page = 1,
+    limit = 10,
+    search?: string,
+    minAge?: number,
+    maxAge?: number,
+    gender?: GenderFilter,
+    category?: string,
+    speciality?: string,
+  ): Promise<any> {
+
     const studentRoleId = await this.getRoleId('student');
     if (!studentRoleId) {
       return { students: [], pagination: this.paginationMeta(1, limit, 0) };
@@ -810,34 +893,92 @@ export class AdminService {
 
     let query = this.userRepository
       .createQueryBuilder('user')
-      .leftJoinAndSelect('user.profile', 'profile') // 👈 Select all profile data
-      .where('user.roleId = :roleId', { roleId: studentRoleId });
+      .leftJoinAndSelect('user.profile', 'profile')
+      .leftJoinAndSelect('profile.category', 'category') // Join to ProfileCategory
+      .leftJoinAndSelect('profile.speciality', 'speciality') // Join to ProfileSpeciality
+      // 🛑 Removed: .leftJoin(CourseStudent, 'cs', 'cs.student_id = user.id') 
+      .where('user.roleId = :roleId', { roleId: studentRoleId })
+      // 🛑 Removed: .groupBy('user.id, profile.id, category.id, speciality.id') 
+      .orderBy('user.created_at', 'DESC') // Ordering is now part of the main query
+      .offset(skip)
+      .limit(limitNum);
 
-    // 🔍 Apply search filter if a term is provided (logic reused from previous steps)
+    // 🔍 1. Search Filter (by name/email)
     if (search) {
       const searchTerm = `%${search.toLowerCase()}%`;
       query = query.andWhere(
-        // Search by first name OR last name OR email
         `(LOWER(profile.firstName) LIKE :searchTerm OR LOWER(profile.lastName) LIKE :searchTerm OR LOWER(user.email) LIKE :searchTerm)`,
         { searchTerm },
       );
     }
 
-    // 👈 Get the full User and Profile entities
-    const [students, total] = await query
-      .orderBy('user.created_at', 'DESC')
-      .skip(skip)
-      .take(limitNum)
-      .getManyAndCount();
+    // Helper function to calculate DOB based on age
+    const getDateOfBirth = (age: number, isMin: boolean) => {
+      const today = new Date();
+      const year = today.getFullYear() - age;
+      // Use precise dates for month/day boundaries
+      return new Date(year, isMin ? 11 : 0, isMin ? 31 : 1);
+    };
+
+    // 👴 2. Age Filter (based on date_of_birth in Profile)
+    if (minAge !== undefined) {
+      const maxDOB = getDateOfBirth(minAge, true); // Older than minAge means DOB is before maxDOB
+      query = query.andWhere('profile.dateOfBirth <= :maxDOB', { maxDOB });
+    }
+    if (maxAge !== undefined) {
+      const minDOB = getDateOfBirth(maxAge, false); // Younger than maxAge means DOB is after minDOB
+      query = query.andWhere('profile.dateOfBirth >= :minDOB', { minDOB });
+    }
+
+    // 🚻 3. Gender Filter
+    if (gender && gender.toLowerCase() !== 'all') {
+      // Use the simpler column name (TypeORM handles case) and rely on the database value
+      query = query.andWhere('profile.gender = :gender', { gender: gender.toLowerCase() });
+    }
+
+    // 🏷️ 4. Category Filter
+    if (category) {
+      query = query.andWhere('(category.name ILIKE :category OR category.id = :category)', { category: `%${category}%` });
+    }
+
+    // ⭐️ 5. Speciality Filter
+    if (speciality) {
+      query = query.andWhere('(speciality.name ILIKE :speciality OR speciality.id = :speciality)', { speciality: `%${speciality}%` });
+    }
+
+    // 🛑 EXECUTION: Use getManyAndCount to get both results and total count efficiently
+    const [users, total] = await query.getManyAndCount();
+
+    // 6. Final Mapping (No longer uses raw results, so it's much cleaner)
+    const students = users.map(user => {
+      // Calculate age from date_of_birth (if available)
+      const age = user.profile?.dateOfBirth
+        ? Math.floor((new Date().getTime() - new Date(user.profile.dateOfBirth).getTime()) / 3.15576e+10)
+        : null;
+
+      return {
+        id: user.id,
+        email: user.email,
+        createdAt: user.created_at,
+        profile: {
+          firstName: user.profile.firstName,
+          lastName: user.profile.lastName,
+          fullName: `${user.profile.firstName || ''} ${user.profile.lastName || ''}`.trim() || 'N/A',
+          photoUrl: user.profile.photoUrl,
+          country: user.profile.country, // Assuming these are loaded relations/objects
+          state: user.profile.state,     // Assuming these are loaded relations/objects
+          dateOfBirth: user.profile.dateOfBirth,
+          gender: user.profile.gender,
+          age: age, // Calculated age
+          category: user.profile.category || null,
+          speciality: user.profile.speciality || null,
+        },
+        // Enrollment data removed from the query, so it's not mapped
+      };
+    });
 
     return {
-      // 👈 Return all entity data
-      students: students.map((s) => ({
-        ...s, // Spread all fields from the User entity
-        profile: s.profile ? { // Spread all fields from the Profile entity
-          ...s.profile,
-        } : null,
-      })),
+      students,
       pagination: this.paginationMeta(pageNum, limitNum, total),
     };
   }
