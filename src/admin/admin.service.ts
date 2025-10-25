@@ -898,9 +898,8 @@ export class AdminService {
       .leftJoinAndSelect('user.profile', 'profile')
       .leftJoinAndSelect('profile.category', 'category') // Join to ProfileCategory
       .leftJoinAndSelect('profile.speciality', 'speciality') // Join to ProfileSpeciality
-      .leftJoin(CourseStudent, 'cs', 'cs.studentId = user.id') // Join for enrollment count
+      .leftJoin(CourseStudent, 'cs', 'cs.student_id = user.id')
       .where('user.roleId = :roleId', { roleId: studentRoleId })
-      .addSelect('COUNT(cs.id)', 'totalEnrollments') // Select total enrollments
       .groupBy('user.id, profile.id, category.id, speciality.id');
 
     // ... (All filter logic for search, age, gender, category, and speciality remains the same) ...
@@ -933,7 +932,8 @@ export class AdminService {
 
     // 🚻 3. Gender Filter
     if (gender && gender.toLowerCase() !== 'all') {
-      query = query.andWhere('LOWER(profile.gender) = :gender', { gender: gender.toLowerCase() });
+      // 🛑 FIX: Explicitly cast the ENUM column (profile.gender) to TEXT before using LOWER()
+      query = query.andWhere(`LOWER(CAST(profile.gender AS TEXT)) = :gender`, { gender: gender.toLowerCase() });
     }
 
     // 🏷️ 4. Category Filter
@@ -976,9 +976,9 @@ export class AdminService {
         createdAt: r.user_created_at,
         // Map Profile fields (aliased as profile_)
         profile: {
-          firstName: r.profile_firstName,
-          lastName: r.profile_lastName,
-          fullName: `${r.profile_firstName || ''} ${r.profile_lastName || ''}`.trim() || 'N/A',
+          firstName: r.profile_first_name,
+          lastName: r.profile_last_name,
+          fullName: `${r.profile_first_name || ''} ${r.profile_last_name || ''}`.trim() || 'N/A',
           photoUrl: r.profile_photoUrl,
           country: r.profile_country,
           state: r.profile_state,
@@ -991,7 +991,6 @@ export class AdminService {
           speciality: r.speciality_id ? { id: r.speciality_id, name: r.speciality_name } : null,
         },
         // Aggregated Data
-        totalEnrollments: parseInt(r.totalEnrollments, 10) || 0,
         enrollmentDate: this.formatDate(r.user_created_at), // Assuming first enrollment date is join date
       };
     });

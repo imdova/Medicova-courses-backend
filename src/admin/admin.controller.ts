@@ -22,7 +22,6 @@ export enum GenderFilter {
   ALL = 'all',
   MALE = 'male',
   FEMALE = 'female',
-  OTHER = 'other',
 }
 
 @ApiTags('Admin')
@@ -248,20 +247,31 @@ export class AdminController {
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('search') search?: string,
-    @Query('minAge') minAge?: number,
-    @Query('maxAge') maxAge?: number,
+    @Query('minAge') minAgeStr?: string,
+    @Query('maxAge') maxAgeStr?: string,
     @Query('gender') gender?: GenderFilter,
     @Query('category') category?: string,
     @Query('speciality') speciality?: string,
   ): Promise<any> {
-    // Add basic validation for age range
-    if ((minAge !== undefined && isNaN(+minAge)) || (maxAge !== undefined && isNaN(+maxAge))) {
+    // Convert to number after checking for undefined/null/empty string
+    const minAge = minAgeStr ? parseInt(minAgeStr, 10) : undefined;
+    const maxAge = maxAgeStr ? parseInt(maxAgeStr, 10) : undefined;
+
+    // 🛑 FIX: Simplify the validation check to only check the PARSED number
+    // The previous check was comparing the original string/number input.
+    if ((minAge !== undefined && isNaN(minAge)) || (maxAge !== undefined && isNaN(maxAge))) {
       throw new BadRequestException('minAge and maxAge must be numbers.');
     }
+
+    // Also, ensure minAge is not greater than maxAge, if both are present
+    if (minAge !== undefined && maxAge !== undefined && minAge > maxAge) {
+      throw new BadRequestException('minAge cannot be greater than maxAge.');
+    }
+
     return this.adminService.getAllStudentsInformation(
       page, limit, search,
-      minAge ? +minAge : undefined,
-      maxAge ? +maxAge : undefined,
+      minAge, // Pass the parsed number
+      maxAge, // Pass the parsed number
       gender, category, speciality
     );
   }
