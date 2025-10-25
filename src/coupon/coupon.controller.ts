@@ -53,7 +53,7 @@ export class CouponController {
     @Body() createCouponDto: CreateCouponDto,
     @Req() req,
   ): Promise<Coupon> {
-    return this.couponService.createWithCourses(createCouponDto, req.user.sub, req.user.role);
+    return this.couponService.createWithCourses(createCouponDto, req.user.sub, req.user.role, req.user.academyId);
   }
 
   @Get()
@@ -68,7 +68,7 @@ export class CouponController {
     @Paginate() query: PaginateQuery,
     @Req() req,
   ): Promise<Paginated<Coupon>> {
-    return this.couponService.findAll(query, req.user.sub, req.user.role);
+    return this.couponService.findAll(query, req.user.sub, req.user.role, req.user.academyId);
   }
 
   @Get(':couponCode/check')
