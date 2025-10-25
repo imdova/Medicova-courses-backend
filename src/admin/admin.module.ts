@@ -10,9 +10,13 @@ import { CourseProgress } from 'src/course/course-progress/entities/course-progr
 import { CourseSectionItem } from 'src/course/course-section/entities/course-section-item.entity';
 import { CourseStudent } from 'src/course/entities/course-student.entity';
 import { IdentityVerification } from 'src/user/entities/identity-verification.entity';
+import { Quiz } from 'src/quiz/entities/quiz.entity';
+import { QuizQuestion } from 'src/quiz/entities/quiz-question.entity';
+import { QuizAttempt } from 'src/quiz/entities/quiz-attempts.entity';
+import { Question } from 'src/quiz/entities/question.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Course, Profile, Role, CourseSectionItem, CourseProgress, CourseStudent, IdentityVerification])],
+  imports: [TypeOrmModule.forFeature([User, Course, Profile, Role, CourseSectionItem, CourseProgress, CourseStudent, IdentityVerification, Quiz, QuizQuestion, QuizAttempt, Question])],
   controllers: [AdminController],
   providers: [AdminService],
 })
