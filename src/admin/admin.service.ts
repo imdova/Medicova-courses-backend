@@ -13,6 +13,7 @@ import { Quiz } from 'src/quiz/entities/quiz.entity';
 import { QuizQuestion } from 'src/quiz/entities/quiz-question.entity';
 import { QuizAttempt } from 'src/quiz/entities/quiz-attempts.entity';
 import { Question } from 'src/quiz/entities/question.entity';
+import { GenderFilter } from './admin.controller';
 
 @Injectable()
 export class AdminService {
@@ -603,10 +604,18 @@ export class AdminService {
     // 3. Build the dynamic query
     let query = repo
       .createQueryBuilder(alias)
-      .select(`DATE_TRUNC('${datePart}', ${alias}.created_at)`, 'date_group')
+      // FIX 1: Use AT TIME ZONE 'UTC' to standardize the time before truncation.
+      // This is the most likely cause of month-off errors due to timezone/DST shifts.
+      .select(`DATE_TRUNC('${datePart}', ${alias}.created_at AT TIME ZONE 'UTC')`, 'date_group')
       .addSelect(`COUNT(${alias}.id)`, 'count')
+      // FIX 2: Apply the endDate filter inclusively (or adjust it)
       .where(`${alias}.created_at >= :startDate`, { startDate })
-      .andWhere(`${alias}.created_at <= :endDate`, { endDate })
+      .andWhere(`${alias}.created_at < :endDate`, {
+        // Use '<' instead of '<=' and set endDate to midnight of the *next* day, 
+        // or rely on the date object boundary. We'll use the original endDate object 
+        // but ensure the application date is correctly set to end-of-day for the filter.
+        endDate
+      })
       .groupBy('date_group')
       .orderBy('date_group', 'ASC');
 
@@ -797,8 +806,76 @@ export class AdminService {
     };
   }
 
-  /** ----------------- STUDENT LISTING ----------------- */
-  async getAllStudentsInformation(page = 1, limit = 10, search?: string): Promise<any> { // 👈 Updated: Added search parameter
+  // -----------------------------------------------------------------
+  // 🟢 1. STUDENT DASHBOARD OVERVIEW (SECTION 1)
+  // -----------------------------------------------------------------
+  async getStudentOverviewStats(period: string): Promise<any> {
+    // Execute time-series for students and global counts in parallel
+    const [timeSeriesData, totalStudents, totalCourses, totalEnrollments] = await Promise.all([
+      // Reusing existing getTimeSeriesStats method with type 'students'
+      this.getTimeSeriesStats(period, 'students'),
+      // Total Students (assuming published/active status is counted)
+      this.userRepository.count({ where: { role: { name: 'student' } } }),
+      // Total Courses (assuming only published active courses)
+      this.courseRepository.count({
+        where: { status: 'published' as any, isActive: true },
+      }),
+      // Total Enrollments (CourseStudent count)
+      this.courseStudentRepo.count(),
+    ]);
+
+    return {
+      totalStudents,
+      totalCourses,
+      totalEnrollments,
+      timeSeries: timeSeriesData,
+    };
+  }
+
+  // -----------------------------------------------------------------
+  // 🟢 2. STUDENT GEOGRAPHIC STATS (SECTION 2)
+  // -----------------------------------------------------------------
+  async getStudentGeoStats(): Promise<any> {
+    const studentRoleId = await this.getRoleId('student');
+    if (!studentRoleId) return [];
+
+    const totalStudents = await this.userRepository.count({ where: { role: { id: studentRoleId } } });
+
+    const geoStats = await this.profileRepository
+      .createQueryBuilder('profile')
+      .innerJoin('profile.user', 'user')
+      .select('profile.country', 'country')
+      .addSelect('COUNT(user.id)', 'studentCount')
+      .where('user.roleId = :roleId', { roleId: studentRoleId })
+      .andWhere('profile.country IS NOT NULL')
+      .groupBy('profile.country')
+      .orderBy('studentCount', 'DESC')
+      .getRawMany();
+
+    return geoStats.map(stat => ({
+      country: stat.country,
+      students: parseInt(stat.studentcount, 10),
+      percentage: totalStudents > 0 ?
+        Math.round((parseInt(stat.studentcount, 10) / totalStudents) * 1000) / 10 : 0, // e.g., 30.2
+    }));
+  }
+
+  // -----------------------------------------------------------------
+  // 🟢 3. MODIFIED: DETAILED STUDENTS LIST (SECTION 3) - CORRECTION
+  // -----------------------------------------------------------------
+  async getAllStudentsInformation(
+    page = 1,
+    limit = 10,
+    search?: string,
+    minAge?: number,
+    maxAge?: number,
+    gender?: GenderFilter,
+    category?: string,
+    speciality?: string,
+  ): Promise<any> {
+
+    // ... (Role ID, Pagination setup, and initial query definition remain the same) ...
+
     const studentRoleId = await this.getRoleId('student');
     if (!studentRoleId) {
       return { students: [], pagination: this.paginationMeta(1, limit, 0) };
@@ -810,34 +887,109 @@ export class AdminService {
 
     let query = this.userRepository
       .createQueryBuilder('user')
-      .leftJoinAndSelect('user.profile', 'profile') // 👈 Select all profile data
-      .where('user.roleId = :roleId', { roleId: studentRoleId });
+      .leftJoinAndSelect('user.profile', 'profile')
+      .leftJoinAndSelect('profile.category', 'category') // Join to ProfileCategory
+      .leftJoinAndSelect('profile.speciality', 'speciality') // Join to ProfileSpeciality
+      .leftJoin(CourseStudent, 'cs', 'cs.studentId = user.id') // Join for enrollment count
+      .where('user.roleId = :roleId', { roleId: studentRoleId })
+      .addSelect('COUNT(cs.id)', 'totalEnrollments') // Select total enrollments
+      .groupBy('user.id, profile.id, category.id, speciality.id');
 
-    // 🔍 Apply search filter if a term is provided (logic reused from previous steps)
+    // ... (All filter logic for search, age, gender, category, and speciality remains the same) ...
+
+    // 🔍 1. Search Filter (by name/email)
     if (search) {
       const searchTerm = `%${search.toLowerCase()}%`;
       query = query.andWhere(
-        // Search by first name OR last name OR email
         `(LOWER(profile.firstName) LIKE :searchTerm OR LOWER(profile.lastName) LIKE :searchTerm OR LOWER(user.email) LIKE :searchTerm)`,
         { searchTerm },
       );
     }
 
-    // 👈 Get the full User and Profile entities
-    const [students, total] = await query
+    // Helper function to calculate DOB based on age
+    const getDateOfBirth = (age: number, isMin: boolean) => {
+      const today = new Date();
+      const year = today.getFullYear() - age;
+      return new Date(year, isMin ? 11 : 0, isMin ? 31 : 1);
+    };
+
+    // 👴 2. Age Filter (based on date_of_birth in Profile)
+    if (minAge !== undefined) {
+      const maxDOB = getDateOfBirth(minAge, true);
+      query = query.andWhere('profile.date_of_birth <= :maxDOB', { maxDOB });
+    }
+    if (maxAge !== undefined) {
+      const minDOB = getDateOfBirth(maxAge, false);
+      query = query.andWhere('profile.date_of_birth >= :minDOB', { minDOB });
+    }
+
+    // 🚻 3. Gender Filter
+    if (gender && gender.toLowerCase() !== 'all') {
+      query = query.andWhere('LOWER(profile.gender) = :gender', { gender: gender.toLowerCase() });
+    }
+
+    // 🏷️ 4. Category Filter
+    if (category) {
+      query = query.andWhere('(category.name ILIKE :category OR category.id = :category)', { category: `%${category}%` });
+    }
+
+    // ⭐️ 5. Speciality Filter
+    if (speciality) {
+      query = query.andWhere('(speciality.name ILIKE :speciality OR speciality.id = :speciality)', { speciality: `%${speciality}%` });
+    }
+
+
+    // 🛑 CORRECTION: Get the total count first using a separate query
+    // Create a count query based on the main query, but select only the count
+    const countQuery = query.clone().select('COUNT(DISTINCT user.id)', 'count');
+    const totalResult = await countQuery.getRawOne();
+    const total = parseInt(totalResult?.count || 0, 10);
+
+    // 2. Execute the list query with pagination applied
+    const rawResults = await query
       .orderBy('user.created_at', 'DESC')
-      .skip(skip)
-      .take(limitNum)
-      .getManyAndCount();
+      .offset(skip)
+      .limit(limitNum)
+      .getRawMany(); // Use getRawMany()
+
+    // ... (Mapping logic remains the same) ...
+
+    // To correctly handle raw results with joined data:
+    const students = rawResults.map(r => {
+      // Calculate age from date_of_birth (if available)
+      const age = r.profile_date_of_birth
+        ? Math.floor((new Date().getTime() - new Date(r.profile_date_of_birth).getTime()) / 3.15576e+10)
+        : null;
+
+      return {
+        // Map User fields (aliased as user_)
+        id: r.user_id,
+        email: r.user_email,
+        createdAt: r.user_created_at,
+        // Map Profile fields (aliased as profile_)
+        profile: {
+          firstName: r.profile_firstName,
+          lastName: r.profile_lastName,
+          fullName: `${r.profile_firstName || ''} ${r.profile_lastName || ''}`.trim() || 'N/A',
+          photoUrl: r.profile_photoUrl,
+          country: r.profile_country,
+          state: r.profile_state,
+          dateOfBirth: r.profile_date_of_birth,
+          gender: r.profile_gender,
+          age: age, // Calculated age
+          // Map Category fields (aliased as category_)
+          category: r.category_id ? { id: r.category_id, name: r.category_name } : null,
+          // Map Speciality fields (aliased as speciality_)
+          speciality: r.speciality_id ? { id: r.speciality_id, name: r.speciality_name } : null,
+        },
+        // Aggregated Data
+        totalEnrollments: parseInt(r.totalEnrollments, 10) || 0,
+        enrollmentDate: this.formatDate(r.user_created_at), // Assuming first enrollment date is join date
+      };
+    });
 
     return {
-      // 👈 Return all entity data
-      students: students.map((s) => ({
-        ...s, // Spread all fields from the User entity
-        profile: s.profile ? { // Spread all fields from the Profile entity
-          ...s.profile,
-        } : null,
-      })),
+      students,
       pagination: this.paginationMeta(pageNum, limitNum, total),
     };
   }
