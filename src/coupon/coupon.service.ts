@@ -72,19 +72,28 @@ export class CouponService {
     dto: CreateCouponDto,
     userId: string,
     role: string,
+    academyId?: string,
   ): Promise<Coupon> {
     let courseIds: string[] = [];
+    const createdByAcademy = role.includes('academy') && academyId;
+    let finalAcademyId: string | undefined = createdByAcademy ? academyId : undefined;
 
     switch (dto.applicable_for) {
       case CouponApplicability.ALL_INSTRUCTOR_COURSES:
         // ✅ Only instructors can use this
-        if (role !== 'instructor') {
+        // 🛑 NEW LOGIC for Academy Admin/User
+        if (role === 'academy_admin' && finalAcademyId) {
+          // Academy Admin: Use ALL courses in their academy
+          courseIds = await this.findIdsByAcademy(finalAcademyId);
+        } else if (role === 'instructor' || role === 'academy_user') {
+          // Instructor or Academy User: Use ALL courses created by them
+          courseIds = await this.findIdsByInstructor(userId);
+        } else {
           throw new HttpException(
-            'Only instructors can create coupons for all their courses.',
+            'Only instructors, academy users, or academy admins can use this applicability type.',
             HttpStatus.FORBIDDEN,
           );
         }
-        courseIds = await this.findIdsByInstructor(userId);
         break;
 
       case CouponApplicability.CATEGORY_COURSES:
@@ -177,6 +186,7 @@ export class CouponService {
     try {
       const coupon = this.couponRepository.create({
         ...dto,
+        academy_id: finalAcademyId,
         created_by: userId,
         course_ids: courseIds,
       });
@@ -208,17 +218,40 @@ export class CouponService {
     }
   }
 
+  // src/coupon/coupon.service.ts
+
   async findAll(
     query: PaginateQuery,
     userId: string,
     role: string,
+    academyId?: string, // Accepting the academyId from the controller
   ): Promise<Paginated<Coupon>> {
+
     const qb = this.couponRepository.createQueryBuilder('coupon');
 
-    // // ✅ Admins can view all coupons
-    // if (role.toLowerCase() !== 'admin') {
-    //   qb.where('coupon.created_by = :userId', { userId });
-    // }
+    const roleLower = role.toLowerCase();
+
+    // ✅ 1. Platform Admin (Role: 'admin') - Sees all coupons (no WHERE clause needed)
+    if (roleLower === 'admin') {
+      // No filter applied.
+    }
+    // ✅ 2. Academy Admin (Role: 'academy_admin') - Sees all coupons associated with their academy
+    else if (roleLower === 'academy_admin' && academyId) {
+      // Filter by the academy_id stored on the coupon
+      qb.where('coupon.academy_id = :academyId', { academyId });
+    }
+    // ✅ 3. Instructor/Academy User (Role: 'instructor' or 'academy_user') - Sees only coupons they created
+    else if (roleLower === 'instructor' || roleLower === 'academy_user') {
+      // Filter by the user who created the coupon
+      qb.where('coupon.created_by = :userId', { userId });
+    }
+    // ❌ Fallback: If any other role tries to access, they see nothing (or an empty list due to bad filter)
+    // For safety, explicitly filter by userId for non-admin/non-academy roles or roles without proper access
+    else {
+      // This ensures unauthenticated/unauthorized users get nothing specific.
+      // It's safe to default to filtering by user ID here.
+      qb.where('coupon.created_by = :userId', { userId });
+    }
 
     return paginate(query, qb, COUPON_PAGINATION_CONFIG);
   }
@@ -485,6 +518,23 @@ export class CouponService {
 
     const courses = await this.courseRepository.find({
       where,
+      select: ['id'],
+    });
+
+    return courses.map((c) => c.id);
+  }
+
+  /**
+   * Fetch all active and published courses in a specific academy.
+   * (for academy_admin ALL_INSTRUCTOR_COURSES)
+   */
+  async findIdsByAcademy(academyId: string): Promise<string[]> {
+    const courses = await this.courseRepository.find({
+      where: {
+        academy: { id: academyId }, // Assuming Course entity has a relation to Academy
+        isActive: true,
+        status: CourseStatus.PUBLISHED,
+      },
       select: ['id'],
     });
 
