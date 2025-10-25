@@ -178,7 +178,7 @@ export class AdminController {
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('admin:students:overview')
+  @RequirePermissions('admin:students:overview')
   @Get('students/overview')
   @ApiOperation({ summary: 'Get total students, courses, enrollments, and time-series data for the dashboard.' })
   @ApiQuery({
@@ -202,7 +202,7 @@ export class AdminController {
   // 🟢 NEW: STUDENT GEOGRAPHIC STATS (SECTION 2)
   // -----------------------------------------------------------------
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('admin:students:geo-stats')
+  @RequirePermissions('admin:students:geo-stats')
   @Get('students/geo-stats')
   @ApiOperation({ summary: 'Get student distribution aggregated by country/state.' })
   @ApiResponse({ status: 200, description: 'Geographic statistics retrieved successfully.' })
