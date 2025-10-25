@@ -111,4 +111,12 @@ export class Coupon extends BasicEntity {
 
   @Column('uuid', { array: true, nullable: true })
   course_ids: string[] | null;
+
+  // ✅ NEW COLUMN: Academy ID
+  @ApiPropertyOptional({
+    description: 'ID of the Academy this coupon belongs to (if created by an Academy Admin/User)',
+    format: 'uuid',
+  })
+  @Column({ type: 'uuid', nullable: true })
+  academy_id: string | null;
 }
