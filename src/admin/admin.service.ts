@@ -587,6 +587,10 @@ export class AdminService {
         alias = 'user';
         repo = this.userRepository;
         break;
+      case 'enrollments': // ✅ NEW CASE FOR ENROLLMENTS
+        alias = 'enrollment';
+        repo = this.courseStudentRepo; // Use the CourseStudent repository
+        break;
       default:
         return [];
     }
@@ -1068,14 +1072,20 @@ export class AdminService {
   // ============================================
   // Service Method - Add to AdminService
   // ============================================
-  async getEnrollmentsOverview(): Promise<any> {
+  async getEnrollmentsOverview(period: string): Promise<any> {
     try {
       const now = new Date();
+      // Assume startOfMonth and lastMonthRange helpers exist
       const startOfMonth = this.startOfMonth(now);
       const [startOfLastMonth, endOfLastMonth] = this.lastMonthRange(now);
 
-      // 1️⃣ Get enrollment counts in parallel
-      const [totalEnrollments, thisMonthEnrollments, lastMonthEnrollments] = await Promise.all([
+      // 1️⃣ Get counts and time series in parallel
+      const [
+        totalEnrollments,
+        thisMonthEnrollments,
+        lastMonthEnrollments,
+        enrollmentTimeSeries, // ✅ NEW: Time series data
+      ] = await Promise.all([
         this.courseStudentRepo.count(),
 
         this.courseStudentRepo
@@ -1090,6 +1100,9 @@ export class AdminService {
             endOfLastMonth,
           })
           .getCount(),
+
+        // ✅ NEW: Execute the time series stats call
+        this.getTimeSeriesStats(period, 'enrollments'),
       ]);
 
       // Early return if no enrollments
@@ -1100,6 +1113,7 @@ export class AdminService {
           completedEnrollments: 0,
           thisMonthEnrollments: 0,
           enrollmentRate: 0,
+          enrollmentTimeSeries: [], // Include the key for consistency
         };
       }
 
@@ -1168,12 +1182,14 @@ export class AdminService {
       // 6️⃣ Calculate enrollment rate (month-over-month)
       const enrollmentRate = this.calcPercentChange(thisMonthEnrollments, lastMonthEnrollments);
 
+      // 7️⃣ Return the final object including the time series data
       return {
         totalEnrollments,
         activeEnrollments,
         completedEnrollments,
         thisMonthEnrollments,
         enrollmentRate,
+        enrollmentTimeSeries, // ✅ Final result
       };
     } catch (error) {
       console.error('Failed to fetch enrollments overview', error.stack);

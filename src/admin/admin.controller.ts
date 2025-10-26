@@ -302,13 +302,20 @@ export class AdminController {
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @Get('enrollments')
   @ApiOperation({ summary: 'Get overall enrollment statistics' })
+  @ApiQuery({
+    name: 'period',
+    required: true,
+    enum: StatsPeriod,
+    description: 'The aggregation period for time-series data (yearly, monthly, or weekly)',
+  })
   @ApiOkResponse({
     description: 'Enrollment overview metrics calculated successfully',
   })
-  async getEnrollmentsOverview(@Req() req): Promise<any> {
-    // You can pass req.user.sub and req.user.role here if you need to scope the data
-    // For a platform-wide admin endpoint, we'll assume no scoping for now.
-    return this.adminService.getEnrollmentsOverview();
+  async getEnrollmentsOverview(@Query('period') period: StatsPeriod,): Promise<any> {
+    if (!Object.values(StatsPeriod).includes(period as StatsPeriod)) {
+      throw new BadRequestException('Invalid period. Must be yearly, monthly, or weekly.');
+    }
+    return this.adminService.getEnrollmentsOverview(period);
   }
 
   // ---
