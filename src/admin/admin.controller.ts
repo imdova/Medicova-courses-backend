@@ -301,7 +301,7 @@ export class AdminController {
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('admin:enrollments:overview')
+  @RequirePermissions('admin:enrollments:overview')
   @Get('enrollments/overview')
   @ApiOperation({ summary: 'Get overall enrollment statistics' })
   @ApiQuery({
@@ -321,7 +321,7 @@ export class AdminController {
   }
 
   @Get('enrollments-information')
-  //@RequirePermissions('admin:enrollments:list:detailed')
+  @RequirePermissions('admin:enrollments:list:detailed')
   @ApiOperation({ summary: 'Get detailed, paginated list of all enrollments with calculated status and progress.' })
   @ApiQuery({
     name: 'page',
