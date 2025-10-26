@@ -1,11 +1,12 @@
 import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service';
-import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiParam, ApiBody } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiParam, ApiBody, ApiOkResponse } from '@nestjs/swagger';
 import { PermissionsGuard } from 'src/auth/permission.guard';
 import { AuthGuard } from '@nestjs/passport';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 import { IdentityVerificationStatus } from 'src/user/entities/identity-verification.entity';
 import { RejectIdentityDto } from './dto/reject-identity.dto';
+import { EnrollmentsListResponseDto, EnrollmentStatus } from './dto/enrollment-detail.dto';
 
 // Define allowed periods for validation
 enum StatsPeriod {
@@ -297,6 +298,111 @@ export class AdminController {
     @Query('limit') limit: number = 10,
   ): Promise<{ quizzes: any; pagination: any }> {
     return this.adminService.getAllQuizzesForAdmin(page, limit);
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:enrollments:overview')
+  @Get('enrollments/overview')
+  @ApiOperation({ summary: 'Get overall enrollment statistics' })
+  @ApiQuery({
+    name: 'period',
+    required: true,
+    enum: StatsPeriod,
+    description: 'The aggregation period for time-series data (yearly, monthly, or weekly)',
+  })
+  @ApiOkResponse({
+    description: 'Enrollment overview metrics calculated successfully',
+  })
+  async getEnrollmentsOverview(@Query('period') period: StatsPeriod,): Promise<any> {
+    if (!Object.values(StatsPeriod).includes(period as StatsPeriod)) {
+      throw new BadRequestException('Invalid period. Must be yearly, monthly, or weekly.');
+    }
+    return this.adminService.getEnrollmentsOverview(period);
+  }
+
+  @Get('enrollments-information')
+  @RequirePermissions('admin:enrollments:list:detailed')
+  @ApiOperation({ summary: 'Get detailed, paginated list of all enrollments with calculated status and progress.' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number (default: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Items per page (default: 10, max: 100)',
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Search by student name, email, or course name',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: EnrollmentStatus,
+    description: 'Filter by enrollment status',
+  })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    type: String,
+    description: 'Filter enrollments from this date (ISO format: YYYY-MM-DD)',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    type: String,
+    description: 'Filter enrollments until this date (ISO format: YYYY-MM-DD)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Enrollments retrieved successfully',
+    type: EnrollmentsListResponseDto,
+  })
+  async getAllEnrollments(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('search') search?: string,
+    @Query('status') status?: EnrollmentStatus,
+    @Query('startDate') startDateStr?: string,
+    @Query('endDate') endDateStr?: string,
+  ): Promise<EnrollmentsListResponseDto> {
+    // Parse and validate dates
+    let startDate: Date | undefined;
+    let endDate: Date | undefined;
+
+    if (startDateStr) {
+      startDate = new Date(startDateStr);
+      if (isNaN(startDate.getTime())) {
+        throw new BadRequestException('Invalid startDate format. Use YYYY-MM-DD');
+      }
+    }
+
+    if (endDateStr) {
+      endDate = new Date(endDateStr);
+      if (isNaN(endDate.getTime())) {
+        throw new BadRequestException('Invalid endDate format. Use YYYY-MM-DD');
+      }
+    }
+
+    // Validate date range
+    if (startDate && endDate && startDate > endDate) {
+      throw new BadRequestException('startDate cannot be after endDate');
+    }
+
+    return this.adminService.getAllEnrollments(
+      page,
+      limit,
+      search,
+      status,
+      startDate,
+      endDate,
+    );
   }
 
   // ---
