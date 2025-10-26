@@ -300,7 +300,8 @@ export class AdminController {
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  @Get('enrollments')
+  //@RequirePermissions('admin:enrollments:overview')
+  @Get('enrollments/overview')
   @ApiOperation({ summary: 'Get overall enrollment statistics' })
   @ApiQuery({
     name: 'period',
