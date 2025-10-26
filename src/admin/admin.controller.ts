@@ -1,6 +1,6 @@
 import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service';
-import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiParam, ApiBody } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiParam, ApiBody, ApiOkResponse } from '@nestjs/swagger';
 import { PermissionsGuard } from 'src/auth/permission.guard';
 import { AuthGuard } from '@nestjs/passport';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
@@ -297,6 +297,18 @@ export class AdminController {
     @Query('limit') limit: number = 10,
   ): Promise<{ quizzes: any; pagination: any }> {
     return this.adminService.getAllQuizzesForAdmin(page, limit);
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @Get('enrollments')
+  @ApiOperation({ summary: 'Get overall enrollment statistics' })
+  @ApiOkResponse({
+    description: 'Enrollment overview metrics calculated successfully',
+  })
+  async getEnrollmentsOverview(@Req() req): Promise<any> {
+    // You can pass req.user.sub and req.user.role here if you need to scope the data
+    // For a platform-wide admin endpoint, we'll assume no scoping for now.
+    return this.adminService.getEnrollmentsOverview();
   }
 
   // ---

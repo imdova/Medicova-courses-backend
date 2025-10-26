@@ -1064,4 +1064,120 @@ export class AdminService {
       pagination: this.paginationMeta(pageNum, limitNum, totalFilteredQuizzes), // Use the filtered total for pagination
     };
   }
+
+  // ============================================
+  // Service Method - Add to AdminService
+  // ============================================
+  async getEnrollmentsOverview(): Promise<any> {
+    try {
+      const now = new Date();
+      const startOfMonth = this.startOfMonth(now);
+      const [startOfLastMonth, endOfLastMonth] = this.lastMonthRange(now);
+
+      // 1️⃣ Get enrollment counts in parallel
+      const [totalEnrollments, thisMonthEnrollments, lastMonthEnrollments] = await Promise.all([
+        this.courseStudentRepo.count(),
+
+        this.courseStudentRepo
+          .createQueryBuilder('cs')
+          .where('cs.created_at >= :startOfMonth', { startOfMonth })
+          .getCount(),
+
+        this.courseStudentRepo
+          .createQueryBuilder('cs')
+          .where('cs.created_at BETWEEN :startOfLastMonth AND :endOfLastMonth', {
+            startOfLastMonth,
+            endOfLastMonth,
+          })
+          .getCount(),
+      ]);
+
+      // Early return if no enrollments
+      if (totalEnrollments === 0) {
+        return {
+          totalEnrollments: 0,
+          activeEnrollments: 0,
+          completedEnrollments: 0,
+          thisMonthEnrollments: 0,
+          enrollmentRate: 0,
+        };
+      }
+
+      // 2️⃣ Get total items per course and progress data in parallel
+      const [totalItemsPerCourse, progressPerEnrollment] = await Promise.all([
+        // Total items in each course
+        this.courseSectionItemRepo
+          .createQueryBuilder('item')
+          .select('course.id', 'courseId')
+          .addSelect('COUNT(item.id)', 'totalItems')
+          .innerJoin('item.section', 'section')
+          .innerJoin('section.course', 'course')
+          .groupBy('course.id')
+          .getRawMany(),
+
+        // Completed items per enrollment
+        this.progressRepo
+          .createQueryBuilder('progress')
+          .select('courseStudent.id', 'courseStudentId')
+          .addSelect('course.id', 'courseId')
+          .addSelect(
+            'COUNT(DISTINCT CASE WHEN progress.completed = true THEN item.id END)',
+            'completedItems',
+          )
+          .innerJoin('progress.courseStudent', 'courseStudent')
+          .innerJoin('progress.item', 'item')
+          .innerJoin('item.section', 'section')
+          .innerJoin('section.course', 'course')
+          .groupBy('courseStudent.id')
+          .addGroupBy('course.id')
+          .getRawMany(),
+      ]);
+
+      // 3️⃣ Build course total items map
+      const totalItemsMap = new Map<string, number>(
+        totalItemsPerCourse.map((row) => [
+          row.courseid || row.courseId,
+          parseInt(row.totalitems || row.totalItems, 10) || 0,
+        ]),
+      );
+
+      // 4️⃣ Track which enrollments have progress
+      const enrollmentsWithProgress = new Set<string>();
+      let activeEnrollments = 0;
+      let completedEnrollments = 0;
+
+      progressPerEnrollment.forEach((row) => {
+        const courseStudentId = row.coursestudentid || row.courseStudentId;
+        const courseId = row.courseid || row.courseId;
+        const completedItems = parseInt(row.completeditems || row.completedItems, 10) || 0;
+        const totalItems = totalItemsMap.get(courseId) || 0;
+
+        enrollmentsWithProgress.add(courseStudentId);
+
+        if (completedItems > 0) {
+          if (totalItems > 0 && completedItems >= totalItems) {
+            // All items completed
+            completedEnrollments += 1;
+          } else {
+            // Some items completed (active)
+            activeEnrollments += 1;
+          }
+        }
+      });
+
+      // 6️⃣ Calculate enrollment rate (month-over-month)
+      const enrollmentRate = this.calcPercentChange(thisMonthEnrollments, lastMonthEnrollments);
+
+      return {
+        totalEnrollments,
+        activeEnrollments,
+        completedEnrollments,
+        thisMonthEnrollments,
+        enrollmentRate,
+      };
+    } catch (error) {
+      console.error('Failed to fetch enrollments overview', error.stack);
+      throw error;
+    }
+  }
 }
