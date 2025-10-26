@@ -14,6 +14,7 @@ import { QuizQuestion } from 'src/quiz/entities/quiz-question.entity';
 import { QuizAttempt } from 'src/quiz/entities/quiz-attempts.entity';
 import { Question } from 'src/quiz/entities/question.entity';
 import { GenderFilter } from './admin.controller';
+import { EnrollmentDetailDto, EnrollmentsListResponseDto, EnrollmentStatus } from './dto/enrollment-detail.dto';
 
 @Injectable()
 export class AdminService {
@@ -1193,6 +1194,192 @@ export class AdminService {
       };
     } catch (error) {
       console.error('Failed to fetch enrollments overview', error.stack);
+      throw error;
+    }
+  }
+
+  async getAllEnrollments(
+    page = 1,
+    limit = 10,
+    search?: string,
+    status?: EnrollmentStatus,
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<EnrollmentsListResponseDto> {
+    try {
+      const pageNum = Math.max(1, parseInt(page + '', 10) || 1);
+      const limitNum = Math.min(Math.max(1, parseInt(limit + '', 10) || 10), 100);
+      const skip = (pageNum - 1) * limitNum;
+
+      // 1️⃣ Build base query with all necessary joins
+      let query = this.courseStudentRepo
+        .createQueryBuilder('cs')
+        .leftJoinAndSelect('cs.student', 'student')
+        .leftJoinAndSelect('student.profile', 'studentProfile')
+        .leftJoinAndSelect('cs.course', 'course')
+        .leftJoinAndSelect('course.instructor', 'instructor')
+        .leftJoinAndSelect('instructor.profile', 'instructorProfile')
+        .leftJoinAndSelect('course.pricings', 'pricing')
+        .where('course.status = :status', { status: CourseStatus.PUBLISHED })
+        .orderBy('cs.created_at', 'DESC');
+
+      // 2️⃣ Search filter (student name, email, or course name)
+      if (search) {
+        const searchTerm = `%${search.toLowerCase()}%`;
+        query = query.andWhere(
+          `(
+          LOWER(studentProfile.first_name) LIKE :searchTerm OR 
+          LOWER(studentProfile.last_name) LIKE :searchTerm OR 
+          LOWER(student.email) LIKE :searchTerm OR 
+          LOWER(course.name) LIKE :searchTerm
+        )`,
+          { searchTerm },
+        );
+      }
+
+      // 3️⃣ Date range filter
+      if (startDate) {
+        query = query.andWhere('cs.created_at >= :startDate', { startDate });
+      }
+      if (endDate) {
+        // Set to end of day
+        const endOfDay = new Date(endDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        query = query.andWhere('cs.created_at <= :endDate', { endDate: endOfDay });
+      }
+
+      // 4️⃣ Get total count and paginated results
+      const [enrollments, total] = await query
+        .skip(skip)
+        .take(limitNum)
+        .getManyAndCount();
+
+      // Early return if no enrollments
+      if (enrollments.length === 0) {
+        return {
+          enrollments: [],
+          pagination: this.paginationMeta(pageNum, limitNum, 0),
+        };
+      }
+
+      // 5️⃣ Get course IDs and enrollment IDs for progress calculation
+      const courseIds = [...new Set(enrollments.map(e => e.course.id))];
+      const enrollmentIds = enrollments.map(e => e.id);
+
+      // 6️⃣ Get total items per course
+      const totalItemsQuery = await this.courseSectionItemRepo
+        .createQueryBuilder('item')
+        .select('course.id', 'courseId')
+        .addSelect('COUNT(item.id)', 'totalItems')
+        .innerJoin('item.section', 'section')
+        .innerJoin('section.course', 'course')
+        .where('course.id IN (:...courseIds)', { courseIds })
+        .groupBy('course.id')
+        .getRawMany();
+
+      const totalItemsMap = new Map<string, number>(
+        totalItemsQuery.map(row => [
+          row.courseid || row.courseId,
+          parseInt(row.totalitems || row.totalItems, 10) || 0,
+        ]),
+      );
+
+      // 7️⃣ Get completed items per enrollment
+      const progressQuery = await this.progressRepo
+        .createQueryBuilder('progress')
+        .select('courseStudent.id', 'enrollmentId')
+        .addSelect('course.id', 'courseId')
+        .addSelect(
+          'COUNT(DISTINCT CASE WHEN progress.completed = true THEN item.id END)',
+          'completedItems',
+        )
+        .innerJoin('progress.courseStudent', 'courseStudent')
+        .innerJoin('progress.item', 'item')
+        .innerJoin('item.section', 'section')
+        .innerJoin('section.course', 'course')
+        .where('courseStudent.id IN (:...enrollmentIds)', { enrollmentIds })
+        .groupBy('courseStudent.id')
+        .addGroupBy('course.id')
+        .getRawMany();
+
+      const progressMap = new Map<string, { completed: number; total: number }>();
+
+      progressQuery.forEach(row => {
+        const enrollmentId = row.enrollmentid || row.enrollmentId;
+        const courseId = row.courseid || row.courseId;
+        const completedItems = parseInt(row.completeditems || row.completedItems, 10) || 0;
+        const totalItems = totalItemsMap.get(courseId) || 0;
+
+        progressMap.set(enrollmentId, {
+          completed: completedItems,
+          total: totalItems,
+        });
+      });
+
+      // 8️⃣ Build enrollment details with status classification
+      const enrollmentDetails: EnrollmentDetailDto[] = [];
+
+      for (const enrollment of enrollments) {
+        const progressData = progressMap.get(enrollment.id);
+        const completedItems = progressData?.completed || 0;
+        const totalItems = progressData?.total || 0;
+
+        // Calculate progress percentage
+        const progress = totalItems > 0
+          ? Math.round((completedItems / totalItems) * 1000) / 10
+          : 0;
+
+        // Determine status
+        let enrollmentStatus: string;
+        if (totalItems > 0 && completedItems >= totalItems) {
+          enrollmentStatus = EnrollmentStatus.COMPLETED;
+        } else if (completedItems > 0) {
+          enrollmentStatus = EnrollmentStatus.ACTIVE;
+        } else {
+          enrollmentStatus = EnrollmentStatus.INACTIVE;
+        }
+
+        // Filter by status if provided
+        if (status && status !== EnrollmentStatus.ALL && enrollmentStatus !== status) {
+          continue; // Skip this enrollment
+        }
+
+        // Get student name
+        const studentName = enrollment.student?.profile
+          ? `${enrollment.student.profile.firstName || ''} ${enrollment.student.profile.lastName || ''}`.trim()
+          : 'N/A';
+
+        // Get instructor name
+        const instructorName = enrollment.course?.instructor?.profile
+          ? `${enrollment.course.instructor.profile.firstName || ''} ${enrollment.course.instructor.profile.lastName || ''}`.trim()
+          : 'N/A';
+
+        // Get price (first pricing or null)
+        const price = enrollment.course?.pricings?.[0]?.salePrice || null;
+
+        enrollmentDetails.push({
+          enrollmentId: enrollment.id,
+          studentName,
+          studentEmail: enrollment.student?.email || 'N/A',
+          courseId: enrollment.course?.id || null,
+          courseName: enrollment.course?.name || 'N/A',
+          enrollmentDate: enrollment.created_at?.toISOString() || null,
+          status: enrollmentStatus,
+          progress,
+          instructorName,
+          price,
+          completedItems,
+          totalItems,
+        });
+      }
+
+      // 9️⃣ Return paginated results
+      return {
+        enrollments: enrollmentDetails,
+        pagination: this.paginationMeta(pageNum, limitNum, total),
+      };
+    } catch (error) {
+      console.error('Failed to fetch enrollments', error.stack);
       throw error;
     }
   }
