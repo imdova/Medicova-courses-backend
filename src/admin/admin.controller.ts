@@ -411,7 +411,7 @@ export class AdminController {
   // -----------------------------------------------------------------
   @Post('students')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('admin:students:create') // Requires new permission
+  @RequirePermissions('admin:students:create') // Requires new permission
   @ApiOperation({ summary: 'Create a new student user and optionally enroll them in courses.' })
   @ApiBody({ type: CreateStudentDto })
   @ApiResponse({
