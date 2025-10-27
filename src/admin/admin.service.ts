@@ -1446,17 +1446,20 @@ export class AdminService {
       // 3. Create Profile Entity
       // (Assuming profileService methods are now imported utilities or injected)
       let userName = this.profileService.generateUsername(firstName, lastName);
-      // Use manager.getRepository(Profile) instead of profileRepository if using TypeORM < 0.3.0
-      let existingProfile = await profileRepository.findOne({ where: { userName }, select: ['id'] });
-      let attempt = 0;
 
-      // Ensure unique username
-      while (existingProfile && attempt < 5) {
-        userName = this.profileService.generateUsername(firstName, lastName);
-        existingProfile = await profileRepository.findOne({ where: { userName }, select: ['id'] });
-        attempt++;
-      }
-      if (existingProfile) {
+      const candidateUsernames = Array.from({ length: 5 }, () =>
+        this.profileService.generateUsername(firstName, lastName)
+      );
+
+      const existingProfiles = await profileRepository.find({
+        where: { userName: In(candidateUsernames) },
+        select: ['userName'],
+      });
+
+      const takenUsernames = new Set(existingProfiles.map(p => p.userName));
+      const availableUserName = candidateUsernames.find(u => !takenUsernames.has(u));
+
+      if (!availableUserName) {
         throw new BadRequestException('Could not generate a unique username.');
       }
 
