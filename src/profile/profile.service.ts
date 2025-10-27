@@ -189,7 +189,7 @@ export class ProfileService {
     return { message: 'Profile deleted successfully' };
   }
 
-  private generateUsername(firstName: string, lastName: string): string {
+  public generateUsername(firstName: string, lastName: string): string {
     const base = `${firstName}.${lastName}`.toLowerCase().replace(/\s+/g, '');
     const uuidPart = uuidv4().split('-')[0];
     return `${base}-${uuidPart}`;
@@ -237,7 +237,7 @@ export class ProfileService {
       .execute();
   }
 
-  private readonly completionFields: (keyof Profile)[] = [
+  public readonly completionFields: (keyof Profile)[] = [
     'firstName',
     'lastName',
     'userName',
@@ -261,7 +261,7 @@ export class ProfileService {
     'city',
   ];
 
-  private calculateCompletion(profile: Partial<Profile>): number {
+  public calculateCompletion(profile: Partial<Profile>): number {
     let filled = 0;
 
     for (const field of this.completionFields) {
