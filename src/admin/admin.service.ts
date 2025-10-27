@@ -1,6 +1,6 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { User } from '../user/entities/user.entity';
 import { Course, CourseStatus } from '../course/entities/course.entity';
 import { Profile } from '../profile/entities/profile.entity';
@@ -15,6 +15,11 @@ import { QuizAttempt } from 'src/quiz/entities/quiz-attempts.entity';
 import { Question } from 'src/quiz/entities/question.entity';
 import { GenderFilter } from './admin.controller';
 import { EnrollmentDetailDto, EnrollmentsListResponseDto, EnrollmentStatus } from './dto/enrollment-detail.dto';
+import { CreateStudentDto } from './dto/create-student.dto';
+import * as bcrypt from 'bcrypt';
+import { v4 as uuidv4 } from 'uuid';
+import { ProfileService } from 'src/profile/profile.service';
+import { EmailService } from '../common/email.service';
 
 @Injectable()
 export class AdminService {
@@ -46,6 +51,9 @@ export class AdminService {
     private readonly questionRepository: Repository<Question>, // 👈 New injection
     @InjectRepository(QuizAttempt)
     private readonly quizAttemptRepository: Repository<QuizAttempt>, // 👈 New injection
+    private readonly profileService: ProfileService,
+    private readonly emailService: EmailService,
+    private readonly dataSource: DataSource
   ) { }
 
   async getDashboardStats(): Promise<any> {
@@ -1382,5 +1390,144 @@ export class AdminService {
       console.error('Failed to fetch enrollments', error.stack);
       throw error;
     }
+  }
+
+  async createStudent(
+    createStudentDto: CreateStudentDto,
+  ): Promise<User> {
+    const { password, firstName, lastName, email, phoneNumber, courseIds } =
+      createStudentDto;
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // 1. Declare createdUser outside the transaction to hold the final result
+    let createdUser: User;
+
+    await this.dataSource.transaction(async (manager) => {
+      const userRepository = manager.getRepository(User);
+      const profileRepository = manager.getRepository(Profile);
+      const courseRepository = manager.getRepository(Course);
+      const courseStudentRepo = manager.getRepository(CourseStudent);
+
+      // 1. Check for existing user email AND get role in parallel
+      const [existingUser, roleEntity] = await Promise.all([
+        userRepository.findOne({
+          where: { email: normalizedEmail },
+          select: ['id'],
+        }),
+        manager.getRepository(Role).findOne({
+          where: { name: 'student' },
+          cache: true,
+        }),
+      ]);
+
+      if (existingUser) {
+        throw new BadRequestException('Email address is already in use.');
+      }
+
+      if (!roleEntity) {
+        throw new InternalServerErrorException('Student role not found in the system.');
+      }
+
+      // 2. Create User Entity
+      const verificationToken = uuidv4();
+      let newUser = userRepository.create({
+        email: normalizedEmail,
+        password: hashedPassword,
+        role: roleEntity,
+        isEmailVerified: false,
+        isVerified: false,
+        emailVerificationToken: verificationToken,
+      });
+      // Use `manager.save` for entities created within a transaction
+      newUser = await manager.save(newUser);
+
+      // 3. Create Profile Entity
+      // (Assuming profileService methods are now imported utilities or injected)
+      let userName = this.profileService.generateUsername(firstName, lastName);
+      // Use manager.getRepository(Profile) instead of profileRepository if using TypeORM < 0.3.0
+      let existingProfile = await profileRepository.findOne({ where: { userName }, select: ['id'] });
+      let attempt = 0;
+
+      // Ensure unique username
+      while (existingProfile && attempt < 5) {
+        userName = this.profileService.generateUsername(firstName, lastName);
+        existingProfile = await profileRepository.findOne({ where: { userName }, select: ['id'] });
+        attempt++;
+      }
+      if (existingProfile) {
+        throw new BadRequestException('Could not generate a unique username.');
+      }
+
+      const newProfile = profileRepository.create({
+        firstName,
+        lastName,
+        userName,
+        phoneNumber,
+        isPublic: false,
+        user: newUser,
+      });
+
+      newProfile.completionPercentage = this.profileService.calculateCompletion(newProfile);
+      await manager.save(newProfile);
+
+      // Link profile back to user object for the final return (optional, but good)
+      newUser.profile = newProfile;
+
+
+      // 4. Enrollments (if courseIds are provided)
+      if (courseIds && courseIds.length > 0) {
+        const validCourses = await courseRepository.find({
+          where: { id: In(courseIds) },
+          select: ['id', 'status'],
+        });
+
+        const foundIds = validCourses.map((c) => c.id);
+        const invalidIds = courseIds.filter((id) => !foundIds.includes(id));
+
+        if (invalidIds.length > 0) {
+          throw new BadRequestException(`The following Course IDs are invalid: ${invalidIds.join(', ')}`);
+        }
+
+        const enrollments = validCourses.map((course) =>
+          courseStudentRepo.create({
+            student: newUser,
+            course: course,
+          }),
+        );
+        await manager.save(enrollments);
+      }
+
+      // 5. Assign the fully created user to the outer variable
+      createdUser = newUser;
+      // The transaction block implicitly returns `void` here, which is fine
+    }); // End of transaction block
+
+    // 6. Send Welcome Email with Credentials (OUTSIDE the transaction)
+    // Check if the user was successfully created before sending the email
+    if (createdUser) {
+      try {
+        const nameToSend = createdUser.profile.firstName || createdUser.email;
+
+        await this.emailService.sendEmail({
+          from: process.env.SMTP_DEMO_EMAIL,
+          to: createdUser.email,
+          subject: 'Welcome to Medicova - Your Account Credentials',
+          template: 'welcome-admin-created',
+          context: {
+            name: nameToSend,
+            email: createdUser.email,
+            password: password, // The original plaintext password
+          },
+        });
+      } catch (emailError) {
+        console.error('Failed to send admin-created welcome email:', emailError);
+        // Fail silently on email error, but log it.
+      }
+    }
+
+    // 7. Return the created user entity (making the function return Promise<User>)
+    return createdUser;
   }
 }

@@ -7,6 +7,7 @@ import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 import { IdentityVerificationStatus } from 'src/user/entities/identity-verification.entity';
 import { RejectIdentityDto } from './dto/reject-identity.dto';
 import { EnrollmentsListResponseDto, EnrollmentStatus } from './dto/enrollment-detail.dto';
+import { CreateStudentDto } from './dto/create-student.dto';
 
 // Define allowed periods for validation
 enum StatsPeriod {
@@ -402,6 +403,29 @@ export class AdminController {
       status,
       startDate,
       endDate,
+    );
+  }
+
+  // -----------------------------------------------------------------
+  // 🟢 NEW: CREATE STUDENT ENDPOINT
+  // -----------------------------------------------------------------
+  @Post('students')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  //@RequirePermissions('admin:students:create') // Requires new permission
+  @ApiOperation({ summary: 'Create a new student user and optionally enroll them in courses.' })
+  @ApiBody({ type: CreateStudentDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Student user and profile created successfully, and enrollments processed.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request (e.g., email already in use, invalid course ID).',
+  })
+  async createStudent(@Body() createStudentDto: CreateStudentDto): Promise<any> {
+
+    return this.adminService.createStudent(
+      createStudentDto,
     );
   }
 
