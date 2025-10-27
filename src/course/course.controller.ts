@@ -49,6 +49,12 @@ export class CourseController {
   create(@Body() createCourseDto: CreateCourseDto, @Req() req) {
     const userId = req.user.sub; // Get user ID from the request
     const academyId = req.user.academyId;
+    // Check if user is admin if he wants to assign course to another instructor
+    if (createCourseDto.instructorId && req.user.role !== 'admin') {
+      throw new ForbiddenException(
+        'You are not permitted to assign this course to another instructor.',
+      );
+    }
     // ✅ block if instructor is not verified
     if (
       req.user.role === 'instructor' &&
@@ -279,6 +285,12 @@ export class CourseController {
     @Body() updateData: UpdateCourseDto,
     @Req() req,
   ) {
+    // Check if user is admin if he wants to assign course to another instructor
+    if (updateData.instructorId && req.user.role !== 'admin') {
+      throw new ForbiddenException(
+        'You are not permitted to assign this course to another instructor.',
+      );
+    }
     if (
       req.user.role === 'instructor' &&
       !req.user.isEmailVerified &&

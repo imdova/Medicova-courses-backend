@@ -58,6 +58,8 @@ export class CourseService {
     private courseCategoryRepository: Repository<CourseCategory>,
     @InjectRepository(CourseRating)
     private courseRatingRepository: Repository<CourseRating>,
+    @InjectRepository(User)
+    private userRepository: Repository<User>,
     @InjectRepository(AcademyInstructor)
     private readonly academyInstructorRepository: Repository<AcademyInstructor>,
   ) { }
@@ -75,8 +77,30 @@ export class CourseService {
       category: categoryId,
       subcategory: subCategoryId,
       slug,
+      instructorId,
       ...rest
     } = createCourseDto;
+
+    let finalInstructorId;
+
+    if (instructorId) {
+      // Verify the new instructor exists
+      const newInstructor = await this.userRepository.findOne({
+        where: { id: instructorId },
+        relations: ['profile'],
+      });
+
+      if (!newInstructor) {
+        throw new HttpException(
+          'Instructor not found',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      // Update both the column and the relation
+      finalInstructorId = instructorId;
+    } else { finalInstructorId = userId; }
+
 
     const { category, subcategory } = await this.getCategoryAndSubcategory(
       categoryId,
@@ -105,7 +129,7 @@ export class CourseService {
     // Step 4: Save the course with tags array
     const course = this.courseRepository.create({
       ...rest,
-      createdBy: userId,
+      createdBy: finalInstructorId,
       category,
       subCategory: subcategory,
       tags,
@@ -333,8 +357,28 @@ export class CourseService {
       pricings,
       category: categoryId,
       subcategory: subCategoryId,
+      instructorId,
       ...rest
     } = updateData;
+
+    if (instructorId) {
+      // Verify the new instructor exists
+      const newInstructor = await this.userRepository.findOne({
+        where: { id: instructorId },
+        relations: ['profile'],
+      });
+
+      if (!newInstructor) {
+        throw new HttpException(
+          'Instructor not found',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      // Update both the column and the relation
+      course.createdBy = instructorId;
+      course.instructor = newInstructor; // ✅ Update the relation object
+    }
 
     if (categoryId || subCategoryId) {
       const { category, subcategory } = await this.getCategoryAndSubcategory(
