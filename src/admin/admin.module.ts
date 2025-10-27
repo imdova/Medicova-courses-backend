@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { AdminController } from './admin.controller';
 import { User } from 'src/user/entities/user.entity';
@@ -14,10 +14,13 @@ import { Quiz } from 'src/quiz/entities/quiz.entity';
 import { QuizQuestion } from 'src/quiz/entities/quiz-question.entity';
 import { QuizAttempt } from 'src/quiz/entities/quiz-attempts.entity';
 import { Question } from 'src/quiz/entities/question.entity';
+import { ProfileModule } from 'src/profile/profile.module';
+import { EmailService } from '../common/email.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Course, Profile, Role, CourseSectionItem, CourseProgress, CourseStudent, IdentityVerification, Quiz, QuizQuestion, QuizAttempt, Question])],
+  imports: [TypeOrmModule.forFeature([User, Course, Profile, Role, CourseSectionItem, CourseProgress, CourseStudent, IdentityVerification, Quiz, QuizQuestion, QuizAttempt, Question]),
+  forwardRef(() => ProfileModule)],
   controllers: [AdminController],
-  providers: [AdminService],
+  providers: [AdminService, EmailService],
 })
 export class AdminModule { }

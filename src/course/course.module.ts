@@ -24,6 +24,7 @@ import { CourseNotesModule } from './course-notes/course-notes.module';
 import { CourseProgress } from './course-progress/entities/course-progress.entity';
 import { CourseFavorite } from './entities/course-favorite.entity';
 import { AcademyInstructor } from 'src/academy/entities/academy-instructors.entity';
+import { User } from 'src/user/entities/user.entity';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { AcademyInstructor } from 'src/academy/entities/academy-instructors.enti
       CourseProgress,
       CourseFavorite,
       AcademyInstructor,
+      User
     ]),
     CoursePricingModule,
     CourseSectionModule,

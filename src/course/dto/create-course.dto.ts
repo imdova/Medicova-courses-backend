@@ -11,7 +11,7 @@ import {
   IsUUID,
   IsArray,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiHideProperty, ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   CourseType,
   CourseStatus,
@@ -291,4 +291,9 @@ export class CreateCourseDto {
   @IsArray()
   @IsUUID('all', { each: true })
   academyInstructorIds?: string[];
+
+  @ApiHideProperty()
+  @IsOptional()
+  @IsUUID()
+  instructorId?: string; // ⬅️ NEW FIELD ADDED HERE
 }
