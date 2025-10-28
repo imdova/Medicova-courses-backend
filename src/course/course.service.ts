@@ -762,17 +762,37 @@ export class CourseService {
 
     const result = await paginate(query, qb, COURSE_PAGINATION_CONFIG);
 
-    // ✅ OPTIMIZED: Bulk fetch all academy instructors in one query
-    const academyInstructorsMap = await this.getAcademyInstructorsBulk(
-      result.data as Course[],
-    );
+    const instructorIds = [
+      ...new Set(
+        result.data
+          .map((course: Course) => course.createdBy)
+          .filter((id): id is string => !!id),
+      ),
+    ];
+
+    // Fetch both academy instructors and instructor stats in parallel
+    const [academyInstructorsMap, instructorStatsMap] = await Promise.all([
+      this.getAcademyInstructorsBulk(result.data as Course[]),
+      this.getInstructorStatsBulk(instructorIds),
+    ]);
 
     // ✅ Map instructors to each course
-    result.data = result.data.map((course) => ({
-      ...(course as any),
-      instructor: this.mapInstructor(course),
-      academyInstructors: academyInstructorsMap.get(course.id) || [],
-    }));
+    result.data = result.data.map((course) => {
+      const mappedInstructor = this.mapInstructor(course);
+      const instructorStats = instructorStatsMap.get(course.createdBy);
+
+      return {
+        ...(course as any),
+        instructor: mappedInstructor ? {
+          ...mappedInstructor,
+          coursesCount: instructorStats?.coursesCount || 0,
+          studentsCount: instructorStats?.studentsCount || 0,
+          averageRating: instructorStats?.averageRating || 0,
+          reviewsCount: instructorStats?.reviewsCount || 0,
+        } : null,
+        academyInstructors: academyInstructorsMap.get(course.id) || [],
+      };
+    });
 
     return result;
   }
