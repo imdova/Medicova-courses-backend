@@ -28,11 +28,11 @@ import { UpdateMultipleSectionsWithItemsDto } from './dto/update-sections-with-i
 
 @ApiTags('Course Sections')
 @Controller('courses/:courseId/course-sections')
-@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class CourseSectionController {
   constructor(private readonly service: CourseSectionService) { }
 
   @Post()
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('section:create')
   @ApiOperation({ summary: 'Create a new course section' })
   @ApiParam({ name: 'courseId', description: 'UUID of the course' })
@@ -50,6 +50,7 @@ export class CourseSectionController {
   }
 
   @Post('with-items/bulk')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('section:create_multiple')
   @ApiOperation({ summary: 'Create multiple course sections with items' })
   @ApiBody({ type: CreateMultipleSectionsWithItemsDto })
@@ -61,7 +62,8 @@ export class CourseSectionController {
   }
 
   @Get()
-  @RequirePermissions('section:list')
+  // @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  // @RequirePermissions('section:list')
   @ApiOperation({ summary: 'Get all sections for a course' })
   @ApiParam({ name: 'courseId', description: 'UUID of the course' })
   @ApiResponse({
@@ -74,6 +76,7 @@ export class CourseSectionController {
   }
 
   @Patch(':sectionId')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('section:update')
   @ApiOperation({ summary: 'Update a course section' })
   @ApiParam({ name: 'sectionId', description: 'UUID of the section' })
@@ -91,6 +94,7 @@ export class CourseSectionController {
   }
 
   @Patch('with-items/bulk')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('section:update_multiple')
   @ApiOperation({
     summary: 'Update multiple course sections with items',
@@ -111,6 +115,7 @@ export class CourseSectionController {
   }
 
   @Delete(':sectionId')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('section:delete')
   @ApiOperation({ summary: 'Soft delete a course section' })
   @ApiParam({ name: 'sectionId', description: 'UUID of the section' })
