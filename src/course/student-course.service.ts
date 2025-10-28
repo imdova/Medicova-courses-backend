@@ -78,7 +78,14 @@ export class StudentCourseService {
       .createQueryBuilder('course')
       .leftJoinAndSelect('course.pricings', 'pricing')
       .leftJoin('course.academy', 'academy') // 👈 ADD THIS LINE
-      .addSelect(['academy.id'])             // 👈 include only academy.id
+      .addSelect([
+        'academy.id',
+        'academy.name',
+        'academy.slug',
+        'academy.description',
+        'academy.image',
+        'academy.about',
+      ])
       .leftJoinAndSelect('course.instructor', 'instructor')
       .leftJoinAndSelect('instructor.profile', 'instructorProfile')
       .andWhere('course.deleted_at IS NULL')
@@ -203,7 +210,14 @@ export class StudentCourseService {
         .leftJoinAndSelect('course.pricings', 'pricing')
         .leftJoinAndSelect('course.instructor', 'instructor')
         .leftJoin('course.academy', 'academy') // 👈 ADD THIS LINE
-        .addSelect(['academy.id'])             // 👈 include only academy.id
+        .addSelect([
+          'academy.id',
+          'academy.name',
+          'academy.slug',
+          'academy.description',
+          'academy.image',
+          'academy.about',
+        ])
         .leftJoinAndSelect('instructor.profile', 'instructorProfile')
         .leftJoinAndSelect('course.category', 'category')
         .leftJoinAndSelect('course.subCategory', 'subCategory')
@@ -347,7 +361,14 @@ export class StudentCourseService {
       .leftJoinAndSelect('course.pricings', 'pricing')
       .leftJoinAndSelect('course.instructor', 'instructor')
       .leftJoin('course.academy', 'academy') // 👈 ADD THIS LINE
-      .addSelect(['academy.id'])             // 👈 include only academy.id
+      .addSelect([
+        'academy.id',
+        'academy.name',
+        'academy.slug',
+        'academy.description',
+        'academy.image',
+        'academy.about',
+      ])
       .leftJoinAndSelect('instructor.profile', 'instructorProfile')
       .andWhere('course.deleted_at IS NULL')
 
