@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { Course } from './entities/course.entity';
 import { CreateCourseDto } from './dto/create-course.dto';
 import {
@@ -43,6 +43,14 @@ export const COURSE_PAGINATION_CONFIG: QueryConfig<Course> = {
   relations: ['pricings'], // add relations if needed
 };
 
+interface InstructorStats {
+  userId: string;
+  coursesCount: number;
+  studentsCount: number;
+  averageRating: number;
+  reviewsCount: number;
+}
+
 @Injectable()
 export class CourseService {
   constructor(
@@ -62,6 +70,7 @@ export class CourseService {
     private userRepository: Repository<User>,
     @InjectRepository(AcademyInstructor)
     private readonly academyInstructorRepository: Repository<AcademyInstructor>,
+    private readonly dataSource: DataSource
   ) { }
 
   // All methods are checked for performance
@@ -205,17 +214,38 @@ export class CourseService {
 
     const result = await paginate(query, qb, COURSE_PAGINATION_CONFIG);
 
-    // ✅ OPTIMIZED: Bulk fetch all academy instructors in one query
-    const academyInstructorsMap = await this.getAcademyInstructorsBulk(
-      result.data as Course[],
-    );
+    // Extract all unique instructor IDs from courses
+    const instructorIds = [
+      ...new Set(
+        result.data
+          .map((course: Course) => course.createdBy)
+          .filter((id): id is string => !!id)
+      ),
+    ];
 
-    // ✅ Map instructors to each course
-    result.data = result.data.map((course) => ({
-      ...(course as any),
-      instructor: this.mapInstructor(course),
-      academyInstructors: academyInstructorsMap.get(course.id) || [],
-    }));
+    // Fetch both academy instructors and instructor stats in parallel
+    const [academyInstructorsMap, instructorStatsMap] = await Promise.all([
+      this.getAcademyInstructorsBulk(result.data as Course[]),
+      this.getInstructorStatsBulk(instructorIds),
+    ]);
+
+    // Map all data to courses
+    result.data = result.data.map((course) => {
+      const mappedInstructor = this.mapInstructor(course);
+      const instructorStats = instructorStatsMap.get(course.createdBy);
+
+      return {
+        ...(course as any),
+        instructor: mappedInstructor ? {
+          ...mappedInstructor,
+          coursesCount: instructorStats?.coursesCount || 0,
+          studentsCount: instructorStats?.studentsCount || 0,
+          averageRating: instructorStats?.averageRating || 0,
+          reviewsCount: instructorStats?.reviewsCount || 0,
+        } : null,
+        academyInstructors: academyInstructorsMap.get(course.id) || [],
+      };
+    });
 
     return result;
   }
@@ -804,5 +834,60 @@ export class CourseService {
         academyId: course.academy.id,
       })
       .getMany();
+  }
+
+  // Add this method to your service
+  async getInstructorStatsBulk(instructorIds: string[]): Promise<Map<string, InstructorStats>> {
+    if (instructorIds.length === 0) {
+      return new Map();
+    }
+
+    const query = `
+    SELECT 
+      "u"."id" as "userId",
+      COALESCE(course_stats.courses_count, 0) as "coursesCount",
+      COALESCE(course_stats.students_count, 0) as "studentsCount",
+      COALESCE(rating_stats.average_rating, 0) as "averageRating",
+      COALESCE(rating_stats.reviews_count, 0) as "reviewsCount"
+    FROM "user" "u"
+    LEFT JOIN (
+      SELECT 
+        c.created_by,
+        COUNT(DISTINCT c.id) as courses_count,
+        COUNT(DISTINCT cs.student_id) as students_count
+      FROM courses c
+      LEFT JOIN course_student cs ON cs.course_id = c.id
+      WHERE c.deleted_at IS NULL
+        AND c.created_by = ANY($1)
+      GROUP BY c.created_by
+    ) course_stats ON course_stats.created_by = "u"."id"
+    LEFT JOIN (
+      SELECT 
+        p.user_id,
+        AVG(pr.rating)::numeric(10,1) as average_rating,
+        COUNT(pr.id) as reviews_count
+      FROM profile p
+      LEFT JOIN profile_ratings pr ON pr.profile_id = p.id
+      WHERE p.user_id = ANY($1)
+      GROUP BY p.user_id
+    ) rating_stats ON rating_stats.user_id = "u"."id"
+    WHERE "u"."id" = ANY($1)
+  `;
+
+    const results = await this.dataSource.query(query, [instructorIds]);
+
+    const statsMap = new Map<string, InstructorStats>();
+
+    for (const row of results) {
+      statsMap.set(row.userId, {
+        userId: row.userId,
+        coursesCount: parseInt(row.coursesCount) || 0,
+        studentsCount: parseInt(row.studentsCount) || 0,
+        averageRating: parseFloat(row.averageRating) || 0,
+        reviewsCount: parseInt(row.reviewsCount) || 0,
+      });
+    }
+
+    return statsMap;
   }
 }
