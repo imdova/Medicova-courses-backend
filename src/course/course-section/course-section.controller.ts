@@ -8,6 +8,7 @@ import {
   Body,
   ParseUUIDPipe,
   UseGuards,
+  Req,
 } from '@nestjs/common';
 import { CourseSectionService } from './course-section.service';
 import { CreateCourseSectionDto } from './dto/create-course-section.dto';
@@ -25,14 +26,15 @@ import { AuthGuard } from '@nestjs/passport';
 import { PermissionsGuard } from '../../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 import { UpdateMultipleSectionsWithItemsDto } from './dto/update-sections-with-items.dto';
+import { OptionalJwtAuthGuard } from '../../auth/strategy/optional-jwt-auth.guard';
 
 @ApiTags('Course Sections')
 @Controller('courses/:courseId/course-sections')
-@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class CourseSectionController {
   constructor(private readonly service: CourseSectionService) { }
 
   @Post()
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('section:create')
   @ApiOperation({ summary: 'Create a new course section' })
   @ApiParam({ name: 'courseId', description: 'UUID of the course' })
@@ -50,6 +52,7 @@ export class CourseSectionController {
   }
 
   @Post('with-items/bulk')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('section:create_multiple')
   @ApiOperation({ summary: 'Create multiple course sections with items' })
   @ApiBody({ type: CreateMultipleSectionsWithItemsDto })
@@ -61,7 +64,9 @@ export class CourseSectionController {
   }
 
   @Get()
-  @RequirePermissions('section:list')
+  // @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  // @RequirePermissions('section:list')
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Get all sections for a course' })
   @ApiParam({ name: 'courseId', description: 'UUID of the course' })
   @ApiResponse({
@@ -69,11 +74,20 @@ export class CourseSectionController {
     description: 'List of course sections',
     type: [CourseSection],
   })
-  getSections(@Param('courseId', ParseUUIDPipe) courseId: string) {
-    return this.service.getSectionsByCourse(courseId);
+  getSections(@Param('courseId', ParseUUIDPipe) courseId: string, @Req() req) {
+    const user = req.user; // User is populated by OptionalJwtAuthGuard, will be null/undefined if unauthenticated
+
+    if (user) {
+      // User is authenticated (full access)
+      return this.service.getSectionsByCourse(courseId); // Your existing full-data service method
+    } else {
+      // User is NOT authenticated (public access)
+      return this.service.getPublicSectionsByCourse(courseId); // A new service method for public data
+    }
   }
 
   @Patch(':sectionId')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('section:update')
   @ApiOperation({ summary: 'Update a course section' })
   @ApiParam({ name: 'sectionId', description: 'UUID of the section' })
@@ -91,6 +105,7 @@ export class CourseSectionController {
   }
 
   @Patch('with-items/bulk')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('section:update_multiple')
   @ApiOperation({
     summary: 'Update multiple course sections with items',
@@ -111,6 +126,7 @@ export class CourseSectionController {
   }
 
   @Delete(':sectionId')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('section:delete')
   @ApiOperation({ summary: 'Soft delete a course section' })
   @ApiParam({ name: 'sectionId', description: 'UUID of the section' })
