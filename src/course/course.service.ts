@@ -163,7 +163,14 @@ export class CourseService {
       .leftJoinAndSelect('course.subCategory', 'subCategory')
       .leftJoinAndSelect('course.instructor', 'instructor')
       .leftJoin('course.academy', 'academy')
-      .addSelect(['academy.id'])
+      .addSelect([
+        'academy.id',
+        'academy.name',
+        'academy.slug',
+        'academy.description',
+        'academy.image',
+        'academy.about',
+      ])
       .leftJoinAndSelect('instructor.profile', 'instructorProfile')
       .loadRelationCountAndMap('course.studentCount', 'course.enrollments')
       .loadRelationCountAndMap(
@@ -682,7 +689,14 @@ export class CourseService {
       .leftJoinAndSelect('instructor.profile', 'instructorProfile')
       .leftJoinAndSelect('course.pricings', 'pricing')
       .leftJoin('course.academy', 'academy')
-      .addSelect(['academy.id']) // ✅ Include academy.id for instructor lookup
+      .addSelect([
+        'academy.id',
+        'academy.name',
+        'academy.slug',
+        'academy.description',
+        'academy.image',
+        'academy.about',
+      ])
       .where('course.status = :status', { status: 'published' })
       .andWhere('course.isActive = true')
       .andWhere('course.deleted_at IS NULL')
