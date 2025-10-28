@@ -468,4 +468,74 @@ export class CourseSectionService {
       });
     });
   }
+
+  /**
+   * New method for unauthenticated users (filtered data)
+   */
+  async getPublicSectionsByCourse(courseId: string): Promise<any[]> {
+    const sections = await this.getSectionsByCourse(courseId); // Get full data first
+
+    // Transform the data to the public view
+    return sections.map(section => {
+      const publicItems = section.items.map(item => {
+        let publicItem: any = {
+          curriculumType: item.curriculumType,
+          order: item.order,
+          id: item.id,
+        };
+
+        // 1. Handle Lecture Filtering
+        if (item.lecture) {
+          if (item.lecture.isLectureFree) {
+            // Full lecture info if it's free
+            publicItem.lecture = item.lecture;
+          } else {
+            // Only return the name for paid lectures
+            publicItem.lecture = {
+              name: item.lecture.title,
+              isFree: item.lecture.isLectureFree, // Optional: return this boolean
+            };
+          }
+        }
+
+        // 2. Hide details for Quiz and Assignment
+        if (item.quiz) {
+          // Keep only essential public info for quizzes, hiding questions, etc.
+          publicItem.quiz = {
+            id: item.quiz.id,
+            name: item.quiz.title,
+            // ... any other public fields like duration ...
+            quizQuestions: undefined, // Explicitly remove sensitive data
+          };
+        }
+
+        if (item.assignment) {
+          // Keep only essential public info for assignments
+          publicItem.assignment = {
+            id: item.assignment.id,
+            name: item.assignment.name,
+          };
+        }
+
+        return publicItem;
+      });
+
+      // Calculate counts
+      const numberOfLectures = publicItems.filter(i => i.lecture).length;
+      const numberOfQuizzes = publicItems.filter(i => i.quiz).length;
+      const numberOfAssignments = publicItems.filter(i => i.assignment).length;
+
+      // Return the public-facing section structure
+      return {
+        id: section.id,
+        name: section.name,
+        description: section.description,
+        order: section.order,
+        numberOfLectures,
+        numberOfQuizzes,
+        numberOfAssignments,
+        items: publicItems,
+      };
+    });
+  }
 }
