@@ -296,12 +296,25 @@ export class CourseService {
 
     this.checkOwnership(course, userId, academyId, role);
 
-    // ✅ For single course, direct fetch is fine
-    const academyInstructors = await this.getAcademyInstructorsForCourse(course);
+    // 🎯 Optimization: Fetch academy instructors and instructor stats in parallel
+    const [academyInstructors, instructorStatsMap] = await Promise.all([
+      this.getAcademyInstructorsForCourse(course),
+      this.getInstructorStatsBulk([course.createdBy]), // Pass single ID as an array
+    ]);
+
+    const instructorStats = instructorStatsMap.get(course.createdBy);
+    const mappedInstructor = this.mapInstructor(course);
 
     return {
       ...course,
-      instructor: this.mapInstructor(course),
+      instructor: mappedInstructor ? {
+        ...mappedInstructor,
+        // Inject the bulk-fetched stats
+        coursesCount: instructorStats?.coursesCount || 0,
+        studentsCount: instructorStats?.studentsCount || 0,
+        averageRating: instructorStats?.averageRating || 0,
+        reviewsCount: instructorStats?.reviewsCount || 0,
+      } : null,
       academyInstructors,
     } as unknown as Course;
   }
