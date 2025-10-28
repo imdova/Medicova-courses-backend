@@ -17,6 +17,7 @@ import { CourseSectionItem } from './course-section/entities/course-section-item
 import { CourseFavorite } from './entities/course-favorite.entity';
 import { CourseCommunity } from './course-community/entities/course-community.entity';
 import { AcademyInstructor } from 'src/academy/entities/academy-instructors.entity';
+import { CourseService } from './course.service';
 
 export const COURSE_PAGINATION_CONFIG: QueryConfig<Course> = {
   sortableColumns: ['created_at', 'name', 'category', 'status'],
@@ -47,6 +48,7 @@ export class StudentCourseService {
     private readonly courseFavoriteRepository: Repository<CourseFavorite>,
     @InjectRepository(AcademyInstructor)
     private readonly academyInstructorRepository: Repository<AcademyInstructor>,
+    private readonly courseService: CourseService,
     private readonly dataSource: DataSource
   ) { }
 
@@ -130,16 +132,37 @@ export class StudentCourseService {
       });
     }
 
-    // ✅ OPTIMIZED: Bulk fetch all academy instructors in one query
-    const academyInstructorsMap = await this.getAcademyInstructorsBulk(
-      result.data as Course[],
-    );
+    const instructorIds = [
+      ...new Set(
+        result.data
+          .map((course: any) => course.createdBy)
+          .filter((id): id is string => !!id),
+      ),
+    ];
 
-    result.data = result.data.map((course) => ({
-      ...(course as any),
-      instructor: this.mapInstructor(course),
-      academyInstructors: academyInstructorsMap.get(course.id) || [],
-    }));
+    // ✅ OPTIMIZED: Bulk fetch all academy instructors in one query and instructor stats
+    const [academyInstructorsMap, instructorStatsMap] = await Promise.all([
+      this.courseService.getAcademyInstructorsBulk(result.data as Course[]),
+      this.courseService.getInstructorStatsBulk(instructorIds), // 🎯 NEW: Bulk fetch instructor stats
+    ]);
+
+    result.data = result.data.map((course) => {
+      const mappedInstructor = this.mapInstructor(course);
+      const instructorStats = instructorStatsMap.get(course.createdBy); // 🎯 NEW: Get stats by ID
+
+      return {
+        ...(course as any),
+        instructor: mappedInstructor ? {
+          ...mappedInstructor,
+          // 🎯 NEW: Inject the bulk-fetched stats
+          coursesCount: instructorStats?.coursesCount || 0,
+          studentsCount: instructorStats?.studentsCount || 0,
+          averageRating: instructorStats?.averageRating || 0,
+          reviewsCount: instructorStats?.reviewsCount || 0,
+        } : null,
+        academyInstructors: academyInstructorsMap.get(course.id) || [],
+      };
+    });
 
     return result;
   }
@@ -147,6 +170,7 @@ export class StudentCourseService {
   async findOne(id: string, user: any): Promise<Course> {
     const currency = await this.getCurrencyForUser(user.sub);
 
+    // 1. Check Enrollment
     const enrollment = await this.courseStudentRepository.findOne({
       where: { course: { id }, student: { id: user.sub } },
     });
@@ -157,6 +181,7 @@ export class StudentCourseService {
       // ✅ Enrolled users get full course details
       const qb = this.courseRepo
         .createQueryBuilder('course')
+        // ... (All extensive joins remain the same for enrolled users)
         .leftJoinAndSelect('course.pricings', 'pricing')
         .leftJoinAndSelect('course.sections', 'section')
         .leftJoinAndSelect('section.items', 'item')
@@ -174,8 +199,7 @@ export class StudentCourseService {
         .orderBy('section.order', 'ASC')
         .addOrderBy('item.order', 'ASC')
         .addOrderBy('quizQuestion.order', 'ASC')
-
-        // ✅ Add counts
+        // ... (Counts logic remains the same)
         .loadRelationCountAndMap('course.studentCount', 'course.enrollments')
         .loadRelationCountAndMap(
           'course.lecturesCount',
@@ -209,7 +233,7 @@ export class StudentCourseService {
         .createQueryBuilder('course')
         .leftJoinAndSelect('course.pricings', 'pricing')
         .leftJoinAndSelect('course.instructor', 'instructor')
-        .leftJoin('course.academy', 'academy') // 👈 ADD THIS LINE
+        .leftJoin('course.academy', 'academy')
         .addSelect([
           'academy.id',
           'academy.name',
@@ -223,8 +247,7 @@ export class StudentCourseService {
         .leftJoinAndSelect('course.subCategory', 'subCategory')
         .where('course.id = :id', { id })
         .andWhere('course.deleted_at IS NULL')
-
-        // ✅ Add counts here too
+        // ... (Counts logic remains the same)
         .loadRelationCountAndMap('course.studentCount', 'course.enrollments')
         .loadRelationCountAndMap(
           'course.lecturesCount',
@@ -261,9 +284,16 @@ export class StudentCourseService {
       );
     }
 
-    // ✅ NEW: Fetch related courses (smart, lightweight, no duplicates)
+    // 🎯 OPTIMIZATION: Fetch academy instructors and instructor stats in parallel
+    const [academyInstructors, instructorStatsMap] = await Promise.all([
+      this.courseService.getAcademyInstructorsForCourse(course),
+      this.courseService.getInstructorStatsBulk([course.createdBy]),
+    ]);
+
+    // ✅ NEW: Fetch related courses (your existing smart logic remains)
     const relatedQuery = this.courseRepo
       .createQueryBuilder('related')
+      // ... (Related course logic remains the same)
       .leftJoin('related.enrollments', 'enrollments')
       .where('related.id != :id', { id: course.id })
       .andWhere('related.deleted_at IS NULL')
@@ -298,7 +328,7 @@ export class StudentCourseService {
         'related.course_image AS "courseImage"',
         'COUNT(enrollments.id) AS "studentCount"',
         // ✅ NEW: Check if course is favorited by current user
-        `(SELECT COUNT(cf.id) > 0 FROM course_favorite cf WHERE cf.course_id = related.id AND cf.student_id = '${user.sub}') AS "isFavorite"`,
+        `(${user.sub ? `SELECT COUNT(cf.id) > 0 FROM course_favorite cf WHERE cf.course_id = related.id AND cf.student_id = '${user.sub}'` : 'false'}) AS "isFavorite"`,
       ])
       .groupBy('related.id')
       .addGroupBy('related.name')
@@ -316,14 +346,23 @@ export class StudentCourseService {
       isFavorite: r.isFavorite === true || r.isFavorite === 't' || r.isFavorite === '1',
     }));
 
-    // ✅ For single course, direct fetch is fine
-    const academyInstructors = await this.getAcademyInstructorsForCourse(course);
+    // 4. Map instructor data into a compact format and add all fetched data
+    const instructorStats = instructorStatsMap.get(course.createdBy);
+    const mappedInstructor = this.mapInstructor(course);
 
-    // ✅ Map instructor data into a compact format and add related courses
     return {
       ...course,
-      instructor: this.mapInstructor(course),
+      instructor: mappedInstructor ? {
+        ...mappedInstructor,
+        // Inject the bulk-fetched stats
+        coursesCount: instructorStats?.coursesCount || 0,
+        studentsCount: instructorStats?.studentsCount || 0,
+        averageRating: instructorStats?.averageRating || 0,
+        reviewsCount: instructorStats?.reviewsCount || 0,
+      } : null,
       academyInstructors,
+      // Assuming you want to return related courses, add them here
+      relatedCourses,
     } as unknown as Course;
   }
 
@@ -360,7 +399,7 @@ export class StudentCourseService {
       })
       .leftJoinAndSelect('course.pricings', 'pricing')
       .leftJoinAndSelect('course.instructor', 'instructor')
-      .leftJoin('course.academy', 'academy') // 👈 ADD THIS LINE
+      .leftJoin('course.academy', 'academy')
       .addSelect([
         'academy.id',
         'academy.name',
@@ -403,7 +442,7 @@ export class StudentCourseService {
 
     const result = await paginate(query, qb, COURSE_PAGINATION_CONFIG);
 
-    // ✅ Filter pricing by user's currency (if applicable)
+    // ✅ Filter pricing by user's currency (existing logic)
     if (currency) {
       result.data.forEach((course: any) => {
         course.pricings = course.pricings.filter(
@@ -412,25 +451,50 @@ export class StudentCourseService {
       });
     }
 
-    // ✅ Get progress for all enrolled courses in bulk
+    // --- Start Bulk Fetching Operations ---
+
+    // 1. Extract all unique instructor IDs from the results
+    const instructorIds = [
+      ...new Set(
+        result.data
+          .map((course: any) => course.createdBy)
+          .filter((id): id is string => !!id),
+      ),
+    ];
+
+    // 2. Prepare course IDs for progress fetching
     const courseIds = result.data.map((course: any) => course.id);
-    const progressMap = await this.getBulkCourseProgress(courseIds, userId);
 
-    result.data.forEach((course: any) => {
-      course.progressPercentage = progressMap.get(course.id) || 0;
+    // 3. Execute ALL bulk fetches (Progress, Academy Instructors, Instructor Stats) in parallel
+    const [progressMap, academyInstructorsMap, instructorStatsMap] = await Promise.all([
+      this.getBulkCourseProgress(courseIds, userId), // Existing progress bulk fetch
+      this.courseService.getAcademyInstructorsBulk(result.data as Course[]),
+      this.courseService.getInstructorStatsBulk(instructorIds), // 🎯 NEW: Bulk fetch instructor stats
+    ]);
+
+    // --- Start Data Mapping and Merging ---
+
+    result.data = result.data.map((course) => {
+      // Get instructor data and bulk stats
+      const mappedInstructor = this.mapInstructor(course);
+      const instructorStats = instructorStatsMap.get(course.createdBy); // 🎯 NEW: Get stats by ID
+
+      return {
+        ...(course as any),
+        // Add progress percentage (existing logic)
+        progressPercentage: progressMap.get(course.id) || 0,
+
+        // Map instructor data with merged stats
+        instructor: mappedInstructor ? {
+          ...mappedInstructor,
+          coursesCount: instructorStats?.coursesCount || 0,
+          studentsCount: instructorStats?.studentsCount || 0,
+          averageRating: instructorStats?.averageRating || 0,
+          reviewsCount: instructorStats?.reviewsCount || 0,
+        } : null,
+        academyInstructors: academyInstructorsMap.get(course.id) || [],
+      };
     });
-
-    // ✅ OPTIMIZED: Bulk fetch all academy instructors in one query
-    const academyInstructorsMap = await this.getAcademyInstructorsBulk(
-      result.data as Course[],
-    );
-
-    // ✅ Map instructor data into a compact structure
-    result.data = result.data.map((course) => ({
-      ...(course as any),
-      instructor: this.mapInstructor(course),
-      academyInstructors: academyInstructorsMap.get(course.id) || [],
-    }));
 
     return result;
   }
@@ -899,64 +963,5 @@ export class StudentCourseService {
       certificatesEarned: parseInt(progress.courses_completed) || 0, //Temporary until we make certifications
       communitySupport: communityCount,
     };
-  }
-
-  private async getAcademyInstructorsBulk(
-    courses: Course[],
-  ): Promise<Map<string, any[]>> {
-    // Filter courses that have academy instructors
-    const coursesWithAcademy = courses.filter(
-      (c) => c.academy?.id && c.academyInstructorIds?.length,
-    );
-
-    if (coursesWithAcademy.length === 0) {
-      return new Map();
-    }
-
-    // Collect all unique instructor IDs
-    const allInstructorIds = new Set<string>();
-    coursesWithAcademy.forEach((course) => {
-      course.academyInstructorIds?.forEach((id) => allInstructorIds.add(id));
-    });
-
-    if (allInstructorIds.size === 0) {
-      return new Map();
-    }
-
-    // ✅ Single query to fetch all instructors
-    const instructors = await this.academyInstructorRepository
-      .createQueryBuilder('instructor')
-      .where('instructor.id IN (:...ids)', { ids: Array.from(allInstructorIds) })
-      .getMany();
-
-    // Create a lookup map: instructorId -> instructor data
-    const instructorMap = new Map(instructors.map((i) => [i.id, i]));
-
-    // Map instructors back to their courses
-    const courseInstructorsMap = new Map<string, any[]>();
-
-    coursesWithAcademy.forEach((course) => {
-      const courseInstructors = (course.academyInstructorIds || [])
-        .map((id) => instructorMap.get(id))
-        .filter(Boolean); // Remove any undefined values
-
-      courseInstructorsMap.set(course.id, courseInstructors);
-    });
-
-    return courseInstructorsMap;
-  }
-
-  private async getAcademyInstructorsForCourse(course: Course) {
-    if (!course.academy?.id || !course.academyInstructorIds?.length) {
-      return [];
-    }
-
-    return this.academyInstructorRepository
-      .createQueryBuilder('instructor')
-      .where('instructor.id IN (:...ids)', { ids: course.academyInstructorIds })
-      .andWhere('instructor.academyId = :academyId', {
-        academyId: course.academy.id,
-      })
-      .getMany();
   }
 }
