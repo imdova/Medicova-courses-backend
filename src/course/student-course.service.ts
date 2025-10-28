@@ -399,7 +399,7 @@ export class StudentCourseService {
       })
       .leftJoinAndSelect('course.pricings', 'pricing')
       .leftJoinAndSelect('course.instructor', 'instructor')
-      .leftJoin('course.academy', 'academy') // 👈 ADD THIS LINE
+      .leftJoin('course.academy', 'academy')
       .addSelect([
         'academy.id',
         'academy.name',
@@ -442,7 +442,7 @@ export class StudentCourseService {
 
     const result = await paginate(query, qb, COURSE_PAGINATION_CONFIG);
 
-    // ✅ Filter pricing by user's currency (if applicable)
+    // ✅ Filter pricing by user's currency (existing logic)
     if (currency) {
       result.data.forEach((course: any) => {
         course.pricings = course.pricings.filter(
@@ -451,25 +451,50 @@ export class StudentCourseService {
       });
     }
 
-    // ✅ Get progress for all enrolled courses in bulk
+    // --- Start Bulk Fetching Operations ---
+
+    // 1. Extract all unique instructor IDs from the results
+    const instructorIds = [
+      ...new Set(
+        result.data
+          .map((course: any) => course.createdBy)
+          .filter((id): id is string => !!id),
+      ),
+    ];
+
+    // 2. Prepare course IDs for progress fetching
     const courseIds = result.data.map((course: any) => course.id);
-    const progressMap = await this.getBulkCourseProgress(courseIds, userId);
 
-    result.data.forEach((course: any) => {
-      course.progressPercentage = progressMap.get(course.id) || 0;
+    // 3. Execute ALL bulk fetches (Progress, Academy Instructors, Instructor Stats) in parallel
+    const [progressMap, academyInstructorsMap, instructorStatsMap] = await Promise.all([
+      this.getBulkCourseProgress(courseIds, userId), // Existing progress bulk fetch
+      this.courseService.getAcademyInstructorsBulk(result.data as Course[]),
+      this.courseService.getInstructorStatsBulk(instructorIds), // 🎯 NEW: Bulk fetch instructor stats
+    ]);
+
+    // --- Start Data Mapping and Merging ---
+
+    result.data = result.data.map((course) => {
+      // Get instructor data and bulk stats
+      const mappedInstructor = this.mapInstructor(course);
+      const instructorStats = instructorStatsMap.get(course.createdBy); // 🎯 NEW: Get stats by ID
+
+      return {
+        ...(course as any),
+        // Add progress percentage (existing logic)
+        progressPercentage: progressMap.get(course.id) || 0,
+
+        // Map instructor data with merged stats
+        instructor: mappedInstructor ? {
+          ...mappedInstructor,
+          coursesCount: instructorStats?.coursesCount || 0,
+          studentsCount: instructorStats?.studentsCount || 0,
+          averageRating: instructorStats?.averageRating || 0,
+          reviewsCount: instructorStats?.reviewsCount || 0,
+        } : null,
+        academyInstructors: academyInstructorsMap.get(course.id) || [],
+      };
     });
-
-    // ✅ OPTIMIZED: Bulk fetch all academy instructors in one query
-    const academyInstructorsMap = await this.courseService.getAcademyInstructorsBulk(
-      result.data as Course[],
-    );
-
-    // ✅ Map instructor data into a compact structure
-    result.data = result.data.map((course) => ({
-      ...(course as any),
-      instructor: this.mapInstructor(course),
-      academyInstructors: academyInstructorsMap.get(course.id) || [],
-    }));
 
     return result;
   }
