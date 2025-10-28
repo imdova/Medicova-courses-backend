@@ -17,6 +17,7 @@ import { CourseSectionItem } from './course-section/entities/course-section-item
 import { CourseFavorite } from './entities/course-favorite.entity';
 import { CourseCommunity } from './course-community/entities/course-community.entity';
 import { AcademyInstructor } from 'src/academy/entities/academy-instructors.entity';
+import { CourseService } from './course.service';
 
 export const COURSE_PAGINATION_CONFIG: QueryConfig<Course> = {
   sortableColumns: ['created_at', 'name', 'category', 'status'],
@@ -47,6 +48,7 @@ export class StudentCourseService {
     private readonly courseFavoriteRepository: Repository<CourseFavorite>,
     @InjectRepository(AcademyInstructor)
     private readonly academyInstructorRepository: Repository<AcademyInstructor>,
+    private readonly courseService: CourseService,
     private readonly dataSource: DataSource
   ) { }
 
@@ -131,7 +133,7 @@ export class StudentCourseService {
     }
 
     // ✅ OPTIMIZED: Bulk fetch all academy instructors in one query
-    const academyInstructorsMap = await this.getAcademyInstructorsBulk(
+    const academyInstructorsMap = await this.courseService.getAcademyInstructorsBulk(
       result.data as Course[],
     );
 
@@ -317,7 +319,7 @@ export class StudentCourseService {
     }));
 
     // ✅ For single course, direct fetch is fine
-    const academyInstructors = await this.getAcademyInstructorsForCourse(course);
+    const academyInstructors = await this.courseService.getAcademyInstructorsForCourse(course);
 
     // ✅ Map instructor data into a compact format and add related courses
     return {
@@ -421,7 +423,7 @@ export class StudentCourseService {
     });
 
     // ✅ OPTIMIZED: Bulk fetch all academy instructors in one query
-    const academyInstructorsMap = await this.getAcademyInstructorsBulk(
+    const academyInstructorsMap = await this.courseService.getAcademyInstructorsBulk(
       result.data as Course[],
     );
 
@@ -899,64 +901,5 @@ export class StudentCourseService {
       certificatesEarned: parseInt(progress.courses_completed) || 0, //Temporary until we make certifications
       communitySupport: communityCount,
     };
-  }
-
-  private async getAcademyInstructorsBulk(
-    courses: Course[],
-  ): Promise<Map<string, any[]>> {
-    // Filter courses that have academy instructors
-    const coursesWithAcademy = courses.filter(
-      (c) => c.academy?.id && c.academyInstructorIds?.length,
-    );
-
-    if (coursesWithAcademy.length === 0) {
-      return new Map();
-    }
-
-    // Collect all unique instructor IDs
-    const allInstructorIds = new Set<string>();
-    coursesWithAcademy.forEach((course) => {
-      course.academyInstructorIds?.forEach((id) => allInstructorIds.add(id));
-    });
-
-    if (allInstructorIds.size === 0) {
-      return new Map();
-    }
-
-    // ✅ Single query to fetch all instructors
-    const instructors = await this.academyInstructorRepository
-      .createQueryBuilder('instructor')
-      .where('instructor.id IN (:...ids)', { ids: Array.from(allInstructorIds) })
-      .getMany();
-
-    // Create a lookup map: instructorId -> instructor data
-    const instructorMap = new Map(instructors.map((i) => [i.id, i]));
-
-    // Map instructors back to their courses
-    const courseInstructorsMap = new Map<string, any[]>();
-
-    coursesWithAcademy.forEach((course) => {
-      const courseInstructors = (course.academyInstructorIds || [])
-        .map((id) => instructorMap.get(id))
-        .filter(Boolean); // Remove any undefined values
-
-      courseInstructorsMap.set(course.id, courseInstructors);
-    });
-
-    return courseInstructorsMap;
-  }
-
-  private async getAcademyInstructorsForCourse(course: Course) {
-    if (!course.academy?.id || !course.academyInstructorIds?.length) {
-      return [];
-    }
-
-    return this.academyInstructorRepository
-      .createQueryBuilder('instructor')
-      .where('instructor.id IN (:...ids)', { ids: course.academyInstructorIds })
-      .andWhere('instructor.academyId = :academyId', {
-        academyId: course.academy.id,
-      })
-      .getMany();
   }
 }

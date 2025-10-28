@@ -810,7 +810,7 @@ export class CourseService {
     return result;
   }
 
-  private async getAcademyInstructorsBulk(
+  public async getAcademyInstructorsBulk(
     courses: Course[],
   ): Promise<Map<string, any[]>> {
     // Filter courses that have academy instructors
@@ -855,7 +855,7 @@ export class CourseService {
     return courseInstructorsMap;
   }
 
-  private async getAcademyInstructorsForCourse(course: Course) {
+  public async getAcademyInstructorsForCourse(course: Course) {
     if (!course.academy?.id || !course.academyInstructorIds?.length) {
       return [];
     }
