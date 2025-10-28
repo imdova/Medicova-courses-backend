@@ -132,16 +132,37 @@ export class StudentCourseService {
       });
     }
 
-    // ✅ OPTIMIZED: Bulk fetch all academy instructors in one query
-    const academyInstructorsMap = await this.courseService.getAcademyInstructorsBulk(
-      result.data as Course[],
-    );
+    const instructorIds = [
+      ...new Set(
+        result.data
+          .map((course: any) => course.createdBy)
+          .filter((id): id is string => !!id),
+      ),
+    ];
 
-    result.data = result.data.map((course) => ({
-      ...(course as any),
-      instructor: this.mapInstructor(course),
-      academyInstructors: academyInstructorsMap.get(course.id) || [],
-    }));
+    // ✅ OPTIMIZED: Bulk fetch all academy instructors in one query and instructor stats
+    const [academyInstructorsMap, instructorStatsMap] = await Promise.all([
+      this.courseService.getAcademyInstructorsBulk(result.data as Course[]),
+      this.courseService.getInstructorStatsBulk(instructorIds), // 🎯 NEW: Bulk fetch instructor stats
+    ]);
+
+    result.data = result.data.map((course) => {
+      const mappedInstructor = this.mapInstructor(course);
+      const instructorStats = instructorStatsMap.get(course.createdBy); // 🎯 NEW: Get stats by ID
+
+      return {
+        ...(course as any),
+        instructor: mappedInstructor ? {
+          ...mappedInstructor,
+          // 🎯 NEW: Inject the bulk-fetched stats
+          coursesCount: instructorStats?.coursesCount || 0,
+          studentsCount: instructorStats?.studentsCount || 0,
+          averageRating: instructorStats?.averageRating || 0,
+          reviewsCount: instructorStats?.reviewsCount || 0,
+        } : null,
+        academyInstructors: academyInstructorsMap.get(course.id) || [],
+      };
+    });
 
     return result;
   }
