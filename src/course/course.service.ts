@@ -1173,21 +1173,22 @@ export class CourseService {
   }
 
   /**
-   * Specialized query helper for age stats, grouping by age range.
-   * FIX: Changed GROUP BY to use the full age calculation expression instead of the alias.
-   */
+  * Specialized query helper for age stats, grouping by age range.
+  * FIX: Added the raw column 'profile."date_of_birth"' to the GROUP BY clause 
+  * to satisfy the correlated subquery's reference to the ungrouped column.
+  */
   private async getCourseAgeStats(
     courseId: string,
     totalItems: number,
   ): Promise<any[]> {
-    // The expression used for both SELECT and GROUP BY
-    const ageExpression = `(EXTRACT(YEAR FROM NOW()) - EXTRACT(YEAR FROM profile."dateOfBirth"))`;
+    // Use the explicit snake_case column name in quotes
+    const ageExpression = `(EXTRACT(YEAR FROM NOW()) - EXTRACT(YEAR FROM profile."date_of_birth"))`;
 
     const rawAgeStats = await this.courseStudentRepo
       .createQueryBuilder('cs')
       .innerJoin('cs.student', 'user')
       .innerJoin('user.profile', 'profile')
-      // Use the full expression for selection
+      // Use the fixed expression for selection
       .select(ageExpression, 'age')
       .addSelect('COUNT(cs.id)', 'students')
       .addSelect(
@@ -1199,8 +1200,8 @@ export class CourseService {
             .innerJoin('user', 'usc', 'usc.id = csc.student_id')
             .innerJoin('profile', 'pc', 'pc."user_id" = usc.id')
             .where(`csc.course_id = :courseId`)
-            // Correlate on the same age expression
-            .andWhere(`(EXTRACT(YEAR FROM NOW()) - EXTRACT(YEAR FROM pc."dateOfBirth")) = ${ageExpression}`)
+            // Correlate on the same age expression using the fixed column name
+            .andWhere(`(EXTRACT(YEAR FROM NOW()) - EXTRACT(YEAR FROM pc."date_of_birth")) = ${ageExpression}`)
             .andWhere(
               `EXISTS (
                             SELECT 1 FROM course_progress cp
@@ -1217,18 +1218,19 @@ export class CourseService {
         'completedStudents',
       )
       .where('cs.course_id = :courseId', { courseId, totalItems })
-      .andWhere(`profile.dateOfBirth IS NOT NULL`)
+      .andWhere(`profile."date_of_birth" IS NOT NULL`)
 
-      // 🟢 FIX APPLIED HERE: GROUP BY the full age calculation expression
-      .groupBy(ageExpression)
+      // 🟢 FIX APPLIED HERE: Group by the raw column and the age expression.
+      .groupBy(`profile."date_of_birth", ${ageExpression}`)
       .orderBy('students', 'DESC')
       .getRawMany();
 
     const ageMap = new Map<string, { students: number, completed: number }>();
 
-    // ... (rest of the aggregation logic remains the same)
+    // Aggregate and apply age range logic in memory
     rawAgeStats.forEach(row => {
       const age = parseInt(row.age, 10);
+      // Create a dummy date of birth to calculate the range
       const dob = new Date(new Date().getFullYear() - age, 0, 1);
       const ageRange = this.calculateAgeRange(dob);
       const students = parseInt(row.students, 10);
