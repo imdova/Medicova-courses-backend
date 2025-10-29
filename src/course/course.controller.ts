@@ -271,7 +271,7 @@ export class CourseController {
   // 🟢 UPDATED ENDPOINT 1: Course Overview Statistics
   @Get(':courseId/overview')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('course:overview') // New permission
+  @RequirePermissions('course:get_by_id_with_overview') // New permission
   @ApiOperation({ summary: 'Get overview stats and time-series enrollment data for a specific course' })
   @ApiParam({ name: 'courseId', description: 'UUID of the course' })
   @ApiQuery({
@@ -315,7 +315,7 @@ export class CourseController {
   // 🟢 UPDATED ENDPOINT 2: Course Demographic Statistics
   @Get(':courseId/stats')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('course:stats')
+  @RequirePermissions('course:get_by_id_with_stats') // New permission
   @ApiOperation({ summary: 'Get demographic stats (countries, categories, ages) for a specific course, grouped by a chosen field.' })
   @ApiParam({ name: 'courseId', description: 'UUID of the course' })
   @ApiQuery({

@@ -995,10 +995,23 @@ export class CourseService {
     role: string,
     period: string, // <-- Added new parameter
   ): Promise<any> {
-    // 1. Authorization check (conceptual: ensure user can view this course's stats)
-    // ...
+    // 1. Fetch minimal course data required for Authorization (createdBy and academy ID)
+    const course = await this.courseRepository.findOne({
+      where: { id: courseId },
+      // Only fetch the necessary relations and fields for authorization
+      relations: ['academy'],
+      select: ['id', 'createdBy', 'academy'],
+    });
 
-    // 2. Get total enrollments
+    if (!course) {
+      throw new NotFoundException(`Course with ID ${courseId} not found.`);
+    }
+
+    // 2. Authorization check
+    // Now 'course' object is available with the required 'createdBy' and 'academy' fields
+    this.checkOwnership(course, userId, academyId, role);
+
+    // 3. Get total enrollments
     const totalEnrollments = await this.courseStudentRepo.count({
       where: { course: { id: courseId } },
     });
@@ -1014,7 +1027,7 @@ export class CourseService {
       };
     }
 
-    // 3. Get total unique items in the course
+    // 4. Get total unique items in the course
     const totalItemsQuery = await this.courseSectionItemRepo
       .createQueryBuilder('item')
       .select('COUNT(item.id)', 'totalCount')
@@ -1024,7 +1037,7 @@ export class CourseService {
 
     const totalItems = parseInt(totalItemsQuery.totalCount, 10) || 0;
 
-    // 4. Calculate total completed students
+    // 5. Calculate total completed students
     let completedStudents = 0;
 
     if (totalItems > 0) {
@@ -1048,16 +1061,16 @@ export class CourseService {
       completedStudents = studentCompletionQuery.length;
     }
 
-    // 5. Calculate completion rate
+    // 6. Calculate completion rate
     const completionRate =
       totalEnrollments > 0
         ? Math.round((completedStudents / totalEnrollments) * 1000) / 10
         : 0;
 
-    // 6. Get time series data ONLY for the requested period
+    // 7. Get time series data ONLY for the requested period
     const enrollmentTimeSeries = await this.getCourseEnrollmentTimeSeriesForPeriod(courseId, period);
 
-    // 7. Final Return
+    // 8. Final Return
     return {
       totalEnrollments,
       completionRate,
@@ -1261,10 +1274,23 @@ export class CourseService {
     role: string,
     groupBy: string, // <-- New parameter
   ): Promise<any> {
-    // 1. Authorization check
-    // await this.checkCourseAccess(courseId, userId, academyId, role);
+    // 1. Fetch minimal course data required for Authorization (createdBy and academy ID)
+    const course = await this.courseRepository.findOne({
+      where: { id: courseId },
+      // Only fetch the necessary relations and fields for authorization
+      relations: ['academy'],
+      select: ['id', 'createdBy', 'academy'],
+    });
 
-    // 2. Get total items in the course (needed for completion rate subqueries)
+    if (!course) {
+      throw new NotFoundException(`Course with ID ${courseId} not found.`);
+    }
+
+    // 2. Authorization check
+    // Now 'course' object is available with the required 'createdBy' and 'academy' fields
+    this.checkOwnership(course, userId, academyId, role);
+
+    // 3. Get total items in the course (needed for completion rate subqueries)
     const totalItemsQuery = await this.courseSectionItemRepo
       .createQueryBuilder('item')
       .select('COUNT(item.id)', 'totalCount')
@@ -1281,7 +1307,7 @@ export class CourseService {
 
     let stats: any[] = [];
 
-    // 3. Select the appropriate query based on groupBy
+    // 4. Select the appropriate query based on groupBy
     switch (groupBy) {
       case 'country':
         stats = await this.getCourseDemographicStats(courseId, 'country', totalItems);
@@ -1295,7 +1321,7 @@ export class CourseService {
         break;
     }
 
-    // 4. Final Return
+    // 5. Final Return
     return {
       stats,
     };
