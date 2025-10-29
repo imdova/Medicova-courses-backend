@@ -268,6 +268,96 @@ export class CourseController {
     return this.courseService.getAllStudentsProgress(courseId);
   }
 
+  // 🟢 UPDATED ENDPOINT 1: Course Overview Statistics
+  @Get(':courseId/overview')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('course:get_by_id_with_overview') // New permission
+  @ApiOperation({ summary: 'Get overview stats and time-series enrollment data for a specific course' })
+  @ApiParam({ name: 'courseId', description: 'UUID of the course' })
+  @ApiQuery({
+    name: 'period',
+    required: true,
+    enum: ['yearly', 'monthly', 'weekly'], // Using string array for Swagger
+    description: 'The aggregation period for enrollment time-series data (yearly, monthly, or weekly)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Course overview data',
+    schema: {
+      example: {
+        totalEnrollments: 200,
+        completionRate: 76,
+        enrollmentTimeSeries: [{ date: '2024-05-01', count: 15 }, /* ... */], // New return structure
+      },
+    },
+  })
+  async getCourseOverview(
+    @Param('courseId', ParseUUIDPipe) courseId: string,
+    @Query('period') period: string, // Capture the period query parameter
+    @Req() req,
+  ) {
+    // Input Validation
+    const allowedPeriods = ['yearly', 'monthly', 'weekly'];
+    if (!allowedPeriods.includes(period)) {
+      throw new BadRequestException('Invalid period. Must be yearly, monthly, or weekly.');
+    }
+
+    const { sub: userId, academyId, role } = req.user;
+    return this.courseService.getCourseOverview(
+      courseId,
+      userId,
+      academyId,
+      role,
+      period, // Pass the period to the service
+    );
+  }
+
+  // 🟢 UPDATED ENDPOINT 2: Course Demographic Statistics
+  @Get(':courseId/stats')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('course:get_by_id_with_stats') // New permission
+  @ApiOperation({ summary: 'Get demographic stats (countries, categories, ages) for a specific course, grouped by a chosen field.' })
+  @ApiParam({ name: 'courseId', description: 'UUID of the course' })
+  @ApiQuery({
+    name: 'groupBy',
+    required: true,
+    enum: ['country', 'category', 'age'], // Allowed grouping fields
+    description: 'The field to group the student statistics by (country, category, or age)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Course demographic stats',
+    schema: {
+      example: {
+        // The structure will adapt based on 'groupBy'
+        stats: [
+          { groupValue: 'United States', students: 120, completion: 78 },
+          { groupValue: 'India', students: 95, completion: 72 },
+        ],
+      },
+    },
+  })
+  async getCourseStats(
+    @Param('courseId', ParseUUIDPipe) courseId: string,
+    @Query('groupBy') groupBy: string, // Capture the groupBy query parameter
+    @Req() req,
+  ) {
+    // Input Validation
+    const allowedGroupings = ['country', 'category', 'age'];
+    if (!allowedGroupings.includes(groupBy)) {
+      throw new BadRequestException('Invalid groupBy parameter. Must be country, category, or age.');
+    }
+
+    const { sub: userId, academyId, role } = req.user;
+    return this.courseService.getCourseStats(
+      courseId,
+      userId,
+      academyId,
+      role,
+      groupBy, // Pass the grouping field to the service
+    );
+  }
+
   @Patch(':id')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('course:update')
