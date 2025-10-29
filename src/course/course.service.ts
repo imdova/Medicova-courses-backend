@@ -1079,9 +1079,10 @@ export class CourseService {
   }
 
   /**
- * Generic query helper for stats, grouping by a profile field (Country/Category).
- * FIX: Added 'profile.country' to the GROUP BY clause for the country case to resolve the "ungrouped column" error in the correlated subquery.
- */
+  * Generic query helper for stats, grouping by a profile field (Country/Category).
+  * FIX: Added 'profile.category_id' to the GROUP BY clause for the category case
+  * to resolve the "ungrouped column" error in the correlated subquery.
+  */
   private async getCourseDemographicStats(
     courseId: string,
     groupByField: 'country' | 'category',
@@ -1094,7 +1095,8 @@ export class CourseService {
       .leftJoin(
         'profile.category',
         'category',
-        groupByField === 'category' ? 'profile.categoryId = category.id' : '1=1'
+        // Note: Using the actual column name 'category_id' for the raw join
+        groupByField === 'category' ? 'profile.category_id = category.id' : '1=1'
       )
       .select('COUNT(cs.id)', 'students')
 
@@ -1114,14 +1116,15 @@ export class CourseService {
             .leftJoin(
               'profile_categories',
               'catc',
-              groupByField === 'category' ? 'pc.categoryId = catc.id' : '1=1'
+              groupByField === 'category' ? 'pc.category_id = catc.id' : '1=1'
             )
             .where(`csc.course_id = :courseId`)
             .andWhere(
               groupByField === 'country'
                 // Correlate on country name
                 ? `pc.country->>'name' = profile.country->>'name'`
-                : `pc.categoryId = profile.categoryId` // Correlate on category ID
+                // Correlate on category ID
+                : `pc.category_id = profile.category_id`
             )
             .andWhere(
               `EXISTS (
@@ -1142,14 +1145,14 @@ export class CourseService {
       .andWhere(
         groupByField === 'country'
           ? `profile.country IS NOT NULL`
-          : `profile.categoryId IS NOT NULL`
+          : `profile.category_id IS NOT NULL` // Use category_id for null check
       )
 
-      // 🟢 FIX APPLIED HERE: Group by the full column and the name to satisfy PostgreSQL.
+      // 🟢 FIX APPLIED HERE: Include the foreign key column in the GROUP BY
       .groupBy(
         groupByField === 'country'
-          ? `profile.country, profile.country->>'name'` // Now groups by the full JSONB object first
-          : 'category.name'
+          ? `profile.country, profile.country->>'name'`
+          : 'category.name, profile.category_id'
       )
       .orderBy('students', 'DESC')
       .limit(10);
