@@ -312,6 +312,52 @@ export class CourseController {
     );
   }
 
+  // 🟢 UPDATED ENDPOINT 2: Course Demographic Statistics
+  @Get(':courseId/stats')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  //@RequirePermissions('course:stats')
+  @ApiOperation({ summary: 'Get demographic stats (countries, categories, ages) for a specific course, grouped by a chosen field.' })
+  @ApiParam({ name: 'courseId', description: 'UUID of the course' })
+  @ApiQuery({
+    name: 'groupBy',
+    required: true,
+    enum: ['country', 'category', 'age'], // Allowed grouping fields
+    description: 'The field to group the student statistics by (country, category, or age)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Course demographic stats',
+    schema: {
+      example: {
+        // The structure will adapt based on 'groupBy'
+        stats: [
+          { groupValue: 'United States', students: 120, completion: 78 },
+          { groupValue: 'India', students: 95, completion: 72 },
+        ],
+      },
+    },
+  })
+  async getCourseStats(
+    @Param('courseId', ParseUUIDPipe) courseId: string,
+    @Query('groupBy') groupBy: string, // Capture the groupBy query parameter
+    @Req() req,
+  ) {
+    // Input Validation
+    const allowedGroupings = ['country', 'category', 'age'];
+    if (!allowedGroupings.includes(groupBy)) {
+      throw new BadRequestException('Invalid groupBy parameter. Must be country, category, or age.');
+    }
+
+    const { sub: userId, academyId, role } = req.user;
+    return this.courseService.getCourseStats(
+      courseId,
+      userId,
+      academyId,
+      role,
+      groupBy, // Pass the grouping field to the service
+    );
+  }
+
   @Patch(':id')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('course:update')

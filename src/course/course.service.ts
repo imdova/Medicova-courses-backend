@@ -1064,4 +1064,232 @@ export class CourseService {
       enrollmentTimeSeries, // <-- New structure
     };
   }
+
+  // Helper function to map date of birth to age range (kept from previous step)
+  private calculateAgeRange(dob: Date | null): string {
+    if (!dob) return 'Unknown';
+    const age = new Date().getFullYear() - dob.getFullYear();
+
+    if (age < 18) return '<18';
+    if (age <= 24) return '18-24';
+    if (age <= 34) return '25-34';
+    if (age <= 44) return '35-44';
+    if (age <= 54) return '45-54';
+    return '55+';
+  }
+
+  /**
+ * Generic query helper for stats, grouping by a profile field (Country/Category).
+ * Modified to support category relationship and country JSONB type.
+ */
+  private async getCourseDemographicStats(
+    courseId: string,
+    groupByField: 'country' | 'category',
+    totalItems: number,
+  ): Promise<any[]> {
+    const query = this.courseStudentRepo
+      .createQueryBuilder('cs')
+      .innerJoin('cs.student', 'user')
+      .innerJoin('user.profile', 'profile')
+      // Join ProfileCategory if grouping by category
+      .leftJoin(
+        'profile.category',
+        'category',
+        groupByField === 'category' ? 'profile.categoryId = category.id' : '1=1'
+      )
+      .select(`profile.${groupByField}`, 'groupValueRaw') // Raw value for country/category entity
+      .addSelect('COUNT(cs.id)', 'students')
+
+      // Use category.name if grouping by category, otherwise use the country name from JSONB
+      // NOTE: TypeORM/PostgreSQL needs specific handling for JSONB fields
+      .addSelect(
+        groupByField === 'category' ? 'category.name' : `(profile.country->>'name')`,
+        'groupValueName'
+      )
+      .addSelect(
+        subQuery => {
+          // Subquery to count completed students within the current group
+          return subQuery
+            .select('COUNT(DISTINCT csc.id)')
+            .from('course_student', 'csc')
+            .innerJoin('user', 'usc', 'usc.id = csc.student_id')
+            .innerJoin('profile', 'pc', 'pc."user_id" = usc.id')
+            .leftJoin(
+              'profile_categories',
+              'catc',
+              groupByField === 'category' ? 'pc.categoryId = catc.id' : '1=1'
+            )
+            .where(`csc.course_id = :courseId`)
+            .andWhere(
+              groupByField === 'country'
+                ? `pc.country->>'name' = profile.country->>'name'`
+                : `pc.categoryId = profile.categoryId`
+            )
+            .andWhere(
+              `EXISTS (
+                            SELECT 1 FROM course_progress cp
+                            INNER JOIN course_section_items csi ON csi.id = cp."item_id"
+                            INNER JOIN course_sections cs ON cs.id = csi."section_id"
+                            WHERE cp."course_student_id" = csc.id 
+                            AND cs."course_id" = :courseId
+                            AND cp.completed = TRUE
+                            GROUP BY csc.id
+                            HAVING COUNT(DISTINCT csi.id) >= :totalItems
+                        )`,
+            )
+        },
+        'completedStudents',
+      )
+      .where('cs.course_id = :courseId', { courseId, totalItems })
+
+      .andWhere(
+        groupByField === 'country'
+          ? `profile.country IS NOT NULL`
+          : `profile.categoryId IS NOT NULL`
+      )
+
+      // Group by the raw value (or category ID) and the displayed name
+      .groupBy(
+        groupByField === 'country'
+          ? `profile.country->>'name'`
+          : 'category.name' // Name is unique in profile_categories, grouping by it is sufficient.
+      )
+      .orderBy('students', 'DESC')
+      .limit(10); // Limit to top 10
+
+    const rawResults = await query.getRawMany();
+
+    return rawResults.map((row) => {
+      const students = parseInt(row.students, 10);
+      const completed = parseInt(row.completedStudents, 10) || 0;
+      const completionRate = students > 0 ? (completed / students) * 100 : 0;
+
+      return {
+        groupValue: row.groupValueName,
+        students: students,
+        completion: Math.round(completionRate * 10) / 10,
+      };
+    });
+  }
+
+  /**
+ * Specialized query helper for age stats, grouping by age range.
+ */
+  private async getCourseAgeStats(
+    courseId: string,
+    totalItems: number,
+  ): Promise<any[]> {
+    const rawAgeStats = await this.courseStudentRepo
+      .createQueryBuilder('cs')
+      .innerJoin('cs.student', 'user')
+      .innerJoin('user.profile', 'profile')
+      // Use an integer representation of age for grouping
+      .select(`(EXTRACT(YEAR FROM NOW()) - EXTRACT(YEAR FROM profile.dateOfBirth))`, 'age')
+      .addSelect('COUNT(cs.id)', 'students')
+      .addSelect(
+        subQuery => {
+          // Subquery to count completed students within the current age group
+          return subQuery
+            .select('COUNT(DISTINCT csc.id)')
+            .from('course_student', 'csc')
+            .innerJoin('user', 'usc', 'usc.id = csc.student_id')
+            .innerJoin('profile', 'pc', 'pc."user_id" = usc.id')
+            .where(`csc.course_id = :courseId`)
+            .andWhere(`(EXTRACT(YEAR FROM NOW()) - EXTRACT(YEAR FROM pc.dateOfBirth)) = (EXTRACT(YEAR FROM NOW()) - EXTRACT(YEAR FROM profile.dateOfBirth))`)
+            .andWhere(
+              `EXISTS (
+                            SELECT 1 FROM course_progress cp
+                            INNER JOIN course_section_items csi ON csi.id = cp."item_id"
+                            INNER JOIN course_sections cs ON cs.id = csi."section_id"
+                            WHERE cp."course_student_id" = csc.id 
+                            AND cs."course_id" = :courseId
+                            AND cp.completed = TRUE
+                            GROUP BY csc.id
+                            HAVING COUNT(DISTINCT csi.id) >= :totalItems
+                        )`,
+            )
+        },
+        'completedStudents',
+      )
+      .where('cs.course_id = :courseId', { courseId, totalItems })
+      .andWhere(`profile.dateOfBirth IS NOT NULL`)
+      .groupBy('age')
+      .orderBy('students', 'DESC')
+      .getRawMany();
+
+    const ageMap = new Map<string, { students: number, completed: number }>();
+
+    // Aggregate and apply age range logic in memory
+    rawAgeStats.forEach(row => {
+      const age = parseInt(row.age, 10);
+      // Create a dummy date of birth to calculate the range
+      const dob = new Date(new Date().getFullYear() - age, 0, 1);
+      const ageRange = this.calculateAgeRange(dob);
+      const students = parseInt(row.students, 10);
+      const completed = parseInt(row.completedStudents, 10) || 0;
+
+      const existing = ageMap.get(ageRange) || { students: 0, completed: 0 };
+      existing.students += students;
+      existing.completed += completed;
+      ageMap.set(ageRange, existing);
+    });
+
+    return Array.from(ageMap.entries())
+      .map(([ageRange, stats]) => ({
+        groupValue: ageRange,
+        students: stats.students,
+        completion: stats.students > 0
+          ? Math.round((stats.completed / stats.students) * 1000) / 10
+          : 0,
+      }))
+      .sort((a, b) => b.students - a.students)
+      .slice(0, 10); // Limit to top 10 ranges
+  }
+
+  async getCourseStats(
+    courseId: string,
+    userId: string,
+    academyId: string,
+    role: string,
+    groupBy: string, // <-- New parameter
+  ): Promise<any> {
+    // 1. Authorization check
+    // await this.checkCourseAccess(courseId, userId, academyId, role);
+
+    // 2. Get total items in the course (needed for completion rate subqueries)
+    const totalItemsQuery = await this.courseSectionItemRepo
+      .createQueryBuilder('item')
+      .select('COUNT(item.id)', 'totalCount')
+      .leftJoin('item.section', 'section')
+      .where('section.course_id = :courseId', { courseId })
+      .getRawOne();
+
+    const totalItems = parseInt(totalItemsQuery.totalCount, 10) || 0;
+
+    // Early exit if no content exists, as completion rate calculation will fail
+    if (totalItems === 0) {
+      return { stats: [] };
+    }
+
+    let stats: any[] = [];
+
+    // 3. Select the appropriate query based on groupBy
+    switch (groupBy) {
+      case 'country':
+        stats = await this.getCourseDemographicStats(courseId, 'country', totalItems);
+        break;
+      case 'category':
+        // The profile entity has a ManyToOne relationship with ProfileCategory via 'category'
+        stats = await this.getCourseDemographicStats(courseId, 'category', totalItems);
+        break;
+      case 'age':
+        stats = await this.getCourseAgeStats(courseId, totalItems);
+        break;
+    }
+
+    // 4. Final Return
+    return {
+      stats,
+    };
+  }
 }
