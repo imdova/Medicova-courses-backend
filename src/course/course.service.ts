@@ -70,6 +70,10 @@ export class CourseService {
     private userRepository: Repository<User>,
     @InjectRepository(AcademyInstructor)
     private readonly academyInstructorRepository: Repository<AcademyInstructor>,
+    @InjectRepository(CourseStudent)
+    private readonly courseStudentRepo: Repository<CourseStudent>,
+    @InjectRepository(CourseProgress)
+    private readonly progressRepo: Repository<CourseProgress>,
     private readonly dataSource: DataSource
   ) { }
 
@@ -922,5 +926,142 @@ export class CourseService {
     }
 
     return statsMap;
+  }
+
+  /**
+ * Calculates the date range for time series stats.
+ * @param period 'yearly' (12 months), 'monthly' (4 weeks), 'weekly' (7 days).
+ * @returns [startDate, endDate]
+ */
+  private getDateRange(period: string): [Date, Date] {
+    const endDate = new Date();
+    const startDate = new Date(endDate);
+
+    switch (period) {
+      case 'yearly':
+        startDate.setFullYear(endDate.getFullYear() - 1);
+        break;
+      case 'monthly': // Last 4 weeks
+        startDate.setDate(endDate.getDate() - 28);
+        break;
+      case 'weekly': // Last 7 days
+        startDate.setDate(endDate.getDate() - 7);
+        break;
+      default:
+        // Should be prevented by controller validation, but safe fallback
+        startDate.setFullYear(endDate.getFullYear() - 1);
+    }
+    return [startDate, endDate];
+  }
+
+  /**
+   * Helper to get enrollment time series data for a specific course.
+   */
+  private async getCourseEnrollmentTimeSeriesForPeriod(courseId: string, period: string): Promise<any[]> {
+    const [startDate, endDate] = this.getDateRange(period);
+
+    let datePart: string;
+    if (period === 'weekly') {
+      datePart = 'DAY';
+    } else if (period === 'monthly') {
+      datePart = 'WEEK';
+    } else {
+      datePart = 'MONTH';
+    }
+
+    const query = this.courseStudentRepo // Use CourseStudentRepo (Enrollments)
+      .createQueryBuilder('enrollment')
+      .select(`DATE_TRUNC('${datePart}', enrollment.created_at AT TIME ZONE 'UTC')`, 'date_group')
+      .addSelect(`COUNT(enrollment.id)`, 'count')
+      .where('enrollment.course_id = :courseId', { courseId })
+      .andWhere(`enrollment.created_at >= :startDate`, { startDate })
+      .andWhere(`enrollment.created_at < :endDate`, { endDate })
+      .groupBy('date_group')
+      .orderBy('date_group', 'ASC');
+
+    const rawResults = await query.getRawMany();
+
+    return rawResults.map(r => ({
+      date: new Date(r.date_group).toISOString().split('T')[0],
+      count: parseInt(r.count, 10),
+    }));
+  }
+
+  // 🟢 UPDATED METHOD: getCourseOverview
+  async getCourseOverview(
+    courseId: string,
+    userId: string,
+    academyId: string,
+    role: string,
+    period: string, // <-- Added new parameter
+  ): Promise<any> {
+    // 1. Authorization check (conceptual: ensure user can view this course's stats)
+    // ...
+
+    // 2. Get total enrollments
+    const totalEnrollments = await this.courseStudentRepo.count({
+      where: { course: { id: courseId } },
+    });
+
+    // Handle case with no enrollments
+    if (totalEnrollments === 0) {
+      // Only fetch time series for the requested period, even if empty
+      const enrollmentTimeSeries = await this.getCourseEnrollmentTimeSeriesForPeriod(courseId, period);
+      return {
+        totalEnrollments: 0,
+        completionRate: 0,
+        enrollmentTimeSeries,
+      };
+    }
+
+    // 3. Get total unique items in the course
+    const totalItemsQuery = await this.courseSectionItemRepo
+      .createQueryBuilder('item')
+      .select('COUNT(item.id)', 'totalCount')
+      .leftJoin('item.section', 'section')
+      .where('section.course_id = :courseId', { courseId })
+      .getRawOne();
+
+    const totalItems = parseInt(totalItemsQuery.totalCount, 10) || 0;
+
+    // 4. Calculate total completed students
+    let completedStudents = 0;
+
+    if (totalItems > 0) {
+      // Find students who have completed all items (completedItems >= totalItems)
+      const studentCompletionQuery = await this.progressRepo
+        .createQueryBuilder('progress')
+        .select('courseStudent.id', 'courseStudentId')
+        .addSelect(
+          'COUNT(DISTINCT CASE WHEN progress.completed = true THEN item.id END)',
+          'completedItems',
+        )
+        .innerJoin('progress.courseStudent', 'courseStudent')
+        .innerJoin('courseStudent.course', 'course')
+        .innerJoin('progress.item', 'item')
+        .innerJoin('item.section', 'section')
+        .where('course.id = :courseId', { courseId })
+        .groupBy('courseStudent.id')
+        .having('COUNT(DISTINCT CASE WHEN progress.completed = true THEN item.id END) >= :totalItems', { totalItems })
+        .getRawMany();
+
+      completedStudents = studentCompletionQuery.length;
+    }
+
+    // 5. Calculate completion rate
+    const completionRate =
+      totalEnrollments > 0
+        ? Math.round((completedStudents / totalEnrollments) * 1000) / 10
+        : 0;
+
+    // 6. Get time series data ONLY for the requested period
+    const enrollmentTimeSeries = await this.getCourseEnrollmentTimeSeriesForPeriod(courseId, period);
+
+    // 7. Final Return
+    return {
+      totalEnrollments,
+      completionRate,
+      enrollmentTimeSeries, // <-- New structure
+    };
   }
 }

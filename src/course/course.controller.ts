@@ -268,6 +268,50 @@ export class CourseController {
     return this.courseService.getAllStudentsProgress(courseId);
   }
 
+  // 🟢 UPDATED ENDPOINT 1: Course Overview Statistics
+  @Get(':courseId/overview')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  //@RequirePermissions('course:overview') // New permission
+  @ApiOperation({ summary: 'Get overview stats and time-series enrollment data for a specific course' })
+  @ApiParam({ name: 'courseId', description: 'UUID of the course' })
+  @ApiQuery({
+    name: 'period',
+    required: true,
+    enum: ['yearly', 'monthly', 'weekly'], // Using string array for Swagger
+    description: 'The aggregation period for enrollment time-series data (yearly, monthly, or weekly)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Course overview data',
+    schema: {
+      example: {
+        totalEnrollments: 200,
+        completionRate: 76,
+        enrollmentTimeSeries: [{ date: '2024-05-01', count: 15 }, /* ... */], // New return structure
+      },
+    },
+  })
+  async getCourseOverview(
+    @Param('courseId', ParseUUIDPipe) courseId: string,
+    @Query('period') period: string, // Capture the period query parameter
+    @Req() req,
+  ) {
+    // Input Validation
+    const allowedPeriods = ['yearly', 'monthly', 'weekly'];
+    if (!allowedPeriods.includes(period)) {
+      throw new BadRequestException('Invalid period. Must be yearly, monthly, or weekly.');
+    }
+
+    const { sub: userId, academyId, role } = req.user;
+    return this.courseService.getCourseOverview(
+      courseId,
+      userId,
+      academyId,
+      role,
+      period, // Pass the period to the service
+    );
+  }
+
   @Patch(':id')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('course:update')
