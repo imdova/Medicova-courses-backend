@@ -1080,7 +1080,7 @@ export class CourseService {
 
   /**
  * Generic query helper for stats, grouping by a profile field (Country/Category).
- * Modified to support category relationship and country JSONB type.
+ * FIX: Added 'profile.country' to the GROUP BY clause for the country case to resolve the "ungrouped column" error in the correlated subquery.
  */
   private async getCourseDemographicStats(
     courseId: string,
@@ -1091,17 +1091,14 @@ export class CourseService {
       .createQueryBuilder('cs')
       .innerJoin('cs.student', 'user')
       .innerJoin('user.profile', 'profile')
-      // Join ProfileCategory if grouping by category
       .leftJoin(
         'profile.category',
         'category',
         groupByField === 'category' ? 'profile.categoryId = category.id' : '1=1'
       )
-      .select(`profile.${groupByField}`, 'groupValueRaw') // Raw value for country/category entity
-      .addSelect('COUNT(cs.id)', 'students')
+      .select('COUNT(cs.id)', 'students')
 
-      // Use category.name if grouping by category, otherwise use the country name from JSONB
-      // NOTE: TypeORM/PostgreSQL needs specific handling for JSONB fields
+      // Select the expression that we want to group by and display
       .addSelect(
         groupByField === 'category' ? 'category.name' : `(profile.country->>'name')`,
         'groupValueName'
@@ -1122,8 +1119,9 @@ export class CourseService {
             .where(`csc.course_id = :courseId`)
             .andWhere(
               groupByField === 'country'
+                // Correlate on country name
                 ? `pc.country->>'name' = profile.country->>'name'`
-                : `pc.categoryId = profile.categoryId`
+                : `pc.categoryId = profile.categoryId` // Correlate on category ID
             )
             .andWhere(
               `EXISTS (
@@ -1141,21 +1139,20 @@ export class CourseService {
         'completedStudents',
       )
       .where('cs.course_id = :courseId', { courseId, totalItems })
-
       .andWhere(
         groupByField === 'country'
           ? `profile.country IS NOT NULL`
           : `profile.categoryId IS NOT NULL`
       )
 
-      // Group by the raw value (or category ID) and the displayed name
+      // 🟢 FIX APPLIED HERE: Group by the full column and the name to satisfy PostgreSQL.
       .groupBy(
         groupByField === 'country'
-          ? `profile.country->>'name'`
-          : 'category.name' // Name is unique in profile_categories, grouping by it is sufficient.
+          ? `profile.country, profile.country->>'name'` // Now groups by the full JSONB object first
+          : 'category.name'
       )
       .orderBy('students', 'DESC')
-      .limit(10); // Limit to top 10
+      .limit(10);
 
     const rawResults = await query.getRawMany();
 
@@ -1173,18 +1170,22 @@ export class CourseService {
   }
 
   /**
- * Specialized query helper for age stats, grouping by age range.
- */
+   * Specialized query helper for age stats, grouping by age range.
+   * FIX: Changed GROUP BY to use the full age calculation expression instead of the alias.
+   */
   private async getCourseAgeStats(
     courseId: string,
     totalItems: number,
   ): Promise<any[]> {
+    // The expression used for both SELECT and GROUP BY
+    const ageExpression = `(EXTRACT(YEAR FROM NOW()) - EXTRACT(YEAR FROM profile."dateOfBirth"))`;
+
     const rawAgeStats = await this.courseStudentRepo
       .createQueryBuilder('cs')
       .innerJoin('cs.student', 'user')
       .innerJoin('user.profile', 'profile')
-      // Use an integer representation of age for grouping
-      .select(`(EXTRACT(YEAR FROM NOW()) - EXTRACT(YEAR FROM profile.dateOfBirth))`, 'age')
+      // Use the full expression for selection
+      .select(ageExpression, 'age')
       .addSelect('COUNT(cs.id)', 'students')
       .addSelect(
         subQuery => {
@@ -1195,7 +1196,8 @@ export class CourseService {
             .innerJoin('user', 'usc', 'usc.id = csc.student_id')
             .innerJoin('profile', 'pc', 'pc."user_id" = usc.id')
             .where(`csc.course_id = :courseId`)
-            .andWhere(`(EXTRACT(YEAR FROM NOW()) - EXTRACT(YEAR FROM pc.dateOfBirth)) = (EXTRACT(YEAR FROM NOW()) - EXTRACT(YEAR FROM profile.dateOfBirth))`)
+            // Correlate on the same age expression
+            .andWhere(`(EXTRACT(YEAR FROM NOW()) - EXTRACT(YEAR FROM pc."dateOfBirth")) = ${ageExpression}`)
             .andWhere(
               `EXISTS (
                             SELECT 1 FROM course_progress cp
@@ -1213,16 +1215,17 @@ export class CourseService {
       )
       .where('cs.course_id = :courseId', { courseId, totalItems })
       .andWhere(`profile.dateOfBirth IS NOT NULL`)
-      .groupBy('age')
+
+      // 🟢 FIX APPLIED HERE: GROUP BY the full age calculation expression
+      .groupBy(ageExpression)
       .orderBy('students', 'DESC')
       .getRawMany();
 
     const ageMap = new Map<string, { students: number, completed: number }>();
 
-    // Aggregate and apply age range logic in memory
+    // ... (rest of the aggregation logic remains the same)
     rawAgeStats.forEach(row => {
       const age = parseInt(row.age, 10);
-      // Create a dummy date of birth to calculate the range
       const dob = new Date(new Date().getFullYear() - age, 0, 1);
       const ageRange = this.calculateAgeRange(dob);
       const students = parseInt(row.students, 10);
@@ -1243,7 +1246,7 @@ export class CourseService {
           : 0,
       }))
       .sort((a, b) => b.students - a.students)
-      .slice(0, 10); // Limit to top 10 ranges
+      .slice(0, 10);
   }
 
   async getCourseStats(
