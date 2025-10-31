@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -6,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
-import { Bundle } from './entities/bundle.entity';
+import { Bundle, BundleStatus } from './entities/bundle.entity';
 import { BundlePricing } from './entities/bundle-pricing.entity';
 import { CourseBundle } from './entities/course-bundle.entity';
 import { CreateBundleDto } from './dto/create-bundle.dto';
@@ -58,16 +59,28 @@ export class BundleService {
     userId: string,
     academyId?: string,
   ): Promise<Bundle> {
-    try {
-      // 1️⃣ Validate all courses exist
-      const courses = await this.courseRepository.find({
+    // 1️⃣ Conditional Validation and Course Fetching
+    const isDraft = dto.status === BundleStatus.DRAFT;
+    const hasCourseIds = dto.courseIds && dto.courseIds.length > 0;
+
+    if (!isDraft && !hasCourseIds) {
+      throw new BadRequestException(
+        'A bundle status other than "draft" must contain at least one course.',
+      );
+    }
+    let courses = [];
+    if (hasCourseIds) {
+      courses = await this.courseRepository.find({
         where: { id: In(dto.courseIds), deleted_at: null },
       });
 
       if (courses.length !== dto.courseIds.length) {
         throw new NotFoundException('One or more courses not found');
       }
+    }
+    // If it's a draft and courseIds are empty, 'courses' remains an empty array ([]).
 
+    try {
       // 2️⃣ Create bundle entity
       const bundle = this.bundleRepository.create({
         title: dto.title,

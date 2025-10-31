@@ -127,10 +127,11 @@ export class CreateBundleDto {
       '22222222-2222-2222-2222-222222222222',
     ],
   })
+  @IsOptional() // 🟢 FIX 1: Make optional
   @IsArray()
-  @ArrayNotEmpty()
+  // @ArrayNotEmpty() // 🔴 FIX 2: REMOVE ArrayNotEmpty to allow empty array []
   @IsUUID('4', { each: true })
-  courseIds: string[];
+  courseIds?: string[]; // 🟢 FIX 3: Make property optional
 
   @ApiProperty({
     type: [BundlePricingDto],
