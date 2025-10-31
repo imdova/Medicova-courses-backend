@@ -296,4 +296,22 @@ export class CreateCourseDto {
   @IsOptional()
   @IsUUID()
   instructorId?: string; // ⬅️ NEW FIELD ADDED HERE
+
+  @ApiPropertyOptional({
+    description: 'Indicates if this course provides a completion certificate.',
+    default: true,
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isCertified?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Description or message about the course certification.',
+    default: "",
+    example: 'Awarded upon completion of all modules.',
+  })
+  @IsOptional()
+  @IsString()
+  certificationText?: string;
 }
