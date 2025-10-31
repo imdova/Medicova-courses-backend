@@ -107,15 +107,6 @@ export class StudentCourseService {
 
     const currency = user ? await this.getCurrencyForUser(user.sub) : 'USD';
 
-    console.log('🔍 Applied Filters (FIXED):', {
-      categories,
-      subcategories,
-      languages, // This should now correctly show ['Arabic']
-      priceFrom,
-      priceTo,
-      currency,
-    });
-
     const qb = this.courseRepo
       .createQueryBuilder('course')
       .leftJoinAndSelect('course.pricings', 'pricing')
@@ -204,9 +195,6 @@ export class StudentCourseService {
       // Apply the price filter directly using the join
       qb.andWhere(priceCondition, priceParams);
     }
-
-    console.log('🔍 Generated SQL:', qb.getSql());
-    console.log('🔍 Parameters:', qb.getParameters());
 
     // --- 3. Run Pagination ---
     const result = await paginate(query, qb, COURSE_PAGINATION_CONFIG);
