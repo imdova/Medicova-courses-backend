@@ -276,4 +276,18 @@ export class Course extends BasicEntity {
 
   @OneToMany(() => CourseRating, (rating) => rating.course)
   ratings: CourseRating[];
+
+  @ApiProperty({
+    description: 'Indicates if this course provides a completion certificate.',
+    default: true,
+  })
+  @Column({ type: 'boolean', default: true, name: 'is_certified' })
+  isCertified: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Description or message about the course certification.',
+    default: '',
+  })
+  @Column({ type: 'text', default: '', name: 'certification_text' })
+  certificationText: string;
 }
