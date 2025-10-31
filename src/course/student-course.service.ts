@@ -77,12 +77,14 @@ export class StudentCourseService {
     return CurrencyCode.USD; // fallback default
   }
 
-  async getPaginatedCourses(query: PaginateQuery, user: any) {
-    // --- 1. Extract Custom Filters ---
-    // The PaginateQuery can contain extra properties from the user request (e.g., query params)
-    const customFilters = query as any;
+  async getPaginatedCourses(
+    query: PaginateQuery,
+    user: any,
+    customFilters: any // Use the injected custom filters instead of parsing from query
+  ) {
+    // --- 1. Reliable Extraction of Custom Filters ---
 
-    // Cleanly parse array filters, handling both array and comma-separated string formats
+    // Cleanly parse array filters
     const categories: string[] = Array.isArray(customFilters.categories)
       ? customFilters.categories
       : typeof customFilters.categories === 'string'
@@ -105,6 +107,15 @@ export class StudentCourseService {
 
     const currency = user ? await this.getCurrencyForUser(user.sub) : 'USD';
 
+    console.log('🔍 Applied Filters (FIXED):', {
+      categories,
+      subcategories,
+      languages, // This should now correctly show ['Arabic']
+      priceFrom,
+      priceTo,
+      currency,
+    });
+
     const qb = this.courseRepo
       .createQueryBuilder('course')
       .leftJoinAndSelect('course.pricings', 'pricing')
@@ -119,16 +130,14 @@ export class StudentCourseService {
       ])
       .leftJoinAndSelect('course.instructor', 'instructor')
       .leftJoinAndSelect('instructor.profile', 'instructorProfile')
-      .andWhere('course.deleted_at IS NULL')
+      .where('course.deleted_at IS NULL')
 
-      // ✅ NEW: Add joins for category/subcategory to filter by name
+      // ✅ Add joins for category/subcategory filtering
       .leftJoin('course.category', 'category')
       .leftJoin('course.subCategory', 'subCategory')
 
-      // ✅ Count total enrolled students per course
+      // Load counts (existing logic)
       .loadRelationCountAndMap('course.studentCount', 'course.enrollments')
-
-      // ✅ Count lectures per course (existing logic)
       .loadRelationCountAndMap(
         'course.lecturesCount',
         'course.sections',
@@ -140,8 +149,6 @@ export class StudentCourseService {
               lectureType: 'lecture',
             }),
       )
-
-      // ✅ Count quizzes per course (existing logic)
       .loadRelationCountAndMap(
         'course.quizzesCount',
         'course.sections',
@@ -154,68 +161,60 @@ export class StudentCourseService {
             }),
       );
 
-    // --- 2. Apply Custom Filters as AND WHERE Clauses ---
+    // --- 2. Apply Custom Filters as AND WHERE Clauses (SYNTAX CHECKED) ---
 
-    // ✅ NEW: Filter by categories (array of names)
+    // ✅ Filter by categories (using unique parameter 'catNames')
     if (categories.length > 0) {
-      // Note: 'category' is the alias from the LEFT JOIN above
-      qb.andWhere('category.name IN (:...categories)', { categories });
+      qb.andWhere('category.name IN (:...catNames)', { catNames: categories });
     }
 
-    // ✅ NEW: Filter by subcategories (array of names)
+    // ✅ Filter by subcategories (using unique parameter 'subCatNames')
     if (subcategories.length > 0) {
-      // Note: 'subCategory' is the alias from the LEFT JOIN above
-      qb.andWhere('subCategory.name IN (:...subcategories)', { subcategories });
+      qb.andWhere('subCategory.name IN (:...subCatNames)', { subCatNames: subcategories });
     }
 
-    // ✅ NEW: Filter by languages (PostgreSQL array overlap operator: &&)
+    // ✅ FIXED LANGUAGES SYNTAX: Use robust TypeORM/PostgreSQL array spread
     if (languages.length > 0) {
-      // 'languages' is the column name in course.entity.ts
-      qb.andWhere('course.languages && ARRAY[:...languages]', { languages });
+      // Use the PostgreSQL array overlap operator (&&)
+      // The parameter name 'languagesArray' is used with the spread operator
+      qb.andWhere('course.languages && ARRAY[:...languagesArray]::text[]', { languagesArray: languages });
     }
 
-    // ✅ NEW: Filter by price range (using EXISTS subquery)
+    // ✅ Price range filter (Uses COALESCE on the existing join)
     if (priceFrom !== undefined || priceTo !== undefined) {
+      // Use snake_case for database column names
+      let priceCondition = 'pricing.currencyCode = :currency AND pricing.isActive = true';
+
+      // Use COALESCE to determine the effective price (sale_price if available, otherwise regular_price)
+      const effectivePrice = 'COALESCE(pricing.salePrice, pricing.regularPrice)';
+
       const priceParams = {
-        currencyCode: currency,
-        priceFrom: priceFrom,
-        priceTo: priceTo,
+        currency,
+        priceFrom,
+        priceTo,
       };
 
-      // Construct the price WHERE clause for the subquery
-      let priceCondition = `pricing_sub.currencyCode = :currencyCode AND pricing_sub.isActive = true`;
-
-      // Price range logic: check salePrice (if discount is enabled) OR regularPrice
       if (priceFrom !== undefined) {
-        priceCondition += ` AND (
-          (pricing_sub.discountEnabled = TRUE AND pricing_sub.salePrice >= :priceFrom) OR
-          (pricing_sub.discountEnabled = FALSE AND pricing_sub.regularPrice >= :priceFrom) OR
-          (pricing_sub.discountEnabled IS NULL AND pricing_sub.regularPrice >= :priceFrom)
-        )`;
+        priceCondition += ` AND ${effectivePrice} >= :priceFrom`;
       }
       if (priceTo !== undefined) {
-        priceCondition += ` AND (
-          (pricing_sub.discountEnabled = TRUE AND pricing_sub.salePrice <= :priceTo) OR
-          (pricing_sub.discountEnabled = FALSE AND pricing_sub.regularPrice <= :priceTo) OR
-          (pricing_sub.discountEnabled IS NULL AND pricing_sub.regularPrice <= :priceTo)
-        )`;
+        priceCondition += ` AND ${effectivePrice} <= :priceTo`;
       }
 
-      // Create the EXISTS subquery (select 1 from course_pricing where course_id = course.id AND [priceCondition])
-      const subQuery = this.courseRepo.createQueryBuilder().subQuery()
-        .select('1')
-        .from('course_pricing', 'pricing_sub')
-        .where(priceCondition)
-        .andWhere('pricing_sub.course_id = course.id')
-        .getQuery();
-
-      // Add the EXISTS clause to the main query builder
-      qb.andWhere(`EXISTS (${subQuery})`, priceParams);
+      // Apply the price filter directly using the join
+      qb.andWhere(priceCondition, priceParams);
     }
 
+    console.log('🔍 Generated SQL:', qb.getSql());
+    console.log('🔍 Parameters:', qb.getParameters());
+
+    // --- 3. Run Pagination ---
     const result = await paginate(query, qb, COURSE_PAGINATION_CONFIG);
 
-    // ✅ Filter pricings by user's preferred currency (if applicable) - POST-PAGINATION FILTERING
+    // --- 4. Post-Pagination Processing (Pricing Filtering & Instructor Mapping) ---
+    // The rest of your logic is correct for post-processing.
+
+    // Filter pricings by user's preferred currency
     if (currency) {
       result.data.forEach((course: any) => {
         course.pricings = course.pricings.filter(
@@ -232,7 +231,6 @@ export class StudentCourseService {
       ),
     ];
 
-    // ✅ OPTIMIZED: Bulk fetch all academy instructors in one query and instructor stats
     const [academyInstructorsMap, instructorStatsMap] = await Promise.all([
       this.courseService.getAcademyInstructorsBulk(result.data as Course[]),
       this.courseService.getInstructorStatsBulk(instructorIds),
@@ -246,7 +244,6 @@ export class StudentCourseService {
         ...(course as any),
         instructor: mappedInstructor ? {
           ...mappedInstructor,
-          // 🎯 Inject the bulk-fetched stats
           coursesCount: instructorStats?.coursesCount || 0,
           studentsCount: instructorStats?.studentsCount || 0,
           averageRating: instructorStats?.averageRating || 0,

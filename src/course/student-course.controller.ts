@@ -9,6 +9,7 @@ import {
   Delete,
   Body,
   NotFoundException,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -31,6 +32,15 @@ import { OrderType } from 'src/payment/entities/payment.entity';
 import { PermissionsGuard } from '../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 import { OptionalJwtAuthGuard } from '../auth/strategy/optional-jwt-auth.guard';
+
+// Define the custom parameters interface for type safety
+interface CourseFilterParams {
+  categories?: string | string[];
+  subcategories?: string | string[];
+  languages?: string | string[];
+  priceFrom?: string; // Keep as string here, parse to number in service
+  priceTo?: string;   // Keep as string here, parse to number in service
+}
 
 @ApiTags('Student Courses')
 @Controller('student/courses')
@@ -270,8 +280,9 @@ export class StudentCourseController {
     type: Number,
     description: 'Filter by minimum average rating (e.g., filter.averageRating=$gte:4.5). Corresponds to filterableColumns key "averageRating".',
   })
-  findAll(@Paginate() query: PaginateQuery, @Req() req) {
-    return this.studentCourseService.getPaginatedCourses(query, req.user);
+  findAll(@Paginate() query: PaginateQuery, @Req() req, // ✅ FIX: Explicitly inject custom filters here
+    @Query() customFilters: CourseFilterParams,) {
+    return this.studentCourseService.getPaginatedCourses(query, req.user, customFilters);
   }
 
   @Get(':id')
