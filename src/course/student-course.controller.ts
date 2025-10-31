@@ -16,13 +16,14 @@ import {
   ApiResponse,
   ApiParam,
   ApiBody,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { Roles } from 'src/auth/decorator/roles.decorator';
 import { Paginate, PaginateQuery } from 'nestjs-paginate';
 import { AuthGuard } from '@nestjs/passport';
 import { StudentCourseService } from './student-course.service';
-import { Course } from './entities/course.entity';
+import { Course, CourseLevel, CourseType } from './entities/course.entity';
 import { CourseStudent } from './entities/course-student.entity';
 import { CreatePaymentDto } from 'src/payment/dto/create-payment.dto';
 import { PaymentService } from 'src/payment/payment.service';
@@ -207,6 +208,68 @@ export class StudentCourseController {
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
+  // 1. Array filters (handled custom in service logic)
+  @ApiQuery({
+    name: 'categories',
+    required: false,
+    type: [String],
+    description: 'Filter by one or more course category names (e.g., category=Web Dev,category=Design). Sent as a comma-separated list in query params or repeated params.',
+    style: 'form',
+    explode: false,
+  })
+  @ApiQuery({
+    name: 'subcategories',
+    required: false,
+    type: [String],
+    description: 'Filter by one or more course subcategory names.',
+    style: 'form',
+    explode: false,
+  })
+  @ApiQuery({
+    name: 'languages',
+    required: false,
+    type: [String],
+    description: 'Filter by one or more supported languages (e.g., languages=English,languages=Arabic).',
+    style: 'form',
+    explode: false,
+  })
+
+  // 2. Price Range filters (handled custom in service logic)
+  @ApiQuery({
+    name: 'priceFrom',
+    required: false,
+    type: Number,
+    description: 'Filter courses priced greater than or equal to this amount.',
+  })
+  @ApiQuery({
+    name: 'priceTo',
+    required: false,
+    type: Number,
+    description: 'Filter courses priced less than or equal to this amount.',
+  })
+
+  // 3. Simple filters (handled via nestjs-paginate and column name)
+  // Note: For nestjs-paginate to work, the filter name here must match the key in filterableColumns (e.g., 'type', 'level')
+
+  @ApiQuery({
+    name: 'filter.type',
+    required: false,
+    enum: CourseType,
+    description: 'Filter by course type (recorded, live, etc.). Corresponds to filterableColumns key "type".',
+  })
+  @ApiQuery({
+    name: 'filter.level',
+    required: false,
+    enum: CourseLevel,
+    description: 'Filter by course difficulty level (beginner, intermediate, advanced). Corresponds to filterableColumns key "level".',
+  })
+  // Average Rating uses the GTE (>=) operator in your config
+  @ApiQuery({
+    name: 'filter.averageRating',
+    required: false,
+    type: Number,
+    description: 'Filter by minimum average rating (e.g., filter.averageRating=$gte:4.5). Corresponds to filterableColumns key "averageRating".',
+  })
   findAll(@Paginate() query: PaginateQuery, @Req() req) {
     return this.studentCourseService.getPaginatedCourses(query, req.user);
   }
