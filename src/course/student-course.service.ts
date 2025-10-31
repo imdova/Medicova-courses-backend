@@ -23,13 +23,17 @@ export const COURSE_PAGINATION_CONFIG: QueryConfig<Course> = {
   sortableColumns: ['created_at', 'name', 'category', 'status'],
   defaultSortBy: [['created_at', 'DESC']],
   filterableColumns: {
-    name: [FilterOperator.ILIKE], // search by course name (case-insensitive)
+    name: [FilterOperator.ILIKE],
     category: [FilterOperator.EQ],
     status: [FilterOperator.EQ],
     isActive: [FilterOperator.EQ],
     createdBy: [FilterOperator.EQ],
+    // ✅ NEW: Simple filters from course entity
+    type: [FilterOperator.EQ], // for 'courseType' (TypeORM column name)
+    level: [FilterOperator.EQ], // for 'courseLevel' (TypeORM column name)
+    averageRating: [FilterOperator.GTE], // for 'rating' (greater than or equal to)
   },
-  relations: [], // add relations if needed
+  relations: [],
 };
 
 @Injectable()
@@ -73,13 +77,40 @@ export class StudentCourseService {
     return CurrencyCode.USD; // fallback default
   }
 
-  async getPaginatedCourses(query: PaginateQuery, user: any) {
+  async getPaginatedCourses(
+    query: PaginateQuery,
+    user: any,
+    customFilters: any // Use the injected custom filters instead of parsing from query
+  ) {
+    // --- 1. Reliable Extraction of Custom Filters ---
+
+    // Cleanly parse array filters
+    const categories: string[] = Array.isArray(customFilters.categories)
+      ? customFilters.categories
+      : typeof customFilters.categories === 'string'
+        ? customFilters.categories.split(',').filter(Boolean)
+        : [];
+    const subcategories: string[] = Array.isArray(customFilters.subcategories)
+      ? customFilters.subcategories
+      : typeof customFilters.subcategories === 'string'
+        ? customFilters.subcategories.split(',').filter(Boolean)
+        : [];
+    const languages: string[] = Array.isArray(customFilters.languages)
+      ? customFilters.languages
+      : typeof customFilters.languages === 'string'
+        ? customFilters.languages.split(',').filter(Boolean)
+        : [];
+
+    // Parse numeric range filters
+    const priceFrom: number = customFilters.priceFrom ? parseFloat(customFilters.priceFrom) : undefined;
+    const priceTo: number = customFilters.priceTo ? parseFloat(customFilters.priceTo) : undefined;
+
     const currency = user ? await this.getCurrencyForUser(user.sub) : 'USD';
 
     const qb = this.courseRepo
       .createQueryBuilder('course')
       .leftJoinAndSelect('course.pricings', 'pricing')
-      .leftJoin('course.academy', 'academy') // 👈 ADD THIS LINE
+      .leftJoin('course.academy', 'academy')
       .addSelect([
         'academy.id',
         'academy.name',
@@ -90,12 +121,14 @@ export class StudentCourseService {
       ])
       .leftJoinAndSelect('course.instructor', 'instructor')
       .leftJoinAndSelect('instructor.profile', 'instructorProfile')
-      .andWhere('course.deleted_at IS NULL')
+      .where('course.deleted_at IS NULL')
 
-      // ✅ Count total enrolled students per course
+      // ✅ Add joins for category/subcategory filtering
+      .leftJoin('course.category', 'category')
+      .leftJoin('course.subCategory', 'subCategory')
+
+      // Load counts (existing logic)
       .loadRelationCountAndMap('course.studentCount', 'course.enrollments')
-
-      // ✅ Count lectures per course
       .loadRelationCountAndMap(
         'course.lecturesCount',
         'course.sections',
@@ -107,8 +140,6 @@ export class StudentCourseService {
               lectureType: 'lecture',
             }),
       )
-
-      // ✅ Count quizzes per course
       .loadRelationCountAndMap(
         'course.quizzesCount',
         'course.sections',
@@ -121,9 +152,57 @@ export class StudentCourseService {
             }),
       );
 
+    // --- 2. Apply Custom Filters as AND WHERE Clauses (SYNTAX CHECKED) ---
+
+    // ✅ Filter by categories (using unique parameter 'catNames')
+    if (categories.length > 0) {
+      qb.andWhere('category.name IN (:...catNames)', { catNames: categories });
+    }
+
+    // ✅ Filter by subcategories (using unique parameter 'subCatNames')
+    if (subcategories.length > 0) {
+      qb.andWhere('subCategory.name IN (:...subCatNames)', { subCatNames: subcategories });
+    }
+
+    // ✅ FIXED LANGUAGES SYNTAX: Use robust TypeORM/PostgreSQL array spread
+    if (languages.length > 0) {
+      // Use the PostgreSQL array overlap operator (&&)
+      // The parameter name 'languagesArray' is used with the spread operator
+      qb.andWhere('course.languages && ARRAY[:...languagesArray]::text[]', { languagesArray: languages });
+    }
+
+    // ✅ Price range filter (Uses COALESCE on the existing join)
+    if (priceFrom !== undefined || priceTo !== undefined) {
+      // Use snake_case for database column names
+      let priceCondition = 'pricing.currencyCode = :currency AND pricing.isActive = true';
+
+      // Use COALESCE to determine the effective price (sale_price if available, otherwise regular_price)
+      const effectivePrice = 'COALESCE(pricing.salePrice, pricing.regularPrice)';
+
+      const priceParams = {
+        currency,
+        priceFrom,
+        priceTo,
+      };
+
+      if (priceFrom !== undefined) {
+        priceCondition += ` AND ${effectivePrice} >= :priceFrom`;
+      }
+      if (priceTo !== undefined) {
+        priceCondition += ` AND ${effectivePrice} <= :priceTo`;
+      }
+
+      // Apply the price filter directly using the join
+      qb.andWhere(priceCondition, priceParams);
+    }
+
+    // --- 3. Run Pagination ---
     const result = await paginate(query, qb, COURSE_PAGINATION_CONFIG);
 
-    // ✅ Filter pricings by user's preferred currency (if applicable)
+    // --- 4. Post-Pagination Processing (Pricing Filtering & Instructor Mapping) ---
+    // The rest of your logic is correct for post-processing.
+
+    // Filter pricings by user's preferred currency
     if (currency) {
       result.data.forEach((course: any) => {
         course.pricings = course.pricings.filter(
@@ -140,21 +219,19 @@ export class StudentCourseService {
       ),
     ];
 
-    // ✅ OPTIMIZED: Bulk fetch all academy instructors in one query and instructor stats
     const [academyInstructorsMap, instructorStatsMap] = await Promise.all([
       this.courseService.getAcademyInstructorsBulk(result.data as Course[]),
-      this.courseService.getInstructorStatsBulk(instructorIds), // 🎯 NEW: Bulk fetch instructor stats
+      this.courseService.getInstructorStatsBulk(instructorIds),
     ]);
 
     result.data = result.data.map((course) => {
       const mappedInstructor = this.mapInstructor(course);
-      const instructorStats = instructorStatsMap.get(course.createdBy); // 🎯 NEW: Get stats by ID
+      const instructorStats = instructorStatsMap.get(course.createdBy);
 
       return {
         ...(course as any),
         instructor: mappedInstructor ? {
           ...mappedInstructor,
-          // 🎯 NEW: Inject the bulk-fetched stats
           coursesCount: instructorStats?.coursesCount || 0,
           studentsCount: instructorStats?.studentsCount || 0,
           averageRating: instructorStats?.averageRating || 0,
