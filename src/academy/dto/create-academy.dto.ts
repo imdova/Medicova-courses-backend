@@ -7,8 +7,42 @@ import {
   IsInt,
   IsArray,
   IsBoolean,
+  ValidateNested,
 } from 'class-validator';
 import { AcademySize, AcademyType } from '../entities/academy.entity';
+import { Type } from 'class-transformer';
+
+export class ContactPersonDto {
+  @ApiProperty({ description: 'Full name of the contact person', example: 'Jane Doe' })
+  @IsOptional()
+  @IsString()
+  name: string;
+
+  @ApiProperty({ description: 'Job title of the contact person', example: 'Director of Admissions' })
+  @IsOptional()
+  @IsString()
+  title: string;
+
+  @ApiProperty({ description: 'Email address of the contact person', example: 'contact@academy.com' })
+  @IsOptional()
+  @IsString()
+  email: string;
+
+  @ApiProperty({ description: 'URL to the contact person\'s photo', nullable: true, required: false })
+  @IsOptional()
+  @IsString()
+  photo?: string | null;
+
+  @ApiProperty({ description: 'Phone number of the contact person', nullable: true, required: false })
+  @IsOptional()
+  @IsString()
+  phoneNumber?: string | null;
+
+  @ApiProperty({ description: 'Country of the contact person', nullable: true, required: false })
+  @IsOptional()
+  @IsString()
+  country?: string | null;
+}
 
 export class CreateAcademyDto {
   @ApiProperty({
@@ -112,13 +146,14 @@ export class CreateAcademyDto {
   address?: string;
 
   @ApiProperty({
-    description: 'Public contact email (for inquiries)',
-    example: 'contact@brightfutureacademy.com',
+    description: 'Details of the main contact person for the academy',
+    type: ContactPersonDto,
     required: false,
   })
   @IsOptional()
-  @IsString()
-  contactEmail?: string;
+  @ValidateNested() // 👈 Validate the nested object
+  @Type(() => ContactPersonDto) // 👈 Convert JSON object to DTO class
+  contactPerson?: ContactPersonDto;
 
   @ApiProperty({
     description: 'Public contact phone number',

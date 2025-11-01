@@ -21,6 +21,15 @@ export enum AcademySize {
   SIZE_5000_PLUS = '5000+',
 }
 
+export interface ContactPerson {
+  name?: string | null;
+  title?: string | null;
+  email?: string | null;
+  photo?: string | null;
+  phoneNumber?: string | null;
+  country?: string | null;
+  [key: string]: any; // 🟢 CRITICAL: Add index signature for TypeORM compatibility
+}
 
 @Entity('academies')
 export class Academy extends BasicEntity {
@@ -88,9 +97,14 @@ export class Academy extends BasicEntity {
   @Column({ nullable: true })
   email?: string;
 
-  @ApiProperty({ description: 'Public contact email', nullable: true })
-  @Column({ nullable: true })
-  contactEmail?: string;
+  @ApiProperty({
+    description: 'Details of the main contact person for the academy',
+    type: Object,
+    nullable: true,
+  })
+  @Column({ type: 'jsonb', nullable: true, name: 'contact_person' })
+  // 🟢 Use the local interface ContactPerson for the Entity type
+  contactPerson?: ContactPerson | null;
 
   @ApiProperty({ description: 'Contact phone number', nullable: true })
   @Column({ nullable: true })
