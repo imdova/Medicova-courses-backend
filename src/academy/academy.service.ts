@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
-import { Academy } from './entities/academy.entity';
+import { Academy, ContactPerson } from './entities/academy.entity';
 import { CreateAcademyDto } from './dto/create-academy.dto';
 import { UpdateAcademyDto } from './dto/update-academy.dto';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
@@ -21,6 +21,7 @@ import { User } from 'src/user/entities/user.entity';
 import { CourseStudent } from 'src/course/entities/course-student.entity';
 import { CreateAcademyKeywordDto } from './dto/create-academy-keyword.dto';
 import { AcademyKeyword } from './entities/academy-keywords.entity';
+import { instanceToPlain } from 'class-transformer'; // ⬅️ Add this import
 
 @Injectable()
 export class AcademyService {
@@ -62,7 +63,6 @@ export class AcademyService {
     // 🟢 Calculate initial completion percentage
     const initialCompletionPercentage = this.calculateCompletionPercentage({
       ...createAcademyDto,
-      contactEmail: email, // Since contactEmail is set here, include it in the calculation
       keyWords,
     });
 
@@ -70,7 +70,6 @@ export class AcademyService {
       ...createAcademyDto,
       created_by: userId,
       email,
-      contactEmail: email,
       completionPercentage: initialCompletionPercentage, // 🟢 Set the calculated value
     });
 
@@ -280,10 +279,12 @@ export class AcademyService {
     // 3. 🟢 Calculate new percentage based on the merged entity
     const newCompletionPercentage = this.calculateCompletionPercentage(updatedEntity);
 
-    // 4. Update the DTO to include the new percentage
+    // 🟢 CRITICAL FIX: Convert the DTO instance to a plain object recursively.
+    const plainDto = instanceToPlain(updateAcademyDto);
+
     const finalUpdateDto = {
-      ...updateAcademyDto,
-      completionPercentage: newCompletionPercentage, // 🟢 Add the new percentage to the update object
+      ...plainDto, // ⬅️ Use the plain object version
+      completionPercentage: newCompletionPercentage,
     };
 
     try {
@@ -459,7 +460,7 @@ export class AcademyService {
    * Tracks 13 key fields for a well-rounded profile.
    */
   private calculateCompletionPercentage(academy: Partial<Academy>): number {
-    // Fields tracked for 100% completion (12 simple fields + 1 array field = 13 total checks)
+    // 🟢 UPDATED: Removed 'contactEmail' and 'phone' from the main checklist
     const checklist: (keyof Academy)[] = [
       'image', // Logo
       'cover', // Cover image
@@ -471,11 +472,17 @@ export class AcademyService {
       'address',
       'city',
       'country',
-      'contactEmail',
-      'phone',
     ];
 
-    const TOTAL_POINTS = checklist.length + 1; // +1 point for keyWords array
+    // 🟢 NEW: Key mandatory fields inside the contactPerson object
+    const CONTACT_PERSON_CHECKLIST: (keyof ContactPerson)[] = [
+      'name',
+      'title',
+      'email',
+    ];
+
+    // 🟢 UPDATED: Total points is now 10 (simple fields) + 1 (keyWords array) + 3 (contactPerson key fields) = 14
+    const TOTAL_POINTS = checklist.length + 1 + CONTACT_PERSON_CHECKLIST.length;
     let filledCount = 0;
 
     // 1. Check simple fields
@@ -497,6 +504,19 @@ export class AcademyService {
       academy.keyWords.filter(k => k && k.trim() !== '').length > 0
     ) {
       filledCount++;
+    }
+
+    // 3. 🟢 NEW: Check for key Contact Person fields
+    if (academy.contactPerson) {
+      const cp = academy.contactPerson;
+      // Check for the three key fields required for completion
+      for (const field of CONTACT_PERSON_CHECKLIST) {
+        const value = cp[field];
+        // Check for presence of value that is not undefined, null, or empty string
+        if (value !== undefined && value !== null && value !== '') {
+          filledCount++;
+        }
+      }
     }
 
     const percentage = (filledCount / TOTAL_POINTS) * 100;
