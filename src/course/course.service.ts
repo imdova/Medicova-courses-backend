@@ -17,7 +17,7 @@ import {
   PaginateQuery,
 } from 'nestjs-paginate';
 import { QueryConfig } from '../common/utils/query-options';
-import { CourseTag } from './entities/course-tags.entity';
+import { CourseTag } from './course-tags/entities/course-tags.entity';
 import { CoursePricing } from './course-pricing/entities/course-pricing.entity';
 import { CourseSectionItem } from './course-section/entities/course-section-item.entity';
 import { CourseProgress } from './course-progress/entities/course-progress.entity';

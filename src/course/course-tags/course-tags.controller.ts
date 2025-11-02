@@ -4,7 +4,7 @@ import { CreateCourseTagDto } from './dto/create-course-tag.dto';
 import { UpdateCourseTagDto } from './dto/update-course-tag.dto';
 import { PermissionsGuard } from '../../auth/permission.guard';
 import { AuthGuard } from '@nestjs/passport';
-import { CourseTag } from '../entities/course-tags.entity';
+import { CourseTag } from './entities/course-tags.entity';
 import {
   ApiTags,
   ApiOperation,

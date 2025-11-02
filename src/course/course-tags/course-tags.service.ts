@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CourseTag } from '../entities/course-tags.entity'; // Adjust path as needed
+import { CourseTag } from './entities/course-tags.entity'; // Adjust path as needed
 import { CreateCourseTagDto } from './dto/create-course-tag.dto';
 import { UpdateCourseTagDto } from './dto/update-course-tag.dto';
 import { Course } from '../entities/course.entity';
