@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   HttpException,
   HttpStatus,
@@ -120,23 +121,27 @@ export class CourseService {
       subCategoryId,
     );
 
-    if (tags.length > 0) {
-      // Step 1: Fetch existing tags in one query
+    // 🟢 UPDATED TAG LOGIC: Validate existence, do not create new ones.
+    if (tags && tags.length > 0) {
+      // 1. Fetch all existing tags corresponding to the submitted names
       const existingTags = await this.courseTagRepository.find({
         where: { name: In(tags) },
       });
+
       const existingNames = existingTags.map((tag) => tag.name);
 
-      // Step 2: Find new tags (case-sensitive here, adjust if needed)
-      const newTagNames = tags.filter((name) => !existingNames.includes(name));
+      // 2. Identify missing/invalid tags
+      const invalidTags = tags.filter((name) => !existingNames.includes(name));
 
-      // Step 3: Bulk insert new tags
-      if (newTagNames.length > 0) {
-        const newTagEntities = newTagNames.map((name) =>
-          this.courseTagRepository.create({ name }),
+      // 3. Throw error if any submitted tag does not exist
+      if (invalidTags.length > 0) {
+        // Note: The tags need to be in the database and active/visible (if you add that check)
+        throw new BadRequestException(
+          `The following tags do not exist or are inactive: ${invalidTags.join(', ')}`,
         );
-        await this.courseTagRepository.save(newTagEntities);
       }
+      // No need for Step 3 (Bulk Insert) from the original code.
+      // The `tags` array will be saved directly to the simple-array column.
     }
 
     // Step 4: Save the course with tags array
@@ -444,26 +449,28 @@ export class CourseService {
       course.subCategory = subcategory ?? null;
     }
 
-    // Handle tags if provided
+    // 🟢 UPDATED TAG LOGIC: Validate existence, do not create new ones.
     if (tags) {
-      // 1. Find existing tags in one query
-      const existingTags = await this.courseTagRepository.find({
-        where: { name: In(tags) },
-      });
-      const existingNames = existingTags.map((tag) => tag.name);
+      if (tags.length > 0) {
+        // 1. Fetch all existing tags corresponding to the submitted names
+        const existingTags = await this.courseTagRepository.find({
+          where: { name: In(tags) },
+        });
 
-      // 2. Identify new tags
-      const newTagNames = tags.filter((name) => !existingNames.includes(name));
+        const existingNames = existingTags.map((tag) => tag.name);
 
-      // 3. Bulk insert new tags
-      if (newTagNames.length > 0) {
-        const newTagEntities = newTagNames.map((name) =>
-          this.courseTagRepository.create({ name }),
-        );
-        await this.courseTagRepository.save(newTagEntities);
+        // 2. Identify missing/invalid tags
+        const invalidTags = tags.filter((name) => !existingNames.includes(name));
+
+        // 3. Throw error if any submitted tag does not exist
+        if (invalidTags.length > 0) {
+          throw new BadRequestException(
+            `The following tags do not exist or are inactive: ${invalidTags.join(', ')}`,
+          );
+        }
       }
 
-      // 4. Update course tags array
+      // 4. Update course tags array only after validation passes (can be an empty array)
       course.tags = tags;
     }
 
