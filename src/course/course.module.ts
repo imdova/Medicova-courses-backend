@@ -6,7 +6,7 @@ import { Course } from './entities/course.entity';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { JwtService } from '@nestjs/jwt';
 import { CoursePricingModule } from './course-pricing/course-pricing.module';
-import { CourseTag } from './entities/course-tags.entity';
+import { CourseTag } from './course-tags/entities/course-tags.entity';
 import { CourseSectionModule } from './course-section/course-section.module';
 import { CoursePricing } from './course-pricing/entities/course-pricing.entity';
 import { StudentCourseController } from './student-course.controller';
@@ -25,6 +25,7 @@ import { CourseProgress } from './course-progress/entities/course-progress.entit
 import { CourseFavorite } from './entities/course-favorite.entity';
 import { AcademyInstructor } from 'src/academy/entities/academy-instructors.entity';
 import { User } from 'src/user/entities/user.entity';
+import { CourseTagsModule } from './course-tags/course-tags.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { User } from 'src/user/entities/user.entity';
     forwardRef(() => PaymentModule),
     CourseCommunityModule,
     CourseNotesModule,
+    CourseTagsModule,
   ],
   controllers: [CourseController, StudentCourseController],
   providers: [CourseService, RolesGuard, JwtService, StudentCourseService],

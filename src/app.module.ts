@@ -10,7 +10,7 @@ import { ConfigModule } from '@nestjs/config';
 import { CourseModule } from './course/course.module';
 import { Course } from './course/entities/course.entity';
 import { CoursePricing } from './course/course-pricing/entities/course-pricing.entity';
-import { CourseTag } from './course/entities/course-tags.entity';
+import { CourseTag } from './course/course-tags/entities/course-tags.entity';
 import { CourseSection } from './course/course-section/entities/course-section.entity';
 import { CourseSectionItem } from './course/course-section/entities/course-section-item.entity';
 import { Lecture } from './course/course-section/entities/lecture.entity';
