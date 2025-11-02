@@ -13,6 +13,7 @@ import {
   ApiParam,
   ApiBody,
 } from '@nestjs/swagger';
+import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Course Tags') // Tags the controller for grouping in Swagger UI
 @UseGuards(AuthGuard('jwt'), PermissionsGuard)
@@ -22,6 +23,7 @@ export class CourseTagsController {
 
   // --- POST /course-tags ---
   @Post()
+  @RequirePermissions('course-tags:create')
   @ApiOperation({ summary: 'Create a new course tag (Admin only)' })
   @ApiResponse({ status: 201, description: 'The tag has been successfully created.', type: CourseTag })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
@@ -33,6 +35,7 @@ export class CourseTagsController {
 
   // --- GET /course-tags ---
   @Get()
+  @RequirePermissions('course-tags:list')
   @ApiOperation({ summary: 'Get all active course tags' })
   @ApiResponse({ status: 200, description: 'List of all course tags.', type: [CourseTag] })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
@@ -42,6 +45,7 @@ export class CourseTagsController {
 
   // --- GET /course-tags/:id ---
   @Get(':id')
+  @RequirePermissions('course-tags:get_by_id')
   @ApiOperation({ summary: 'Get a single course tag by ID' })
   @ApiParam({ name: 'id', description: 'The UUID of the course tag', type: 'string' })
   @ApiResponse({ status: 200, description: 'The requested course tag.', type: CourseTag })
@@ -52,6 +56,7 @@ export class CourseTagsController {
 
   // --- PATCH /course-tags/:id ---
   @Patch(':id')
+  @RequirePermissions('course-tags:update')
   @ApiOperation({ summary: 'Update an existing course tag (Admin only)' })
   @ApiParam({ name: 'id', description: 'The UUID of the course tag to update', type: 'string' })
   @ApiBody({ type: UpdateCourseTagDto, description: 'Partial data to update the tag' })
@@ -64,6 +69,7 @@ export class CourseTagsController {
 
   // --- DELETE /course-tags/:id ---
   @Delete(':id')
+  @RequirePermissions('course-tags:delete')
   @ApiOperation({ summary: 'Delete a course tag by ID (Admin only)' })
   @ApiParam({ name: 'id', description: 'The UUID of the course tag to delete', type: 'string' })
   @ApiResponse({ status: 200, description: 'Tag successfully deleted.' })
