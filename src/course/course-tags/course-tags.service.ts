@@ -9,12 +9,15 @@ import { Repository } from 'typeorm';
 import { CourseTag } from '../entities/course-tags.entity'; // Adjust path as needed
 import { CreateCourseTagDto } from './dto/create-course-tag.dto';
 import { UpdateCourseTagDto } from './dto/update-course-tag.dto';
+import { Course } from '../entities/course.entity';
 
 @Injectable()
 export class CourseTagsService {
   constructor(
     @InjectRepository(CourseTag)
     private courseTagRepository: Repository<CourseTag>,
+    @InjectRepository(Course)
+    private courseRepository: Repository<Course>,
   ) { }
 
   /**
@@ -41,12 +44,48 @@ export class CourseTagsService {
   }
 
   /**
-   * Retrieves all course tags.
-   */
-  async findAll(): Promise<CourseTag[]> {
-    return this.courseTagRepository.find({
-      order: { name: 'ASC' }
-    });
+ * 🚀 Retrieves all course tags with course counts
+ * Optimized version using QueryBuilder with subquery
+ */
+  async findAll(): Promise<any[]> {
+    const tagsWithCount = await this.courseTagRepository
+      .createQueryBuilder('tag')
+      .select([
+        'tag.id',
+        'tag.name',
+        'tag.slug',
+        'tag.description',
+        'tag.color',
+        'tag.isActive',
+      ])
+      // ✅ Add subquery to count courses containing this tag
+      .addSelect((subQuery) => {
+        return subQuery
+          .select('COUNT(course.id)')
+          .from(Course, 'course')
+          // ✅ FIXED: Use proper PostgreSQL array contains operator
+          // The @> operator checks if left array contains right array
+          .where('course.tags @> ARRAY[tag.name]::text[]')
+          // ✅ Only count published and active courses
+          .andWhere('course.status = :status', { status: 'published' })
+          .andWhere('course.isActive = :isActive', { isActive: true })
+          .andWhere('course.deleted_at IS NULL');
+      }, 'coursesCount')
+      // ✅ Optional: Filter only active tags (as per your API docs)
+      //.where('tag.isActive = :isActive', { isActive: true })
+      .orderBy('tag.name', 'ASC')
+      .getRawMany();
+
+    // ✅ Transform the result to ensure proper types
+    return tagsWithCount.map((item) => ({
+      id: item.tag_id,
+      name: item.tag_name,
+      slug: item.tag_slug,
+      description: item.tag_description,
+      color: item.tag_color,
+      isActive: item.tag_isActive,
+      coursesCount: parseInt(item.coursesCount) || 0,
+    }));
   }
 
   /**
