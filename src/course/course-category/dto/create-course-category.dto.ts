@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
   IsNotEmpty,
   IsOptional,
@@ -9,7 +10,56 @@ import {
   IsInt,
   Min,
   IsBoolean,
+  IsArray,
+  ValidateNested,
 } from 'class-validator';
+
+
+// 🟢 NEW: Define the DTO for a single FAQ item
+export class FaqItemDto {
+  @ApiProperty({ description: 'The question text', example: 'What is NestJS?' })
+  @IsString()
+  @IsNotEmpty()
+  question: string;
+
+  @ApiProperty({ description: 'The answer text', example: 'It is a framework for building efficient, scalable Node.js server-side applications.' })
+  @IsString()
+  @IsNotEmpty()
+  answer: string;
+}
+
+// 🟢 NEW: DTO for SEO Meta Information
+export class SeoMetaDto {
+  @ApiPropertyOptional({
+    description: 'SEO Meta Title (Recommended: 25-40 characters)',
+    maxLength: 60,
+    example: 'Web Development Courses | Start Your Tech Career',
+  })
+  @IsString()
+  @IsOptional()
+  @MaxLength(60)
+  metaTitle?: string;
+
+  @ApiPropertyOptional({
+    description: 'SEO Meta Description (Recommended: 150-160 characters)',
+    maxLength: 170,
+    example: 'Browse our comprehensive web development courses covering HTML, CSS, JavaScript, and Node.js frameworks.',
+  })
+  @IsString()
+  @IsOptional()
+  @MaxLength(170)
+  metaDescription?: string;
+
+  @ApiPropertyOptional({
+    description: 'SEO Keywords (simple array)',
+    type: [String],
+    example: ['web development', 'frontend', 'backend', 'fullstack'],
+  })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  metaKeywords?: string[];
+}
 
 export class CreateCourseCategoryDto {
   @ApiProperty({
@@ -79,4 +129,42 @@ export class CreateCourseCategoryDto {
   @IsUUID()
   @IsOptional()
   parentId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Frequently Asked Questions',
+    type: [FaqItemDto], // Specify the nested DTO array for Swagger
+    example: [{ question: 'Q1', answer: 'A1' }],
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => FaqItemDto)
+  @IsOptional()
+  faqs?: FaqItemDto[];
+
+  @ApiPropertyOptional({
+    description: 'SEO Meta Information (Title, Description, Keywords)',
+    type: SeoMetaDto,
+  })
+  @IsOptional()
+  @ValidateNested() // Validate the inner object
+  @Type(() => SeoMetaDto) // Transform the incoming data to the DTO class
+  seoMeta?: SeoMetaDto;
+
+  @ApiPropertyOptional({
+    description: 'A short, catchy headline for the category',
+    maxLength: 500,
+    example: 'Master Frontend & Backend Development',
+  })
+  @IsString()
+  @IsOptional()
+  @MaxLength(500)
+  categoryHeadline?: string;
+
+  @ApiPropertyOptional({
+    description: 'Detailed description with rich formatting (HTML/Markdown content)',
+    type: String,
+  })
+  @IsString()
+  @IsOptional()
+  richDescription?: string;
 }

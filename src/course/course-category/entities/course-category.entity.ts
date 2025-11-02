@@ -3,6 +3,19 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BasicEntity } from '../../../common/entities/basic.entity';
 import { Course } from '../../entities/course.entity';
 
+// 🟢 NEW: Define the structure for FAQ (Frequently Asked Questions)
+export interface FaqItem {
+  question: string;
+  answer: string;
+}
+
+// 🟢 NEW: Define the structure for all SEO Meta Information
+export interface SeoMeta {
+  metaTitle?: string;
+  metaDescription?: string;
+  metaKeywords?: string[];
+}
+
 @Entity('course_categories')
 export class CourseCategory extends BasicEntity {
   @ApiProperty({
@@ -57,4 +70,20 @@ export class CourseCategory extends BasicEntity {
 
   @OneToMany(() => Course, (course) => course.category)
   courses: Course[];
+
+  @ApiPropertyOptional({ description: 'A short, catchy headline for the category' })
+  @Column({ length: 500, nullable: true, name: 'category_headline' })
+  categoryHeadline?: string; // Corresponds to 'Category Headline'
+
+  @ApiPropertyOptional({ description: 'Detailed description with rich formatting' })
+  @Column({ type: 'text', nullable: true, name: 'rich_description' })
+  richDescription?: string; // Corresponds to 'Rich Description'
+
+  @ApiPropertyOptional({ description: 'Frequently Asked Questions (JSON array)' })
+  @Column({ type: 'jsonb', nullable: true })
+  faqs?: FaqItem[]; // Corresponds to 'Frequently Asked Questions'
+
+  @ApiPropertyOptional({ description: 'SEO Meta information (Title, Description, Keywords)' })
+  @Column({ type: 'jsonb', nullable: true, name: 'seo_meta' })
+  seoMeta?: SeoMeta;
 }
