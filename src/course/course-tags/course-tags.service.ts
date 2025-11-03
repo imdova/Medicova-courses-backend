@@ -10,6 +10,29 @@ import { CourseTag } from './entities/course-tags.entity'; // Adjust path as nee
 import { CreateCourseTagDto } from './dto/create-course-tag.dto';
 import { UpdateCourseTagDto } from './dto/update-course-tag.dto';
 import { Course } from '../entities/course.entity';
+import { QueryConfig } from 'src/common/utils/query-options';
+import { FilterOperator, paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
+
+export const COURSE_TAG_PAGINATION_CONFIG: QueryConfig<CourseTag> = {
+  // Allows sorting by database columns
+  sortableColumns: ['created_at', 'name', 'slug', 'isActive'],
+
+  // Default sorting rule
+  defaultSortBy: [['name', 'ASC']],
+
+  // Columns that can be filtered
+  filterableColumns: {
+    name: [FilterOperator.ILIKE], // Case-insensitive search
+    slug: [FilterOperator.EQ],
+    isActive: [FilterOperator.EQ], // Filter by status
+  },
+
+  relations: [],
+};
+
+interface CourseTagWithCount extends CourseTag {
+  coursesCount: number;
+}
 
 @Injectable()
 export class CourseTagsService {
@@ -47,9 +70,22 @@ export class CourseTagsService {
  * 🚀 Retrieves all course tags with course counts
  * Optimized version using QueryBuilder with subquery
  */
-  async findAll(): Promise<any[]> {
-    const tagsWithCount = await this.courseTagRepository
-      .createQueryBuilder('tag')
+  async findAll(query: PaginateQuery): Promise<Paginated<CourseTagWithCount>> {
+    // 1. Initialize the QueryBuilder for the base entity (CourseTag)
+    const qb = this.courseTagRepository.createQueryBuilder('tag');
+
+    // 2. Use the 'paginate' utility to apply standard pagination, sorting, and filtering
+    // This calculates total count and modifies 'qb' with WHERE/ORDER BY/LIMIT/OFFSET clauses.
+    const paginated = await paginate<CourseTag>(query, qb, COURSE_TAG_PAGINATION_CONFIG);
+
+    // 3. Extract final pagination parameters from the result meta
+    const offset = (paginated.meta.currentPage - 1) * paginated.meta.itemsPerPage;
+    const limit = paginated.meta.itemsPerPage;
+
+    // 4. Re-run the QueryBuilder to fetch the actual paginated data 
+    //    AND the computed 'coursesCount' aggregate.
+    // NOTE: We must use getRawAndEntities() when mixing entity selection with addSelect for aggregates.
+    const { entities, raw } = await qb
       .select([
         'tag.id',
         'tag.name',
@@ -58,34 +94,36 @@ export class CourseTagsService {
         'tag.color',
         'tag.isActive',
       ])
-      // ✅ Add subquery to count courses containing this tag
+      // Add subquery to count courses containing this tag
       .addSelect((subQuery) => {
         return subQuery
           .select('COUNT(course.id)')
           .from(Course, 'course')
-          // ✅ FIXED: Use proper PostgreSQL array contains operator
-          // The @> operator checks if left array contains right array
+          // CRITICAL: Check if the course's tags array contains the current tag's name
           .where('course.tags @> ARRAY[tag.name]::text[]')
-          // ✅ Only count published and active courses
+          // Only count published and active courses
           .andWhere('course.status = :status', { status: 'published' })
           .andWhere('course.isActive = :isActive', { isActive: true })
           .andWhere('course.deleted_at IS NULL');
       }, 'coursesCount')
-      // ✅ Optional: Filter only active tags (as per your API docs)
-      //.where('tag.isActive = :isActive', { isActive: true })
-      .orderBy('tag.name', 'ASC')
-      .getRawMany();
+      // Apply the LIMIT/OFFSET calculated by the paginate utility
+      .offset(offset)
+      .limit(limit)
+      .getRawAndEntities();
 
-    // ✅ Transform the result to ensure proper types
-    return tagsWithCount.map((item) => ({
-      id: item.tag_id,
-      name: item.tag_name,
-      slug: item.tag_slug,
-      description: item.tag_description,
-      color: item.tag_color,
-      isActive: item.tag_isActive,
-      coursesCount: parseInt(item.coursesCount) || 0,
+    // 5. Merge aggregates from 'raw' into 'entities'
+    const data: CourseTagWithCount[] = entities.map((tag, i) => ({
+      // Use the entity properties which are correctly mapped by TypeORM
+      ...tag,
+      // Add the computed property from the raw result
+      coursesCount: Number(raw[i]?.coursesCount ?? 0),
     }));
+
+    // 6. Return the final paginated result
+    return {
+      ...paginated, // Keep the original meta and links calculated by paginate
+      data: data,    // Override the data with our merged, augmented data
+    } as Paginated<CourseTagWithCount>;
   }
 
   /**

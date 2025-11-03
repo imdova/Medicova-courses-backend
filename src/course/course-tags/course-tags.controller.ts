@@ -12,8 +12,10 @@ import {
   ApiBearerAuth,
   ApiParam,
   ApiBody,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
+import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
 
 @ApiTags('Course Tags') // Tags the controller for grouping in Swagger UI
 @UseGuards(AuthGuard('jwt'), PermissionsGuard)
@@ -36,11 +38,13 @@ export class CourseTagsController {
   // --- GET /course-tags ---
   @Get()
   @RequirePermissions('course-tags:list')
-  @ApiOperation({ summary: 'Get all active course tags' })
-  @ApiResponse({ status: 200, description: 'List of all course tags.', type: [CourseTag] })
+  @ApiOperation({ summary: 'List all course tags with associated course count' })
+  @ApiQuery({ name: 'page', required: false, example: 1, description: 'Page number' })
+  @ApiQuery({ name: 'limit', required: false, example: 10, description: 'Items per page' })
+  @ApiResponse({ status: 200, description: 'Paginated list of course tags.', type: Paginated<any> })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
-  findAll(): Promise<CourseTag[]> {
-    return this.courseTagsService.findAll();
+  findAll(@Paginate() query: PaginateQuery): Promise<Paginated<any>> {
+    return this.courseTagsService.findAll(query);
   }
 
   // --- GET /course-tags/:id ---
