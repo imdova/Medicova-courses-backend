@@ -58,6 +58,7 @@ import { CourseFavorite } from './course/entities/course-favorite.entity';
 import { AcademyKeyword } from './academy/entities/academy-keywords.entity';
 import { AdminModule } from './admin/admin.module';
 import { IdentityVerification } from './user/entities/identity-verification.entity';
+import { CourseVariable } from './course/course-variables/entities/course-variable.entity';
 
 @Module({
   imports: [
@@ -109,14 +110,15 @@ import { IdentityVerification } from './user/entities/identity-verification.enti
         CourseFavorite,
         AcademyKeyword,
         IdentityVerification,
+        CourseVariable
       ],
       synchronize: true,
       extra: {
         max: 5
       },
-      ssl: {
-        rejectUnauthorized: false, // ✅ Allow self-signed certs from Cloud SQL
-      },
+      // ssl: {
+      //   rejectUnauthorized: false, // ✅ Allow self-signed certs from Cloud SQL
+      // },
     }),
     MailerModule.forRoot({
       transport: process.env.SMTP_TRANSPORT,
