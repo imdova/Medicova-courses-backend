@@ -26,6 +26,7 @@ import { CourseFavorite } from './entities/course-favorite.entity';
 import { AcademyInstructor } from 'src/academy/entities/academy-instructors.entity';
 import { User } from 'src/user/entities/user.entity';
 import { CourseTagsModule } from './course-tags/course-tags.module';
+import { CourseVariablesModule } from './course-variables/course-variables.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { CourseTagsModule } from './course-tags/course-tags.module';
     CourseCommunityModule,
     CourseNotesModule,
     CourseTagsModule,
+    CourseVariablesModule,
   ],
   controllers: [CourseController, StudentCourseController],
   providers: [CourseService, RolesGuard, JwtService, StudentCourseService],
