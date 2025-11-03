@@ -63,7 +63,7 @@ export class CourseTagsController {
   @RequirePermissions('course-tags:update')
   @ApiOperation({ summary: 'Update an existing course tag (Admin only)' })
   @ApiParam({ name: 'id', description: 'The UUID of the course tag to update', type: 'string' })
-  @ApiBody({ type: UpdateCourseTagDto, description: 'Partial data to update the tag' })
+  @ApiBody({ type: CreateCourseTagDto, description: 'Partial data to update the tag' })
   @ApiResponse({ status: 200, description: 'The tag has been successfully updated.', type: CourseTag })
   @ApiResponse({ status: 404, description: 'Tag not found.' })
   @ApiResponse({ status: 409, description: 'Updated name or slug already exists.' })
