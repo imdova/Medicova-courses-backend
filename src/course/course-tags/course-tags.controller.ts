@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, BadRequestException, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { CourseTagsService } from './course-tags.service';
 import { CreateCourseTagDto } from './dto/create-course-tag.dto';
 import { UpdateCourseTagDto } from './dto/update-course-tag.dto';
@@ -13,9 +13,12 @@ import {
   ApiParam,
   ApiBody,
   ApiQuery,
+  ApiConsumes,
 } from '@nestjs/swagger';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
+import { ImportResult } from './dto/import-course-tags.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @ApiTags('Course Tags') // Tags the controller for grouping in Swagger UI
 @UseGuards(AuthGuard('jwt'), PermissionsGuard)
@@ -33,6 +36,72 @@ export class CourseTagsController {
   @ApiBody({ type: CreateCourseTagDto, description: 'Data for creating a new tag' })
   create(@Body() createCourseTagDto: CreateCourseTagDto): Promise<CourseTag> {
     return this.courseTagsService.create(createCourseTagDto);
+  }
+
+  // --- POST /course-tags/import ---
+  @Post('import')
+  @RequirePermissions('course-tags:create_using_file')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Bulk import course tags from XLSX/CSV file (Admin only)',
+    description: 'Upload a file with columns: name, slug, description, color, isActive'
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Import completed with results summary.',
+    schema: {
+      type: 'object',
+      properties: {
+        success: { type: 'number', example: 15 },
+        failed: { type: 'number', example: 2 },
+        errors: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              row: { type: 'number' },
+              name: { type: 'string' },
+              error: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Invalid file format or missing file.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  async importTags(
+    @UploadedFile() file: Express.Multer.File,
+  ): Promise<ImportResult> {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    const allowedMimeTypes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+      'application/vnd.ms-excel', // .xls
+      'text/csv', // .csv
+    ];
+
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+      throw new BadRequestException(
+        'Invalid file format. Only XLSX and CSV files are allowed.',
+      );
+    }
+
+    return this.courseTagsService.importFromFile(file);
   }
 
   // --- GET /course-tags ---
