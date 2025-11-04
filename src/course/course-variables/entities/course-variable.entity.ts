@@ -6,6 +6,9 @@ import { BasicEntity } from '../../../common/entities/basic.entity'; // Assuming
 export enum CourseVariableType {
     COURSE_TYPE = 'Course Type',
     PROGRAM_TYPE = 'Program Type',
+    CURRENCY = 'Currency',
+    LANGUAGE = 'Language',
+    COURSE_LEVEL = 'Course Level'
 }
 
 @Entity('course_variables')
