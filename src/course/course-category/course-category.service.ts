@@ -4,12 +4,15 @@ import { Repository } from 'typeorm';
 import { CourseCategory } from './entities/course-category.entity';
 import { CreateCourseCategoryDto } from './dto/create-course-category.dto';
 import { UpdateCourseCategoryDto } from './dto/update-course-category.dto';
+import { Course } from '../entities/course.entity';
 
 @Injectable()
 export class CourseCategoryService {
   constructor(
     @InjectRepository(CourseCategory)
     private readonly courseCategoryRepository: Repository<CourseCategory>,
+    @InjectRepository(Course)
+    private readonly courseRepository: Repository<Course>,
   ) { }
 
   // --- CourseCategoryService ---
@@ -62,12 +65,51 @@ export class CourseCategoryService {
     }
   }
 
-  async findAll(): Promise<CourseCategory[]> {
-    return this.courseCategoryRepository.find({
+  async findAll(): Promise<any[]> {
+    const categories = await this.courseCategoryRepository.find({
       where: { deleted_at: null },
       relations: ['parent', 'subcategories'],
       order: { name: 'ASC' },
     });
+
+    // Get all category IDs (both parent and subcategory)
+    const allCategoryIds = categories.flatMap(cat => [
+      cat.id,
+      ...(cat.subcategories?.map(sub => sub.id) || [])
+    ]);
+
+    // Get course counts in a single query
+    const courseCounts = await this.courseRepository
+      .createQueryBuilder('course')
+      .select('course.category_id', 'categoryId')
+      .addSelect('course.subcategory_id', 'subcategoryId')
+      .addSelect('COUNT(*)', 'count')
+      .where('course.deleted_at IS NULL')
+      .andWhere('(course.category_id IN (:...ids) OR course.subcategory_id IN (:...ids))', { ids: allCategoryIds })
+      .groupBy('course.category_id, course.subcategory_id')
+      .getRawMany();
+
+    // Create a map for quick lookup
+    const countMap = new Map();
+
+    courseCounts.forEach(item => {
+      if (item.categoryId) {
+        countMap.set(item.categoryId, parseInt(item.count));
+      }
+      if (item.subcategoryId) {
+        countMap.set(item.subcategoryId, parseInt(item.count));
+      }
+    });
+
+    // Add counts to categories and subcategories
+    return categories.map(category => ({
+      ...category,
+      courseCount: countMap.get(category.id) || 0,
+      subcategories: (category.subcategories || []).map(subcategory => ({
+        ...subcategory,
+        courseCount: countMap.get(subcategory.id) || 0
+      }))
+    }));
   }
 
   async findOne(id: string): Promise<CourseCategory> {
