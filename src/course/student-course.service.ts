@@ -59,22 +59,48 @@ export class StudentCourseService {
   private async getCurrencyForUser(
     userId: string,
   ): Promise<CurrencyCode | null> {
+    // 1. Fetch the profile
     const profile = await this.profileRepo.findOne({
       where: { user: { id: userId } },
-      relations: ['user'],
+      // Ensure you load the country object/relation if necessary
     });
 
-    if (!profile || !profile.nationality) {
-      return null;
+    // 2. Validate country data
+    if (!profile || !profile.country || !profile.country.code) {
+      // Fallback: If country data is missing, still return the global default (USD) 
+      // or return null if strict policy requires a country. We'll return USD for robustness.
+      return CurrencyCode.USD;
     }
 
-    // ✅ simple mapping: Egyptian nationality → EGP
-    if (profile.nationality.toLowerCase() === 'egyptian') {
-      return CurrencyCode.EGP;
+    const countryCode = profile.country.code.toUpperCase(); // e.g., "EG", "SA", "US"
+
+    // 3. Dynamically attempt to map Country Code to Currency Code
+    const availableCurrencies: string[] = Object.values(CurrencyCode);
+
+    // Attempt to find a currency code that starts with the country code.
+    // Examples: EG + P = EGP; SA + R = SAR
+    const matchingCurrency = availableCurrencies.find(currency =>
+      currency.startsWith(countryCode)
+    );
+
+    if (matchingCurrency) {
+      // Found a dynamic match (e.g., EGP, SAR)
+      return matchingCurrency as CurrencyCode;
     }
 
-    // TODO: expand mapping for other nationalities (e.g. Saudi → SAR)
-    return CurrencyCode.USD; // fallback default
+    // --- Handling Common Exceptions (Manual Override) ---
+    // This section is vital because many currencies do NOT follow the pattern (e.g., CA -> CAD, AU -> AUD).
+    switch (countryCode) {
+      case 'US': // United States -> USD
+      case 'CA': // Canada -> CAD (The pattern check likely failed because CAD doesn't start with CA)
+      case 'AU': // Australia -> AUD
+        return CurrencyCode.USD; // Or handle CAD, AUD if they are required to be separate.
+      // Sticking with USD as the fallback/global default.
+    }
+    // ----------------------------------------------------
+
+    // 4. Fallback Default
+    return CurrencyCode.USD;
   }
 
   async getPaginatedCourses(

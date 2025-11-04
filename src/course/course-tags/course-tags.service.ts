@@ -12,6 +12,8 @@ import { UpdateCourseTagDto } from './dto/update-course-tag.dto';
 import { Course } from '../entities/course.entity';
 import { QueryConfig } from 'src/common/utils/query-options';
 import { FilterOperator, paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
+import { ImportResult } from './dto/import-course-tags.dto';
+import * as XLSX from 'xlsx';
 
 export const COURSE_TAG_PAGINATION_CONFIG: QueryConfig<CourseTag> = {
   // Allows sorting by database columns
@@ -32,6 +34,14 @@ export const COURSE_TAG_PAGINATION_CONFIG: QueryConfig<CourseTag> = {
 
 interface CourseTagWithCount extends CourseTag {
   coursesCount: number;
+}
+
+interface ParsedTagRow {
+  name: string;
+  slug: string;
+  description?: string;
+  color: string;
+  isActive: boolean;
 }
 
 @Injectable()
@@ -174,5 +184,115 @@ export class CourseTagsService {
     }
 
     return { message: `Tag with ID ${id} successfully deleted.` };
+  }
+
+  /**
+   * Bulk import tags from XLSX/CSV file
+   */
+  async importFromFile(file: Express.Multer.File): Promise<ImportResult> {
+    const result: ImportResult = {
+      success: 0,
+      failed: 0,
+      errors: [],
+    };
+
+    try {
+      // Parse the file
+      const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet);
+
+      if (!jsonData || jsonData.length === 0) {
+        throw new BadRequestException('File is empty or has no valid data');
+      }
+
+      // Process each row
+      for (let i = 0; i < jsonData.length; i++) {
+        const rowNum = i + 2; // +2 because Excel rows start at 1 and we have a header
+        const row = jsonData[i];
+
+        try {
+          // Parse and validate the row
+          const parsedTag = this.parseTagRow(row, rowNum);
+
+          // Create the tag
+          const tag = this.courseTagRepository.create(parsedTag);
+          await this.courseTagRepository.save(tag);
+
+          result.success++;
+        } catch (error) {
+          result.failed++;
+          result.errors.push({
+            row: rowNum,
+            name: row.name || 'Unknown',
+            error: error.message || 'Unknown error',
+          });
+        }
+      }
+
+      return result;
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException(`Failed to process file: ${error.message}`);
+    }
+  }
+
+  /**
+   * Parse and validate a single row from the import file
+   */
+  private parseTagRow(row: any, rowNum: number): ParsedTagRow {
+    // Validate required fields
+    if (!row.name || typeof row.name !== 'string' || row.name.trim() === '') {
+      throw new Error('Name is required and must be a non-empty string');
+    }
+
+    if (!row.slug || typeof row.slug !== 'string' || row.slug.trim() === '') {
+      throw new Error('Slug is required and must be a non-empty string');
+    }
+
+    if (!row.color || typeof row.color !== 'string' || row.color.trim() === '') {
+      throw new Error('Color is required and must be a non-empty string');
+    }
+
+    // Validate field lengths
+    if (row.name.length > 50) {
+      throw new Error('Name must not exceed 50 characters');
+    }
+
+    if (row.slug.length > 50) {
+      throw new Error('Slug must not exceed 50 characters');
+    }
+
+    if (row.color.length > 20) {
+      throw new Error('Color must not exceed 20 characters');
+    }
+
+    if (row.description && row.description.length > 255) {
+      throw new Error('Description must not exceed 255 characters');
+    }
+
+    // Parse isActive (handle various formats: true/false, 1/0, "true"/"false", "yes"/"no")
+    let isActive = true; // Default to true
+    if (row.isActive !== undefined && row.isActive !== null) {
+      const activeStr = String(row.isActive).toLowerCase().trim();
+      if (activeStr === 'false' || activeStr === '0' || activeStr === 'no' || activeStr === 'n') {
+        isActive = false;
+      } else if (activeStr === 'true' || activeStr === '1' || activeStr === 'yes' || activeStr === 'y') {
+        isActive = true;
+      } else {
+        throw new Error(`Invalid isActive value: "${row.isActive}". Use true/false, 1/0, yes/no`);
+      }
+    }
+
+    return {
+      name: row.name.trim(),
+      slug: row.slug.trim(),
+      description: row.description ? String(row.description).trim() : undefined,
+      color: row.color.trim(),
+      isActive,
+    };
   }
 }
