@@ -1067,4 +1067,91 @@ export class StudentCourseService {
       communitySupport: communityCount,
     };
   }
+
+  async getCourseFiltersSingleQuery(): Promise<any> {
+    const result = await this.courseRepo.query(`
+    WITH category_counts AS (
+      SELECT 
+        c.name as category_name,
+        c.slug as category_slug,
+        COUNT(co.id) as category_count
+      FROM courses co
+      INNER JOIN course_categories c ON co.category_id = c.id
+      WHERE co.deleted_at IS NULL AND c.deleted_at IS NULL
+      GROUP BY c.name, c.slug
+    ),
+    subcategory_counts AS (
+      SELECT 
+        sc.name as subcategory_name,
+        sc.slug as subcategory_slug,
+        COUNT(co.id) as subcategory_count
+      FROM courses co
+      INNER JOIN course_categories sc ON co.subcategory_id = sc.id
+      WHERE co.deleted_at IS NULL AND sc.deleted_at IS NULL
+      GROUP BY sc.name, sc.slug
+    ),
+    language_counts AS (
+      SELECT 
+        unnest(co.languages) as language_code,
+        COUNT(co.id) as language_count
+      FROM courses co
+      WHERE co.deleted_at IS NULL AND co.languages IS NOT NULL
+      GROUP BY unnest(co.languages)
+    ),
+    type_counts AS (
+      SELECT 
+        co.type as course_type,
+        COUNT(co.id) as type_count
+      FROM courses co
+      WHERE co.deleted_at IS NULL AND co.type IS NOT NULL
+      GROUP BY co.type
+    ),
+    level_counts AS (
+      SELECT 
+        co.level as course_level,
+        COUNT(co.id) as level_count
+      FROM courses co
+      WHERE co.deleted_at IS NULL AND co.level IS NOT NULL
+      GROUP BY co.level
+    ),
+    rating_counts AS (
+      SELECT 
+        FLOOR(co.average_rating) as rating,
+        COUNT(co.id) as rating_count
+      FROM courses co
+      WHERE co.deleted_at IS NULL AND co.average_rating IS NOT NULL AND co.average_rating >= 1
+      GROUP BY FLOOR(co.average_rating)
+    ),
+    price_range AS (
+      SELECT 
+        MIN(COALESCE(cp."salePrice", cp."regularPrice")) as min_price,
+        MAX(COALESCE(cp."salePrice", cp."regularPrice")) as max_price
+      FROM courses co
+      LEFT JOIN course_pricing cp ON co.id = cp.course_id AND cp."isActive" = true
+      WHERE co.deleted_at IS NULL AND cp.id IS NOT NULL
+    )
+    
+    SELECT 
+      (SELECT json_agg(json_build_object('name', category_name, 'slug', category_slug, 'count', category_count)) FROM category_counts) as categories,
+      (SELECT json_agg(json_build_object('name', subcategory_name, 'slug', subcategory_slug, 'count', subcategory_count)) FROM subcategory_counts) as subcategories,
+      (SELECT json_agg(json_build_object('name', 
+        CASE language_code 
+          WHEN 'en' THEN 'English' WHEN 'ar' THEN 'Arabic' WHEN 'fr' THEN 'French' 
+          WHEN 'es' THEN 'Spanish' WHEN 'de' THEN 'German' WHEN 'zh' THEN 'Chinese'
+          WHEN 'ja' THEN 'Japanese' WHEN 'ru' THEN 'Russian' WHEN 'pt' THEN 'Portuguese'
+          WHEN 'it' THEN 'Italian' WHEN 'ko' THEN 'Korean' WHEN 'tr' THEN 'Turkish'
+          WHEN 'hi' THEN 'Hindi' ELSE upper(language_code) END, 
+        'code', language_code, 'count', language_count)) FROM language_counts) as languages,
+      (SELECT json_agg(json_build_object('type', course_type, 'count', type_count)) FROM type_counts) as course_types,
+      (SELECT json_agg(json_build_object('level', course_level, 'count', level_count)) FROM level_counts) as course_levels,
+      (SELECT json_agg(json_build_object('rating', rating, 'count', rating_count)) FROM rating_counts) as ratings,
+      (SELECT json_build_object('min', min_price, 'max', max_price) FROM price_range) as price_range
+  `);
+
+    return result[0] || {
+      categories: [], subcategories: [], languages: [],
+      courseTypes: [], courseLevels: [], ratings: [],
+      priceRange: { min: 0, max: 1000 }
+    };
+  }
 }

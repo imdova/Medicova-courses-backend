@@ -310,6 +310,48 @@ export class StudentCourseController {
     return this.studentCourseService.getPaginatedCourses(query, req.user, customFilters);
   }
 
+  @Get('filters')
+  @ApiOperation({ summary: 'Get all available course filters with counts' })
+  @ApiResponse({
+    status: 200,
+    description: 'Course filters with counts',
+    schema: {
+      example: {
+        categories: [
+          { name: "Development", slug: "development", count: 24 },
+          { name: "Design", slug: "design", count: 15 }
+        ],
+        subcategories: [
+          { name: "Web Development", slug: "web-development", count: 14 },
+          { name: "UI/UX", slug: "ui-ux", count: 6 }
+        ],
+        languages: [
+          { name: "English", code: "en", count: 20 },
+          { name: "Arabic", code: "ar", count: 10 }
+        ],
+        courseTypes: [
+          { type: "live", count: 5 },
+          { type: "recorded", count: 25 }
+        ],
+        courseLevels: [
+          { level: "beginner", count: 12 },
+          { level: "intermediate", count: 10 }
+        ],
+        ratings: [
+          { rating: 5, count: 9 },
+          { rating: 4, count: 14 }
+        ],
+        priceRange: {
+          min: 10,
+          max: 500
+        }
+      }
+    }
+  })
+  async getCourseFilters(): Promise<any> {
+    return this.studentCourseService.getCourseFiltersSingleQuery();
+  }
+
   @Get(':id')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('course:get_for_student')
