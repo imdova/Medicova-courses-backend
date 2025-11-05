@@ -185,23 +185,25 @@ export class StudentCourseService {
       );
 
     // --- 5. Handle Price Sorting with Single Query ---
-    if (hasPriceSorting) {
-      const priceSortOrder = processedQuery.sortBy![priceSortIndex][1];
+    if (hasPriceSorting && processedQuery.sortBy && processedQuery.sortBy[priceSortIndex]) {
+      const priceSortOrder = processedQuery.sortBy[priceSortIndex][1];
 
-      // Single query approach - no subquery execution
-      qb.addSelect(`
+      if (priceSortOrder) {
+        // Single query approach - no subquery execution
+        qb.addSelect(`
       (
         SELECT MIN(COALESCE(p2."salePrice", p2."regularPrice")) 
         FROM course_pricing p2 
         WHERE p2."course_id" = course.id AND p2."isActive" = true
       )
     `, 'course_min_effective_price')
-        .orderBy('course_min_effective_price', priceSortOrder === 'ASC' ? 'ASC' : 'DESC');
+          .orderBy('course_min_effective_price', priceSortOrder === 'ASC' ? 'ASC' : 'DESC');
 
-      // Remove price sorting from query to avoid conflicts
-      const updatedSortBy = [...processedQuery.sortBy!];
-      updatedSortBy.splice(priceSortIndex, 1);
-      processedQuery.sortBy = updatedSortBy.length > 0 ? updatedSortBy : undefined;
+        // Remove price sorting from query to avoid conflicts
+        const updatedSortBy = [...processedQuery.sortBy];
+        updatedSortBy.splice(priceSortIndex, 1);
+        processedQuery.sortBy = updatedSortBy.length > 0 ? updatedSortBy : undefined;
+      }
     }
 
     // --- 6. Apply Filters Efficiently ---
@@ -221,7 +223,7 @@ export class StudentCourseService {
       const priceCondition = `
       EXISTS (
         SELECT 1 FROM course_pricing cp 
-        WHERE cp."courseId" = course.id 
+        WHERE cp."course_id" = course.id 
         AND cp."isActive" = true 
         AND COALESCE(cp."salePrice", cp."regularPrice") BETWEEN :priceFrom AND :priceTo
       )
