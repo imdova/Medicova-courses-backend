@@ -280,8 +280,33 @@ export class StudentCourseController {
     type: Number,
     description: 'Filter by minimum average rating (e.g., filter.averageRating=$gte:4.5). Corresponds to filterableColumns key "averageRating".',
   })
-  findAll(@Paginate() query: PaginateQuery, @Req() req, // ✅ FIX: Explicitly inject custom filters here
-    @Query() customFilters: CourseFilterParams,) {
+  @ApiQuery({
+    name: 'sortBy',
+    required: false,
+    type: String,
+    description: 'Sort courses by field and direction. Format: sortBy=field:ASC|DESC. Available fields: created_at, effectivePrice, averageRating. Examples: sortBy=effectivePrice:ASC (price low to high), sortBy=averageRating:DESC (rating high to low), sortBy=created_at:DESC (newest first). For multiple sorts, use multiple sortBy parameters.',
+    examples: {
+      'Sort by Price Low to High': {
+        value: 'sortBy=effectivePrice:ASC'
+      },
+      'Sort by Price High to Low': {
+        value: 'sortBy=effectivePrice:DESC'
+      },
+      'Sort by Rating High to Low': {
+        value: 'sortBy=averageRating:DESC'
+      },
+      'Sort by Rating Low to High': {
+        value: 'sortBy=averageRating:ASC'
+      },
+      'Sort by Newest First': {
+        value: 'sortBy=created_at:DESC'
+      },
+      'Sort by Oldest First': {
+        value: 'sortBy=created_at:ASC'
+      }
+    }
+  })
+  findAll(@Paginate() query: PaginateQuery, @Req() req, @Query() customFilters: CourseFilterParams) {
     return this.studentCourseService.getPaginatedCourses(query, req.user, customFilters);
   }
 
