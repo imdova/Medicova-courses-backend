@@ -106,90 +106,52 @@ export class StudentCourseService {
     query: PaginateQuery,
     user: any,
     customFilters: any
-  ) {
-    // --- Process the query first ---
+  ): Promise<any> {
+    // --- 1. Quick Query Processing ---
     const processedQuery: PaginateQuery = {
       ...query,
       path: query.path
     };
 
+    // Fast processing of sortBy
     if (query.sortBy && Array.isArray(query.sortBy)) {
-      processedQuery.sortBy = query.sortBy
-        .map(sort => {
-          if (Array.isArray(sort) && sort.length === 2) {
-            const [fieldPart, direction] = sort;
-            if (typeof fieldPart === 'string' && fieldPart.startsWith('sortBy=')) {
-              const field = fieldPart.replace('sortBy=', '');
-              return [field, direction] as [string, string];
-            }
-            return [fieldPart, direction] as [string, string];
-          }
-          return null;
-        })
-        .filter((sort): sort is [string, string] => sort !== null);
+      processedQuery.sortBy = query.sortBy.filter((sort): sort is [string, string] =>
+        Array.isArray(sort) && sort.length === 2
+      ).map(([fieldPart, direction]) => {
+        if (typeof fieldPart === 'string' && fieldPart.startsWith('sortBy=')) {
+          return [fieldPart.replace('sortBy=', ''), direction];
+        }
+        return [fieldPart, direction];
+      });
     }
 
-    // --- 1. Extract Custom Filters ---
-    const categories: string[] = Array.isArray(customFilters.categories)
-      ? customFilters.categories
-      : typeof customFilters.categories === 'string'
-        ? customFilters.categories.split(',').filter(Boolean)
-        : [];
-    const subcategories: string[] = Array.isArray(customFilters.subcategories)
-      ? customFilters.subcategories
-      : typeof customFilters.subcategories === 'string'
-        ? customFilters.subcategories.split(',').filter(Boolean)
-        : [];
-    const languages: string[] = Array.isArray(customFilters.languages)
-      ? customFilters.languages
-      : typeof customFilters.languages === 'string'
-        ? customFilters.languages.split(',').filter(Boolean)
-        : [];
+    // --- 2. Efficient Filter Extraction ---
+    const categories: string[] = !customFilters.categories ? [] :
+      Array.isArray(customFilters.categories) ?
+        customFilters.categories.filter(Boolean) :
+        customFilters.categories.split(',').filter(Boolean);
 
-    const priceFrom: number = customFilters.priceFrom ? parseFloat(customFilters.priceFrom) : undefined;
-    const priceTo: number = customFilters.priceTo ? parseFloat(customFilters.priceTo) : undefined;
+    const subcategories: string[] = !customFilters.subcategories ? [] :
+      Array.isArray(customFilters.subcategories) ?
+        customFilters.subcategories.filter(Boolean) :
+        customFilters.subcategories.split(',').filter(Boolean);
 
-    //const currency = user ? await this.getCurrencyForUser(user.sub) : 'USD';
-    // --- 2. Check if we need custom price sorting ---
+    const languages: string[] = !customFilters.languages ? [] :
+      Array.isArray(customFilters.languages) ?
+        customFilters.languages.filter(Boolean) :
+        customFilters.languages.split(',').filter(Boolean);
+
+    const priceFrom = customFilters.priceFrom ? parseFloat(customFilters.priceFrom) : undefined;
+    const priceTo = customFilters.priceTo ? parseFloat(customFilters.priceTo) : undefined;
+
+    // --- 3. Check for Price Sorting ---
     const priceSortIndex = processedQuery.sortBy?.findIndex(([column]) => column === 'effectivePrice');
-    const hasPriceSorting = priceSortIndex !== -1 && priceSortIndex !== undefined;
+    const hasPriceSorting = priceSortIndex !== -1;
 
-    let sortedCourseIds: string[] = [];
-    let finalQuery = { ...processedQuery };
-
-    // --- 3. Handle Price Sorting First (if needed) ---
-    if (hasPriceSorting) {
-      const priceSortOrder = processedQuery.sortBy[priceSortIndex][1];
-
-      // Build subquery to get courses with their minimum effective prices
-      const priceSortSubQuery = this.courseRepo
-        .createQueryBuilder('course')
-        .select('course.id', 'id')
-        .addSelect('MIN(COALESCE(pricing."salePrice", pricing."regularPrice"))', 'min_price')
-        .leftJoin('course.pricings', 'pricing')
-        .where('course.deleted_at IS NULL')
-        .andWhere('pricing.isActive = true')
-        .groupBy('course.id')
-        .orderBy('min_price', priceSortOrder === 'ASC' ? 'ASC' : 'DESC')
-        .getQuery();
-
-      // Execute the subquery to get sorted course IDs
-      const priceSortedResults = await this.courseRepo.query(`
-      SELECT id FROM (${priceSortSubQuery}) AS price_sorted_courses
-    `);
-
-      sortedCourseIds = priceSortedResults.map(item => item.id);
-
-      // Remove price sorting from the query to avoid conflicts
-      const updatedSortBy = [...processedQuery.sortBy];
-      updatedSortBy.splice(priceSortIndex, 1);
-      finalQuery.sortBy = updatedSortBy.length > 0 ? updatedSortBy : undefined;
-    }
-
-    // --- 4. Build Main Query Builder ---
+    // --- 4. Build Optimized Query Builder ---
     const qb = this.courseRepo
       .createQueryBuilder('course')
-      .leftJoinAndSelect('course.pricings', 'pricing')
+      .leftJoinAndSelect('course.pricings', 'pricing', 'pricing.isActive = true')
       .leftJoin('course.academy', 'academy')
       .addSelect([
         'academy.id',
@@ -201,47 +163,48 @@ export class StudentCourseService {
       ])
       .leftJoinAndSelect('course.instructor', 'instructor')
       .leftJoinAndSelect('instructor.profile', 'instructorProfile')
-      .where('course.deleted_at IS NULL')
       .leftJoin('course.category', 'category')
       .leftJoin('course.subCategory', 'subCategory')
+      .where('course.deleted_at IS NULL')
 
-      // Load counts (existing logic)
+      // Optimized count loading
       .loadRelationCountAndMap('course.studentCount', 'course.enrollments')
       .loadRelationCountAndMap(
         'course.lecturesCount',
         'course.sections',
         'sectionLectures',
-        (qb) =>
-          qb
-            .leftJoin('sectionLectures.items', 'lectureItems')
-            .andWhere('lectureItems.curriculumType = :lectureType', {
-              lectureType: 'lecture',
-            }),
+        (qb) => qb.leftJoin('sectionLectures.items', 'lectureItems')
+          .andWhere('lectureItems.curriculumType = :lectureType', { lectureType: 'lecture' })
       )
       .loadRelationCountAndMap(
         'course.quizzesCount',
         'course.sections',
         'sectionQuizzes',
-        (qb) =>
-          qb
-            .leftJoin('sectionQuizzes.items', 'quizItems')
-            .andWhere('quizItems.curriculumType = :quizType', {
-              quizType: 'quiz',
-            }),
+        (qb) => qb.leftJoin('sectionQuizzes.items', 'quizItems')
+          .andWhere('quizItems.curriculumType = :quizType', { quizType: 'quiz' })
       );
 
-    // --- 5. Apply Price Sorting by Course IDs (if we have sorted IDs) ---
-    if (hasPriceSorting && sortedCourseIds.length > 0) {
-      // Use a different approach - add the sorted IDs as a select and order by their index
-      qb.andWhere('course.id IN (:...sortedIds)', { sortedIds: sortedCourseIds });
+    // --- 5. Handle Price Sorting with Single Query ---
+    if (hasPriceSorting) {
+      const priceSortOrder = processedQuery.sortBy![priceSortIndex][1];
 
-      // Create a CASE statement to manually order by the array position
-      const caseStatements = sortedCourseIds.map((id, index) => `WHEN '${id}' THEN ${index}`).join(' ');
-      qb.addSelect(`CASE course.id ${caseStatements} ELSE ${sortedCourseIds.length} END`, 'custom_sort_order')
-        .orderBy('custom_sort_order', 'ASC');
+      // Single query approach - no subquery execution
+      qb.addSelect(`
+      (
+        SELECT MIN(COALESCE(p2."salePrice", p2."regularPrice")) 
+        FROM course_pricing p2 
+        WHERE p2."course_id" = course.id AND p2."isActive" = true
+      )
+    `, 'course_min_effective_price')
+        .orderBy('course_min_effective_price', priceSortOrder === 'ASC' ? 'ASC' : 'DESC');
+
+      // Remove price sorting from query to avoid conflicts
+      const updatedSortBy = [...processedQuery.sortBy!];
+      updatedSortBy.splice(priceSortIndex, 1);
+      processedQuery.sortBy = updatedSortBy.length > 0 ? updatedSortBy : undefined;
     }
 
-    // --- 6. Apply Custom Filters ---
+    // --- 6. Apply Filters Efficiently ---
     if (categories.length > 0) {
       qb.andWhere('category.name IN (:...catNames)', { catNames: categories });
     }
@@ -251,63 +214,48 @@ export class StudentCourseService {
     }
 
     if (languages.length > 0) {
-      qb.andWhere('course.languages && ARRAY[:...languagesArray]::text[]', { languagesArray: languages });
+      qb.andWhere('course.languages && ARRAY[:...languagesArray]', { languagesArray: languages });
     }
 
     if (priceFrom !== undefined || priceTo !== undefined) {
-      let priceCondition = 'pricing.isActive = true';
-      const effectivePrice = 'COALESCE(pricing.salePrice, pricing.regularPrice)';
-      const priceParams = {
-        //currency,
-        priceFrom,
-        priceTo,
-      };
-
-      if (priceFrom !== undefined) {
-        priceCondition += ` AND ${effectivePrice} >= :priceFrom`;
-      }
-      if (priceTo !== undefined) {
-        priceCondition += ` AND ${effectivePrice} <= :priceTo`;
-      }
-
-      qb.andWhere(priceCondition, priceParams);
+      const priceCondition = `
+      EXISTS (
+        SELECT 1 FROM course_pricing cp 
+        WHERE cp."courseId" = course.id 
+        AND cp."isActive" = true 
+        AND COALESCE(cp."salePrice", cp."regularPrice") BETWEEN :priceFrom AND :priceTo
+      )
+    `;
+      qb.andWhere(priceCondition, {
+        priceFrom: priceFrom || 0,
+        priceTo: priceTo || Number.MAX_SAFE_INTEGER
+      });
     }
 
-    // --- 7. Run Pagination (with finalQuery) ---
-    const result = await paginate(finalQuery, qb, COURSE_PAGINATION_CONFIG);
+    // --- 7. Run Optimized Pagination ---
+    const result = await paginate(processedQuery, qb, COURSE_PAGINATION_CONFIG) as any;
 
-    // --- 4. Post-Pagination Processing (Pricing Filtering & Instructor Mapping) ---
-    // The rest of your logic is correct for post-processing.
+    // --- 8. Efficient Post-Processing (Inline) ---
+    const courses = result.data as Course[];
 
-    // Filter pricings by user's preferred currency
-    // if (currency) {
-    //   result.data.forEach((course: any) => {
-    //     course.pricings = course.pricings.filter(
-    //       (p) => p.currencyCode === currency,
-    //     );
-    //   });
-    // }
+    // Extract unique instructor IDs
+    const instructorIds: string[] = [...new Set(
+      courses.map(course => course.createdBy).filter((id): id is string => !!id)
+    )];
 
-    // --- 8. Post-Pagination Processing ---
-    const instructorIds = [
-      ...new Set(
-        result.data
-          .map((course: any) => course.createdBy)
-          .filter((id): id is string => !!id),
-      ),
-    ];
-
+    // Bulk fetch instructor data
     const [academyInstructorsMap, instructorStatsMap] = await Promise.all([
-      this.courseService.getAcademyInstructorsBulk(result.data as Course[]),
+      this.courseService.getAcademyInstructorsBulk(courses),
       this.courseService.getInstructorStatsBulk(instructorIds),
     ]);
 
-    result.data = result.data.map((course) => {
+    // Map the final result
+    result.data = courses.map((course: Course) => {
       const mappedInstructor = this.mapInstructor(course);
       const instructorStats = instructorStatsMap.get(course.createdBy);
 
       return {
-        ...(course as any),
+        ...course,
         instructor: mappedInstructor ? {
           ...mappedInstructor,
           coursesCount: instructorStats?.coursesCount || 0,
