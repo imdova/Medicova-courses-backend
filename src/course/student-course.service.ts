@@ -20,18 +20,17 @@ import { AcademyInstructor } from 'src/academy/entities/academy-instructors.enti
 import { CourseService } from './course.service';
 
 export const COURSE_PAGINATION_CONFIG: QueryConfig<Course> = {
-  sortableColumns: ['created_at', 'name', 'category', 'status'],
-  defaultSortBy: [['created_at', 'DESC']],
+  sortableColumns: ['created_at', 'name', 'category', 'status', 'averageRating'],
+  defaultSortBy: [], // Remove default sorting to allow custom sorting
   filterableColumns: {
     name: [FilterOperator.ILIKE],
     category: [FilterOperator.EQ],
     status: [FilterOperator.EQ],
     isActive: [FilterOperator.EQ],
     createdBy: [FilterOperator.EQ],
-    // ✅ NEW: Simple filters from course entity
-    type: [FilterOperator.EQ], // for 'courseType' (TypeORM column name)
-    level: [FilterOperator.EQ], // for 'courseLevel' (TypeORM column name)
-    averageRating: [FilterOperator.GTE], // for 'rating' (greater than or equal to)
+    type: [FilterOperator.EQ],
+    level: [FilterOperator.EQ],
+    averageRating: [FilterOperator.GTE],
   },
   relations: [],
 };
@@ -56,86 +55,103 @@ export class StudentCourseService {
     private readonly dataSource: DataSource
   ) { }
 
-  private async getCurrencyForUser(
-    userId: string,
-  ): Promise<CurrencyCode | null> {
-    // 1. Fetch the profile
-    const profile = await this.profileRepo.findOne({
-      where: { user: { id: userId } },
-      // Ensure you load the country object/relation if necessary
-    });
+  // private async getCurrencyForUser(
+  //   userId: string,
+  // ): Promise<CurrencyCode | null> {
+  //   // 1. Fetch the profile
+  //   const profile = await this.profileRepo.findOne({
+  //     where: { user: { id: userId } },
+  //     // Ensure you load the country object/relation if necessary
+  //   });
 
-    // 2. Validate country data
-    if (!profile || !profile.country || !profile.country.code) {
-      // Fallback: If country data is missing, still return the global default (USD) 
-      // or return null if strict policy requires a country. We'll return USD for robustness.
-      return CurrencyCode.USD;
-    }
+  //   // 2. Validate country data
+  //   if (!profile || !profile.country || !profile.country.code) {
+  //     // Fallback: If country data is missing, still return the global default (USD) 
+  //     // or return null if strict policy requires a country. We'll return USD for robustness.
+  //     return CurrencyCode.USD;
+  //   }
 
-    const countryCode = profile.country.code.toUpperCase(); // e.g., "EG", "SA", "US"
+  //   const countryCode = profile.country.code.toUpperCase(); // e.g., "EG", "SA", "US"
 
-    // 3. Dynamically attempt to map Country Code to Currency Code
-    const availableCurrencies: string[] = Object.values(CurrencyCode);
+  //   // 3. Dynamically attempt to map Country Code to Currency Code
+  //   const availableCurrencies: string[] = Object.values(CurrencyCode);
 
-    // Attempt to find a currency code that starts with the country code.
-    // Examples: EG + P = EGP; SA + R = SAR
-    const matchingCurrency = availableCurrencies.find(currency =>
-      currency.startsWith(countryCode)
-    );
+  //   // Attempt to find a currency code that starts with the country code.
+  //   // Examples: EG + P = EGP; SA + R = SAR
+  //   const matchingCurrency = availableCurrencies.find(currency =>
+  //     currency.startsWith(countryCode)
+  //   );
 
-    if (matchingCurrency) {
-      // Found a dynamic match (e.g., EGP, SAR)
-      return matchingCurrency as CurrencyCode;
-    }
+  //   if (matchingCurrency) {
+  //     // Found a dynamic match (e.g., EGP, SAR)
+  //     return matchingCurrency as CurrencyCode;
+  //   }
 
-    // --- Handling Common Exceptions (Manual Override) ---
-    // This section is vital because many currencies do NOT follow the pattern (e.g., CA -> CAD, AU -> AUD).
-    switch (countryCode) {
-      case 'US': // United States -> USD
-      case 'CA': // Canada -> CAD (The pattern check likely failed because CAD doesn't start with CA)
-      case 'AU': // Australia -> AUD
-        return CurrencyCode.USD; // Or handle CAD, AUD if they are required to be separate.
-      // Sticking with USD as the fallback/global default.
-    }
-    // ----------------------------------------------------
+  //   // --- Handling Common Exceptions (Manual Override) ---
+  //   // This section is vital because many currencies do NOT follow the pattern (e.g., CA -> CAD, AU -> AUD).
+  //   switch (countryCode) {
+  //     case 'US': // United States -> USD
+  //     case 'CA': // Canada -> CAD (The pattern check likely failed because CAD doesn't start with CA)
+  //     case 'AU': // Australia -> AUD
+  //       return CurrencyCode.USD; // Or handle CAD, AUD if they are required to be separate.
+  //     // Sticking with USD as the fallback/global default.
+  //   }
+  //   // ----------------------------------------------------
 
-    // 4. Fallback Default
-    return CurrencyCode.USD;
-  }
+  //   // 4. Fallback Default
+  //   return CurrencyCode.USD;
+  // }
 
   async getPaginatedCourses(
     query: PaginateQuery,
     user: any,
-    customFilters: any // Use the injected custom filters instead of parsing from query
-  ) {
-    // --- 1. Reliable Extraction of Custom Filters ---
+    customFilters: any
+  ): Promise<any> {
+    // --- 1. Quick Query Processing ---
+    const processedQuery: PaginateQuery = {
+      ...query,
+      path: query.path
+    };
 
-    // Cleanly parse array filters
-    const categories: string[] = Array.isArray(customFilters.categories)
-      ? customFilters.categories
-      : typeof customFilters.categories === 'string'
-        ? customFilters.categories.split(',').filter(Boolean)
-        : [];
-    const subcategories: string[] = Array.isArray(customFilters.subcategories)
-      ? customFilters.subcategories
-      : typeof customFilters.subcategories === 'string'
-        ? customFilters.subcategories.split(',').filter(Boolean)
-        : [];
-    const languages: string[] = Array.isArray(customFilters.languages)
-      ? customFilters.languages
-      : typeof customFilters.languages === 'string'
-        ? customFilters.languages.split(',').filter(Boolean)
-        : [];
+    // Fast processing of sortBy
+    if (query.sortBy && Array.isArray(query.sortBy)) {
+      processedQuery.sortBy = query.sortBy.filter((sort): sort is [string, string] =>
+        Array.isArray(sort) && sort.length === 2
+      ).map(([fieldPart, direction]) => {
+        if (typeof fieldPart === 'string' && fieldPart.startsWith('sortBy=')) {
+          return [fieldPart.replace('sortBy=', ''), direction];
+        }
+        return [fieldPart, direction];
+      });
+    }
 
-    // Parse numeric range filters
-    const priceFrom: number = customFilters.priceFrom ? parseFloat(customFilters.priceFrom) : undefined;
-    const priceTo: number = customFilters.priceTo ? parseFloat(customFilters.priceTo) : undefined;
+    // --- 2. Efficient Filter Extraction ---
+    const categories: string[] = !customFilters.categories ? [] :
+      Array.isArray(customFilters.categories) ?
+        customFilters.categories.filter(Boolean) :
+        customFilters.categories.split(',').filter(Boolean);
 
-    const currency = user ? await this.getCurrencyForUser(user.sub) : 'USD';
+    const subcategories: string[] = !customFilters.subcategories ? [] :
+      Array.isArray(customFilters.subcategories) ?
+        customFilters.subcategories.filter(Boolean) :
+        customFilters.subcategories.split(',').filter(Boolean);
 
+    const languages: string[] = !customFilters.languages ? [] :
+      Array.isArray(customFilters.languages) ?
+        customFilters.languages.filter(Boolean) :
+        customFilters.languages.split(',').filter(Boolean);
+
+    const priceFrom = customFilters.priceFrom ? parseFloat(customFilters.priceFrom) : undefined;
+    const priceTo = customFilters.priceTo ? parseFloat(customFilters.priceTo) : undefined;
+
+    // --- 3. Check for Price Sorting ---
+    const priceSortIndex = processedQuery.sortBy?.findIndex(([column]) => column === 'effectivePrice');
+    const hasPriceSorting = priceSortIndex !== -1;
+
+    // --- 4. Build Optimized Query Builder ---
     const qb = this.courseRepo
       .createQueryBuilder('course')
-      .leftJoinAndSelect('course.pricings', 'pricing')
+      .leftJoinAndSelect('course.pricings', 'pricing', 'pricing.isActive = true')
       .leftJoin('course.academy', 'academy')
       .addSelect([
         'academy.id',
@@ -147,115 +163,99 @@ export class StudentCourseService {
       ])
       .leftJoinAndSelect('course.instructor', 'instructor')
       .leftJoinAndSelect('instructor.profile', 'instructorProfile')
-      .where('course.deleted_at IS NULL')
-
-      // ✅ Add joins for category/subcategory filtering
       .leftJoin('course.category', 'category')
       .leftJoin('course.subCategory', 'subCategory')
+      .where('course.deleted_at IS NULL')
 
-      // Load counts (existing logic)
+      // Optimized count loading
       .loadRelationCountAndMap('course.studentCount', 'course.enrollments')
       .loadRelationCountAndMap(
         'course.lecturesCount',
         'course.sections',
         'sectionLectures',
-        (qb) =>
-          qb
-            .leftJoin('sectionLectures.items', 'lectureItems')
-            .andWhere('lectureItems.curriculumType = :lectureType', {
-              lectureType: 'lecture',
-            }),
+        (qb) => qb.leftJoin('sectionLectures.items', 'lectureItems')
+          .andWhere('lectureItems.curriculumType = :lectureType', { lectureType: 'lecture' })
       )
       .loadRelationCountAndMap(
         'course.quizzesCount',
         'course.sections',
         'sectionQuizzes',
-        (qb) =>
-          qb
-            .leftJoin('sectionQuizzes.items', 'quizItems')
-            .andWhere('quizItems.curriculumType = :quizType', {
-              quizType: 'quiz',
-            }),
+        (qb) => qb.leftJoin('sectionQuizzes.items', 'quizItems')
+          .andWhere('quizItems.curriculumType = :quizType', { quizType: 'quiz' })
       );
 
-    // --- 2. Apply Custom Filters as AND WHERE Clauses (SYNTAX CHECKED) ---
+    // --- 5. Handle Price Sorting with Single Query ---
+    if (hasPriceSorting) {
+      const priceSortOrder = processedQuery.sortBy![priceSortIndex][1];
 
-    // ✅ Filter by categories (using unique parameter 'catNames')
+      // Single query approach - no subquery execution
+      qb.addSelect(`
+      (
+        SELECT MIN(COALESCE(p2."salePrice", p2."regularPrice")) 
+        FROM course_pricing p2 
+        WHERE p2."course_id" = course.id AND p2."isActive" = true
+      )
+    `, 'course_min_effective_price')
+        .orderBy('course_min_effective_price', priceSortOrder === 'ASC' ? 'ASC' : 'DESC');
+
+      // Remove price sorting from query to avoid conflicts
+      const updatedSortBy = [...processedQuery.sortBy!];
+      updatedSortBy.splice(priceSortIndex, 1);
+      processedQuery.sortBy = updatedSortBy.length > 0 ? updatedSortBy : undefined;
+    }
+
+    // --- 6. Apply Filters Efficiently ---
     if (categories.length > 0) {
       qb.andWhere('category.name IN (:...catNames)', { catNames: categories });
     }
 
-    // ✅ Filter by subcategories (using unique parameter 'subCatNames')
     if (subcategories.length > 0) {
       qb.andWhere('subCategory.name IN (:...subCatNames)', { subCatNames: subcategories });
     }
 
-    // ✅ FIXED LANGUAGES SYNTAX: Use robust TypeORM/PostgreSQL array spread
     if (languages.length > 0) {
-      // Use the PostgreSQL array overlap operator (&&)
-      // The parameter name 'languagesArray' is used with the spread operator
-      qb.andWhere('course.languages && ARRAY[:...languagesArray]::text[]', { languagesArray: languages });
+      qb.andWhere('course.languages && ARRAY[:...languagesArray]', { languagesArray: languages });
     }
 
-    // ✅ Price range filter (Uses COALESCE on the existing join)
     if (priceFrom !== undefined || priceTo !== undefined) {
-      // Use snake_case for database column names
-      let priceCondition = 'pricing.currencyCode = :currency AND pricing.isActive = true';
-
-      // Use COALESCE to determine the effective price (sale_price if available, otherwise regular_price)
-      const effectivePrice = 'COALESCE(pricing.salePrice, pricing.regularPrice)';
-
-      const priceParams = {
-        currency,
-        priceFrom,
-        priceTo,
-      };
-
-      if (priceFrom !== undefined) {
-        priceCondition += ` AND ${effectivePrice} >= :priceFrom`;
-      }
-      if (priceTo !== undefined) {
-        priceCondition += ` AND ${effectivePrice} <= :priceTo`;
-      }
-
-      // Apply the price filter directly using the join
-      qb.andWhere(priceCondition, priceParams);
-    }
-
-    // --- 3. Run Pagination ---
-    const result = await paginate(query, qb, COURSE_PAGINATION_CONFIG);
-
-    // --- 4. Post-Pagination Processing (Pricing Filtering & Instructor Mapping) ---
-    // The rest of your logic is correct for post-processing.
-
-    // Filter pricings by user's preferred currency
-    if (currency) {
-      result.data.forEach((course: any) => {
-        course.pricings = course.pricings.filter(
-          (p) => p.currencyCode === currency,
-        );
+      const priceCondition = `
+      EXISTS (
+        SELECT 1 FROM course_pricing cp 
+        WHERE cp."courseId" = course.id 
+        AND cp."isActive" = true 
+        AND COALESCE(cp."salePrice", cp."regularPrice") BETWEEN :priceFrom AND :priceTo
+      )
+    `;
+      qb.andWhere(priceCondition, {
+        priceFrom: priceFrom || 0,
+        priceTo: priceTo || Number.MAX_SAFE_INTEGER
       });
     }
 
-    const instructorIds = [
-      ...new Set(
-        result.data
-          .map((course: any) => course.createdBy)
-          .filter((id): id is string => !!id),
-      ),
-    ];
+    // --- 7. Run Optimized Pagination ---
+    const result = await paginate(processedQuery, qb, COURSE_PAGINATION_CONFIG) as any;
 
+    // --- 8. Efficient Post-Processing (Inline) ---
+    const courses = result.data as Course[];
+
+    // Extract unique instructor IDs
+    const instructorIds: string[] = [...new Set(
+      courses.map(course => course.createdBy).filter((id): id is string => !!id)
+    )];
+
+    // Bulk fetch instructor data
     const [academyInstructorsMap, instructorStatsMap] = await Promise.all([
-      this.courseService.getAcademyInstructorsBulk(result.data as Course[]),
+      this.courseService.getAcademyInstructorsBulk(courses),
       this.courseService.getInstructorStatsBulk(instructorIds),
     ]);
 
-    result.data = result.data.map((course) => {
+    // Map the final result
+    result.data = courses.map((course: Course) => {
       const mappedInstructor = this.mapInstructor(course);
       const instructorStats = instructorStatsMap.get(course.createdBy);
 
       return {
-        ...(course as any),
+        ...course,
         instructor: mappedInstructor ? {
           ...mappedInstructor,
           coursesCount: instructorStats?.coursesCount || 0,
@@ -271,7 +271,7 @@ export class StudentCourseService {
   }
 
   async findOne(id: string, user: any): Promise<Course> {
-    const currency = await this.getCurrencyForUser(user.sub);
+    //const currency = await this.getCurrencyForUser(user.sub);
 
     // 1. Check Enrollment
     const enrollment = await this.courseStudentRepository.findOne({
@@ -381,11 +381,11 @@ export class StudentCourseService {
     if (!course) throw new NotFoundException('Course not found');
 
     // ✅ Filter pricing by user's currency
-    if (currency) {
-      course.pricings = course.pricings.filter(
-        (p) => p.currencyCode === currency,
-      );
-    }
+    // if (currency) {
+    //   course.pricings = course.pricings.filter(
+    //     (p) => p.currencyCode === currency,
+    //   );
+    // }
 
     // 🎯 OPTIMIZATION: Fetch academy instructors and instructor stats in parallel
     const [academyInstructors, instructorStatsMap] = await Promise.all([
@@ -492,7 +492,7 @@ export class StudentCourseService {
   }
 
   async getEnrolledCourses(query: PaginateQuery, userId: string) {
-    const currency = await this.getCurrencyForUser(userId);
+    //const currency = await this.getCurrencyForUser(userId);
 
     const qb = this.courseRepo
       .createQueryBuilder('course')
@@ -546,13 +546,13 @@ export class StudentCourseService {
     const result = await paginate(query, qb, COURSE_PAGINATION_CONFIG);
 
     // ✅ Filter pricing by user's currency (existing logic)
-    if (currency) {
-      result.data.forEach((course: any) => {
-        course.pricings = course.pricings.filter(
-          (p) => p.currencyCode === currency,
-        );
-      });
-    }
+    // if (currency) {
+    //   result.data.forEach((course: any) => {
+    //     course.pricings = course.pricings.filter(
+    //       (p) => p.currencyCode === currency,
+    //     );
+    //   });
+    // }
 
     // --- Start Bulk Fetching Operations ---
 
@@ -938,7 +938,7 @@ export class StudentCourseService {
   }
 
   async getFavoriteCourses(userId: string) {
-    const currency = await this.getCurrencyForUser(userId);
+    //const currency = await this.getCurrencyForUser(userId);
 
     const qb = this.courseRepo
       .createQueryBuilder('course')
@@ -953,13 +953,13 @@ export class StudentCourseService {
     const favorites = await qb.getMany();
 
     // Filter pricings
-    if (currency) {
-      favorites.forEach((course: any) => {
-        course.pricings = course.pricings.filter(
-          (p) => p.currencyCode === currency,
-        );
-      });
-    }
+    // if (currency) {
+    //   favorites.forEach((course: any) => {
+    //     course.pricings = course.pricings.filter(
+    //       (p) => p.currencyCode === currency,
+    //     );
+    //   });
+    // }
 
     // Simplify instructor
     favorites.forEach((course: any) => {

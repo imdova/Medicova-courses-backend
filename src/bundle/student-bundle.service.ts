@@ -15,32 +15,32 @@ export class StudentBundleService {
     private readonly courseStudentRepo: Repository<CourseStudent>,
     @InjectRepository(Profile)
     private readonly profileRepo: Repository<Profile>,
-  ) {}
+  ) { }
 
   /** Map user nationality → currency code */
-  private async getCurrencyForUser(userId: string): Promise<CurrencyCode> {
-    const profile = await this.profileRepo.findOne({
-      where: { user: { id: userId } },
-      relations: ['user'],
-    });
+  // private async getCurrencyForUser(userId: string): Promise<CurrencyCode> {
+  //   const profile = await this.profileRepo.findOne({
+  //     where: { user: { id: userId } },
+  //     relations: ['user'],
+  //   });
 
-    if (!profile || !profile.nationality) return CurrencyCode.USD;
+  //   if (!profile || !profile.nationality) return CurrencyCode.USD;
 
-    switch (profile.nationality.toLowerCase()) {
-      case 'egyptian':
-        return CurrencyCode.EGP;
-      case 'saudi':
-        return CurrencyCode.SAR;
-      case 'eurozone':
-        return CurrencyCode.EUR;
-      default:
-        return CurrencyCode.USD;
-    }
-  }
+  //   switch (profile.nationality.toLowerCase()) {
+  //     case 'egyptian':
+  //       return CurrencyCode.EGP;
+  //     case 'saudi':
+  //       return CurrencyCode.SAR;
+  //     case 'eurozone':
+  //       return CurrencyCode.EUR;
+  //     default:
+  //       return CurrencyCode.USD;
+  //   }
+  // }
 
   /** Get all bundles with pricing filtered by student's currency */
   async getAvailableBundles(user: any) {
-    const currency = await this.getCurrencyForUser(user.sub);
+    //const currency = await this.getCurrencyForUser(user.sub);
 
     const bundles = await this.bundleRepo.find({
       where: { active: true },
@@ -49,16 +49,16 @@ export class StudentBundleService {
 
     return bundles.map((bundle) => {
       // Pick pricing that matches student currency
-      let pricing = bundle.pricings.find((p) => p.currency_code === currency);
-      if (!pricing) {
-        pricing = bundle.pricings.find(
-          (p) => p.currency_code === CurrencyCode.USD,
-        );
-      }
+      // let pricing = bundle.pricings.find((p) => p.currency_code === currency);
+      // if (!pricing) {
+      //   pricing = bundle.pricings.find(
+      //     (p) => p.currency_code === CurrencyCode.USD,
+      //   );
+      // }
 
       return {
         ...bundle,
-        pricings: pricing ? [pricing] : [],
+        //pricings: pricing ? [pricing] : [],
       };
     });
   }
