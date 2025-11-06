@@ -122,6 +122,17 @@ export class CreateCourseCategoryDto {
   @MaxLength(500)
   image?: string;
 
+  // 🟢 NEW FIELD: SVG Icon
+  @ApiPropertyOptional({
+    description: 'SVG icon content or URL for the category. Corresponds to the "Upload SVG" field.',
+    type: String,
+    example: 'https://cdn.example.com/icons/web-dev-icon.svg',
+  })
+  @IsString()
+  @IsOptional()
+  @MaxLength(5000)
+  svgIcon?: string;
+
   @ApiPropertyOptional({
     description: 'Parent category ID (if subcategory)',
     example: '550e8400-e29b-41d4-a716-446655440000',

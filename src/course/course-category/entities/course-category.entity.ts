@@ -57,6 +57,14 @@ export class CourseCategory extends BasicEntity {
   @Column({ length: 500, nullable: true })
   image?: string;
 
+  // 🟢 NEW FIELD: SVG Icon
+  @ApiPropertyOptional({
+    description: 'SVG icon content or URL for the category',
+    maxLength: 5000, // Adjusted length for potentially storing raw SVG content
+  })
+  @Column({ type: 'text', nullable: true, name: 'svg_icon' })
+  svgIcon?: string;
+
   // ✅ Self-referencing relationship
   @ManyToOne(() => CourseCategory, (category) => category.subcategories, {
     nullable: true,
