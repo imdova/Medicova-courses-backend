@@ -6,16 +6,29 @@ import { Repository } from 'typeorm';
 import { CreateFaqDto } from './dto/create-faq.dto';
 import { Faq, FaqCategory, FaqStatus } from './entities/faq.entity'; // Assuming location and entity name
 import { UpdateFaqDto } from './dto/update-faq.dto';
-import { QueryConfig } from 'src/common/utils/query-options';
-import { paginate, PaginateQuery } from 'nestjs-paginate';
+import { FilterOperator, paginate, PaginateConfig, PaginateQuery } from 'nestjs-paginate';
 
-export const FAQ_PAGINATION_CONFIG: QueryConfig<Faq> = {
-  sortableColumns: ['status', 'created_at'],
+export const FAQ_PAGINATION_CONFIG: PaginateConfig<Faq> = {
+  // ✅ Use entity property names (camelCase), not database column names
+  sortableColumns: ['status', 'category', 'created_at'],
+
+  // ✅ Use entity property names for default sorting
   defaultSortBy: [['created_at', 'DESC']],
+
+  // ✅ Use entity property names for searchable columns
+  searchableColumns: [
+    'questionEn',
+    'questionAr',
+    // 'answerEn',
+    // 'answerAr',
+  ],
+
+  // ✅ Use FilterOperator for more control
   filterableColumns: {
-    category: true,
-    status: true,
+    category: [FilterOperator.EQ],
+    status: [FilterOperator.EQ],
   },
+
   relations: [],
 };
 

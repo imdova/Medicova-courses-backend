@@ -7,7 +7,7 @@ import { PermissionsGuard } from 'src/auth/permission.guard'; // Assuming locati
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator'; // Assuming location
 import { FaqService } from './faq.service';
 import { CreateFaqDto } from './dto/create-faq.dto'; // Assuming combined DTO file
-import { Faq } from './entities/faq.entity'; // Assuming location
+import { Faq, FaqCategory, FaqStatus } from './entities/faq.entity'; // Assuming location
 import { UpdateFaqDto } from './dto/update-faq.dto';
 import { Paginate, PaginateQuery } from 'nestjs-paginate';
 
@@ -38,11 +38,30 @@ export class FaqController {
   //@RequirePermissions('faq:list')
   @ApiOperation({ summary: 'Get a paginated list of all FAQs with filtering and searching' })
   @ApiResponse({ status: 200, description: 'List of FAQs retrieved successfully.' })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Global search term applied to question and answer fields (EN/AR).',
+    example: 'refund',
+  })
+  @ApiQuery({
+    name: 'filter.category',  // ✅ Changed from filter[category] to filter.category
+    required: false,
+    enum: FaqCategory,
+    description: `Filter by FAQ category. Options: ${Object.values(FaqCategory).join(', ')}`,
+    example: FaqCategory.SHIPPING,
+  })
+  @ApiQuery({
+    name: 'filter.status',  // ✅ Changed from filter[status] to filter.status
+    required: false,
+    enum: FaqStatus,
+    description: `Filter by status. Options: ${Object.values(FaqStatus).join(', ')}`,
+    example: FaqStatus.PUBLISHED,
+  })
   findAll(
-    // ✅ Use the generic @Paginate decorator
     @Paginate() query: PaginateQuery,
   ): Promise<any> {
-    // Pass the standardized PaginateQuery object to the service
     return this.faqService.findAll(query);
   }
 
