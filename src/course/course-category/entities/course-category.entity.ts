@@ -5,14 +5,8 @@ import { Course } from '../../entities/course.entity';
 
 // 🟢 NEW: Define the structure for FAQ (Frequently Asked Questions)
 export interface FaqItem {
-  questionEn: string;
-  questionAr?: string;
-  answerEn: string;
-  answerAr?: string;
-  // ✅ NEW: Timestamp when the item was created
-  created_at: string;
-  // ✅ NEW: Status of the FAQ item
-  status: 'draft' | 'published';
+  question: string;
+  answer: string;
 }
 
 // 🟢 NEW: Define the structure for all SEO Meta Information
