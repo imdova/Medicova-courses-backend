@@ -4,8 +4,20 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateFaqDto } from './dto/create-faq.dto';
-import { Faq } from './entities/faq.entity'; // Assuming location and entity name
+import { Faq, FaqCategory, FaqStatus } from './entities/faq.entity'; // Assuming location and entity name
 import { UpdateFaqDto } from './dto/update-faq.dto';
+import { QueryConfig } from 'src/common/utils/query-options';
+import { paginate, PaginateQuery } from 'nestjs-paginate';
+
+export const FAQ_PAGINATION_CONFIG: QueryConfig<Faq> = {
+  sortableColumns: ['status', 'created_at'],
+  defaultSortBy: [['created_at', 'DESC']],
+  filterableColumns: {
+    category: true,
+    status: true,
+  },
+  relations: [],
+};
 
 @Injectable()
 export class FaqService {
@@ -29,26 +41,11 @@ export class FaqService {
   }
 
   /**
-   * Retrieves a paginated list of all non-deleted FAQs.
-   */
-  async findAll(page: number, limit: number): Promise<{ data: Faq[], total: number, page: number, limit: number }> {
-    const skip = (page - 1) * limit;
-
-    const [data, total] = await this.faqRepository.findAndCount({
-      skip,
-      take: limit,
-      order: {
-        created_at: 'DESC',
-      },
-      // You can also add a 'where' clause here if you want to filter out archived FAQs
-    });
-
-    return {
-      data,
-      total,
-      page,
-      limit,
-    };
+      * Retrieves a paginated, filtered, and sorted list of FAQs.
+      */
+  async findAll(query: PaginateQuery): Promise<any> {
+    // ✅ Use the generic paginate function provided by your library
+    return paginate(query, this.faqRepository, FAQ_PAGINATION_CONFIG);
   }
 
   /**

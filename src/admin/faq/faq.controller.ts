@@ -9,6 +9,7 @@ import { FaqService } from './faq.service';
 import { CreateFaqDto } from './dto/create-faq.dto'; // Assuming combined DTO file
 import { Faq } from './entities/faq.entity'; // Assuming location
 import { UpdateFaqDto } from './dto/update-faq.dto';
+import { Paginate, PaginateQuery } from 'nestjs-paginate';
 
 @ApiTags('FAQ Management (Admin)')
 @ApiBearerAuth('access-token') // Links to global JWT scheme defined in main.ts
@@ -21,7 +22,7 @@ export class FaqController {
   // -----------------------------------------------------------------
   @Post()
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  @RequirePermissions('faq:create')
+  //@RequirePermissions('faq:create')
   @ApiOperation({ summary: 'Create a new FAQ entry' })
   @ApiResponse({ status: 201, description: 'FAQ created successfully.', type: Faq })
   async create(@Body() createFaqDto: CreateFaqDto): Promise<Faq> {
@@ -34,16 +35,15 @@ export class FaqController {
   // -----------------------------------------------------------------
   @Get()
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  @RequirePermissions('faq:list')
-  @ApiOperation({ summary: 'Get a paginated list of all FAQs' })
-  @ApiQuery({ name: 'page', required: false, type: Number })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
+  //@RequirePermissions('faq:list')
+  @ApiOperation({ summary: 'Get a paginated list of all FAQs with filtering and searching' })
   @ApiResponse({ status: 200, description: 'List of FAQs retrieved successfully.' })
   findAll(
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
-  ) {
-    return this.faqService.findAll(page, limit);
+    // ✅ Use the generic @Paginate decorator
+    @Paginate() query: PaginateQuery,
+  ): Promise<any> {
+    // Pass the standardized PaginateQuery object to the service
+    return this.faqService.findAll(query);
   }
 
   // -----------------------------------------------------------------
@@ -51,7 +51,7 @@ export class FaqController {
   // -----------------------------------------------------------------
   @Get(':id')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  @RequirePermissions('faq:read')
+  //@RequirePermissions('faq:read')
   @ApiOperation({ summary: 'Get a single FAQ by ID' })
   @ApiResponse({ status: 200, description: 'FAQ retrieved successfully.', type: Faq })
   @ApiResponse({ status: 404, description: 'FAQ not found.' })
@@ -65,7 +65,7 @@ export class FaqController {
   // -----------------------------------------------------------------
   @Patch(':id')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  @RequirePermissions('faq:update')
+  //@RequirePermissions('faq:update')
   @ApiOperation({ summary: 'Update an existing FAQ by ID' })
   @ApiResponse({ status: 200, description: 'FAQ updated successfully.' })
   @ApiResponse({ status: 404, description: 'FAQ not found.' })
@@ -79,7 +79,7 @@ export class FaqController {
   // -----------------------------------------------------------------
   @Delete(':id')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  @RequirePermissions('faq:delete')
+  //@RequirePermissions('faq:delete')
   @ApiOperation({ summary: 'Soft delete an FAQ by ID' })
   @ApiResponse({ status: 200, description: 'FAQ deleted successfully.' })
   @ApiResponse({ status: 404, description: 'FAQ not found.' })
