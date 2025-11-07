@@ -9,7 +9,7 @@ import {
     HttpStatus,
     UseGuards
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth } from '@nestjs/swagger';
 import { UserRolesPermissionsService } from './user-role-permission.service';
 import { Role } from './entities/roles.entity';
 import { RolePermission } from './entities/roles-permission.entity';
@@ -18,6 +18,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { PermissionsGuard } from '../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
+@ApiBearerAuth('access_token')
 @ApiTags('User - Roles')
 @Controller('user/roles')
 @UseGuards(AuthGuard('jwt'), PermissionsGuard)

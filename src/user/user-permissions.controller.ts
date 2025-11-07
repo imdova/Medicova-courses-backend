@@ -6,7 +6,7 @@ import {
     HttpStatus,
     UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { UserRolesPermissionsService } from './user-role-permission.service';
 import { Permission } from './entities/permission.entity';
 import { CreatePermissionsBulkDto } from './dto/roles-and-permissions.dto';
@@ -14,6 +14,7 @@ import { PermissionsGuard } from '../auth/permission.guard';
 import { AuthGuard } from '@nestjs/passport';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
+@ApiBearerAuth('access_token')
 @ApiTags('User - Permissions')
 @Controller('user/permissions')
 @UseGuards(AuthGuard('jwt'), PermissionsGuard)

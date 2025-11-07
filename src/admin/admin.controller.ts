@@ -437,7 +437,7 @@ export class AdminController {
   // -----------------------------------------------------------------
   @Post('add-review') // 👈 UPDATED PATH
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('admin:courses:rate')
+  @RequirePermissions('admin:add-review')
   @ApiOperation({ summary: 'Admin rates a course and adds a review on behalf of a student.' })
   @ApiBody({ type: AdminRateCourseDto }) // Body now contains courseId, studentId, rating, review
   @ApiResponse({
