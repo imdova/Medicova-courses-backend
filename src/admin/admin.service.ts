@@ -20,6 +20,7 @@ import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 import { ProfileService } from 'src/profile/profile.service';
 import { EmailService } from '../common/email.service';
+import { CourseRating } from 'src/course/entities/course-rating.entity';
 
 @Injectable()
 export class AdminService {
@@ -51,6 +52,8 @@ export class AdminService {
     private readonly questionRepository: Repository<Question>, // 👈 New injection
     @InjectRepository(QuizAttempt)
     private readonly quizAttemptRepository: Repository<QuizAttempt>, // 👈 New injection
+    @InjectRepository(CourseRating)
+    private ratingRepo: Repository<CourseRating>,
     private readonly profileService: ProfileService,
     private readonly emailService: EmailService,
     private readonly dataSource: DataSource
@@ -1532,5 +1535,80 @@ export class AdminService {
 
     // 7. Return the created user entity (making the function return Promise<User>)
     return createdUser;
+  }
+
+  /**
+     * Admin submits a rating and review for a course on behalf of a student (user).
+     */
+  async adminRateCourse(
+    courseId: string,
+    studentId: string, // Corresponds to the User entity ID
+    rating: number,
+    review?: string,
+  ): Promise<CourseRating> {
+    // 1. Check for existing rating (prevents duplicate based on @Unique(['course', 'user']))
+    const existingRating = await this.ratingRepo.findOne({
+      // We check against the foreign keys
+      where: { course: { id: courseId }, user: { id: studentId }, deleted_at: null },
+    });
+
+    if (existingRating) {
+      throw new BadRequestException(
+        `Student ${studentId} has already submitted a rating for course ${courseId}.`,
+      );
+    }
+
+    // 2. Create the new rating record
+    const newRating = this.ratingRepo.create({
+      // Use IDs for creating the relationship
+      course: { id: courseId } as Course,
+      user: { id: studentId } as User, // Assuming User entity has 'id'
+      rating,
+      review,
+    });
+
+    let savedRating: CourseRating;
+
+    // Use a transaction to ensure rating creation and course update are atomic
+    await this.dataSource.transaction(async (manager) => {
+      // Save the new rating
+      savedRating = await manager.save(CourseRating, newRating);
+
+      // 3. Update Course Stats (Aggregate New Average Rating and Review Count)
+
+      // Query the 'course_ratings' table to get the total count and sum of all ratings
+      const rawStats = await manager
+        .createQueryBuilder(CourseRating, 'rating')
+        .select('COUNT(rating.id)', 'count')
+        .addSelect('SUM(rating.rating)', 'sum')
+        .where('rating.course_id = :courseId', { courseId }) // Assuming direct courseId column on table
+        .andWhere('rating.deleted_at IS NULL')
+        .getRawOne();
+
+      const totalRatings = parseInt(rawStats.count, 10);
+      const totalRatingSum = parseFloat(rawStats.sum);
+
+      const newAverageRating = totalRatings > 0
+        ? parseFloat((totalRatingSum / totalRatings).toFixed(2))
+        : 0;
+
+      // Update the Course entity
+      const updateResult = await manager
+        .createQueryBuilder()
+        .update(Course)
+        .set({
+          averageRating: newAverageRating,
+          ratingCount: totalRatings, // 'reviewsCount' is the count of ratings/reviews
+        })
+        .where('id = :courseId', { courseId })
+        .execute();
+
+      if (updateResult.affected === 0) {
+        throw new InternalServerErrorException('Failed to update course statistics.');
+      }
+    });
+
+    // 5. Return the newly created rating
+    return savedRating;
   }
 }
