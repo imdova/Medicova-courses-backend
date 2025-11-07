@@ -5,8 +5,10 @@ import { Course } from '../../entities/course.entity';
 
 // 🟢 NEW: Define the structure for FAQ (Frequently Asked Questions)
 export interface FaqItem {
-  question: string;
-  answer: string;
+  questionEn: string;
+  questionAr?: string;
+  answerEn: string;
+  answerAr?: string;
 }
 
 // 🟢 NEW: Define the structure for all SEO Meta Information
@@ -56,6 +58,14 @@ export class CourseCategory extends BasicEntity {
   @ApiPropertyOptional({ description: 'Image URL for category thumbnail' })
   @Column({ length: 500, nullable: true })
   image?: string;
+
+  // 🟢 NEW FIELD: SVG Icon
+  @ApiPropertyOptional({
+    description: 'SVG icon content or URL for the category',
+    maxLength: 5000, // Adjusted length for potentially storing raw SVG content
+  })
+  @Column({ type: 'text', nullable: true, name: 'svg_icon' })
+  svgIcon?: string;
 
   // ✅ Self-referencing relationship
   @ManyToOne(() => CourseCategory, (category) => category.subcategories, {

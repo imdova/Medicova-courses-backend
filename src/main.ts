@@ -102,7 +102,17 @@ async function bootstrap(): Promise<NestExpressApplication> {
       .setTitle('Medicova API')
       .setDescription('API documentation for Medicova app')
       .setVersion('1.0')
-      .addBearerAuth()
+      .addBearerAuth(
+        {
+          // Defines the security scheme type
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+          description: 'Enter JWT Bearer token',
+          in: 'header',
+        },
+        'access_token', // 👈 Name the scheme (used later in @ApiBearerAuth)
+      )
       .build();
 
     const document = SwaggerModule.createDocument(app, config);

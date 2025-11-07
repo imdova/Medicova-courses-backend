@@ -20,12 +20,22 @@ export class FaqItemDto {
   @ApiProperty({ description: 'The question text', example: 'What is NestJS?' })
   @IsString()
   @IsNotEmpty()
-  question: string;
+  questionEn: string;
+
+  @ApiPropertyOptional({ description: 'The question text', example: 'ما هو NestJS؟' })
+  @IsOptional()
+  @IsString()
+  questionAr?: string;
 
   @ApiProperty({ description: 'The answer text', example: 'It is a framework for building efficient, scalable Node.js server-side applications.' })
   @IsString()
   @IsNotEmpty()
-  answer: string;
+  answerEn: string;
+
+  @ApiPropertyOptional({ description: 'The answer text', example: 'هو إطار عمل لبناء تطبيقات طرف الخادم Node.js فعالة وقابلة للتطوير.', })
+  @IsOptional()
+  @IsString()
+  answerAr?: string;
 }
 
 // 🟢 NEW: DTO for SEO Meta Information
@@ -122,6 +132,17 @@ export class CreateCourseCategoryDto {
   @MaxLength(500)
   image?: string;
 
+  // 🟢 NEW FIELD: SVG Icon
+  @ApiPropertyOptional({
+    description: 'SVG icon content or URL for the category. Corresponds to the "Upload SVG" field.',
+    type: String,
+    example: 'https://cdn.example.com/icons/web-dev-icon.svg',
+  })
+  @IsString()
+  @IsOptional()
+  @MaxLength(5000)
+  svgIcon?: string;
+
   @ApiPropertyOptional({
     description: 'Parent category ID (if subcategory)',
     example: '550e8400-e29b-41d4-a716-446655440000',
@@ -133,7 +154,18 @@ export class CreateCourseCategoryDto {
   @ApiPropertyOptional({
     description: 'Frequently Asked Questions',
     type: [FaqItemDto], // Specify the nested DTO array for Swagger
-    example: [{ question: 'Q1', answer: 'A1' }],
+    example: [ // 👈 UPDATED EXAMPLE
+      {
+        questionEn: 'What is the course refund policy?',
+        questionAr: 'ما هي سياسة استرداد الرسوم الخاصة بالدورة؟',
+        answerEn: 'You can get a full refund within 7 days of purchase, provided you have not completed more than 10% of the course content.',
+        answerAr: 'يمكنك الحصول على استرداد كامل في غضون 7 أيام من الشراء، بشرط ألا تكون قد أكملت أكثر من 10٪ من محتوى الدورة.',
+      },
+      {
+        questionEn: 'Are certificates provided?',
+        answerEn: 'Yes, a certificate of completion is issued after finishing all lessons and quizzes.',
+      }
+    ],
   })
   @IsArray()
   @ValidateNested({ each: true })
