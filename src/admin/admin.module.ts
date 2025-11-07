@@ -16,9 +16,10 @@ import { QuizAttempt } from 'src/quiz/entities/quiz-attempts.entity';
 import { Question } from 'src/quiz/entities/question.entity';
 import { ProfileModule } from 'src/profile/profile.module';
 import { EmailService } from '../common/email.service';
+import { CourseRating } from 'src/course/entities/course-rating.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Course, Profile, Role, CourseSectionItem, CourseProgress, CourseStudent, IdentityVerification, Quiz, QuizQuestion, QuizAttempt, Question]),
+  imports: [TypeOrmModule.forFeature([User, Course, Profile, Role, CourseSectionItem, CourseProgress, CourseStudent, IdentityVerification, Quiz, QuizQuestion, QuizAttempt, Question, CourseRating]),
   forwardRef(() => ProfileModule)],
   controllers: [AdminController],
   providers: [AdminService, EmailService],

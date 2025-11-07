@@ -1,6 +1,6 @@
 import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service';
-import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiParam, ApiBody, ApiOkResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiParam, ApiBody, ApiOkResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { PermissionsGuard } from 'src/auth/permission.guard';
 import { AuthGuard } from '@nestjs/passport';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
@@ -8,6 +8,7 @@ import { IdentityVerificationStatus } from 'src/user/entities/identity-verificat
 import { RejectIdentityDto } from './dto/reject-identity.dto';
 import { EnrollmentsListResponseDto, EnrollmentStatus } from './dto/enrollment-detail.dto';
 import { CreateStudentDto } from './dto/create-student.dto';
+import { AdminRateCourseDto } from './dto/admin-add-review.dto';
 
 // Define allowed periods for validation
 enum StatsPeriod {
@@ -26,6 +27,7 @@ export enum GenderFilter {
   FEMALE = 'female',
 }
 
+@ApiBearerAuth('access_token')
 @ApiTags('Admin')
 @Controller('admin')
 export class AdminController {
@@ -322,6 +324,7 @@ export class AdminController {
   }
 
   @Get('enrollments-information')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('admin:enrollments:list:detailed')
   @ApiOperation({ summary: 'Get detailed, paginated list of all enrollments with calculated status and progress.' })
   @ApiQuery({
@@ -426,6 +429,35 @@ export class AdminController {
 
     return this.adminService.createStudent(
       createStudentDto,
+    );
+  }
+
+  // -----------------------------------------------------------------
+  // 🟢 NEW: RATE COURSE ENDPOINT (Updated path and logic)
+  // -----------------------------------------------------------------
+  @Post('add-review') // 👈 UPDATED PATH
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  //@RequirePermissions('admin:courses:rate')
+  @ApiOperation({ summary: 'Admin rates a course and adds a review on behalf of a student.' })
+  @ApiBody({ type: AdminRateCourseDto }) // Body now contains courseId, studentId, rating, review
+  @ApiResponse({
+    status: 201,
+    description: 'Course rated successfully and average rating updated.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request (e.g., student not enrolled, invalid IDs).',
+  })
+  async adminRateCourse(
+    @Body() rateCourseDto: AdminRateCourseDto, // Extract all data from the body
+  ): Promise<any> {
+    const { courseId, studentId, rating, review } = rateCourseDto; // Destructure the needed fields
+
+    return this.adminService.adminRateCourse(
+      courseId, // Pass courseId from the body
+      studentId,
+      rating,
+      review,
     );
   }
 
