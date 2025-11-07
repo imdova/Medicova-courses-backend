@@ -59,6 +59,7 @@ import { AcademyKeyword } from './academy/entities/academy-keywords.entity';
 import { AdminModule } from './admin/admin.module';
 import { IdentityVerification } from './user/entities/identity-verification.entity';
 import { CourseVariable } from './course/course-variables/entities/course-variable.entity';
+import { Faq } from './admin/faq/entities/faq.entity';
 
 @Module({
   imports: [
@@ -110,7 +111,8 @@ import { CourseVariable } from './course/course-variables/entities/course-variab
         CourseFavorite,
         AcademyKeyword,
         IdentityVerification,
-        CourseVariable
+        CourseVariable,
+        Faq
       ],
       synchronize: true,
       extra: {

@@ -12,7 +12,7 @@ import { UpdateFaqDto } from './dto/update-faq.dto';
 import { Paginate, PaginateQuery } from 'nestjs-paginate';
 
 @ApiTags('FAQ Management (Admin)')
-@ApiBearerAuth('access-token') // Links to global JWT scheme defined in main.ts
+@ApiBearerAuth('access_token') // Links to global JWT scheme defined in main.ts
 @Controller('faqs')
 export class FaqController {
   constructor(private readonly faqService: FaqService) { }
