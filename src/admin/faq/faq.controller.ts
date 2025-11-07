@@ -88,7 +88,7 @@ export class FaqController {
   @ApiOperation({ summary: 'Update an existing FAQ by ID' })
   @ApiResponse({ status: 200, description: 'FAQ updated successfully.' })
   @ApiResponse({ status: 404, description: 'FAQ not found.' })
-  update(@Param('id') id: string, @Body() updateFaqDto: UpdateFaqDto) {
+  update(@Param('id') id: string, @Body() updateFaqDto: CreateFaqDto) {
     // Use string for UUID
     return this.faqService.update(id, updateFaqDto);
   }
