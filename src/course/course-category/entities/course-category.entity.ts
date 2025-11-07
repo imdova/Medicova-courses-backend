@@ -5,8 +5,10 @@ import { Course } from '../../entities/course.entity';
 
 // 🟢 NEW: Define the structure for FAQ (Frequently Asked Questions)
 export interface FaqItem {
-  question: string;
-  answer: string;
+  questionEn: string;
+  questionAr?: string;
+  answerEn: string;
+  answerAr?: string;
 }
 
 // 🟢 NEW: Define the structure for all SEO Meta Information
