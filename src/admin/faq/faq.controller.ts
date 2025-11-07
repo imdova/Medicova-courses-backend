@@ -42,7 +42,7 @@ export class FaqController {
     name: 'search',
     required: false,
     type: String,
-    description: 'Global search term applied to question and answer fields (EN/AR).',
+    description: 'Global search term applied to question fields (EN/AR).',
     example: 'refund',
   })
   @ApiQuery({
