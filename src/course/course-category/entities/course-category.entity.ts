@@ -9,6 +9,10 @@ export interface FaqItem {
   questionAr?: string;
   answerEn: string;
   answerAr?: string;
+  // ✅ NEW: Timestamp when the item was created
+  created_at: string;
+  // ✅ NEW: Status of the FAQ item
+  status: 'draft' | 'published';
 }
 
 // 🟢 NEW: Define the structure for all SEO Meta Information
