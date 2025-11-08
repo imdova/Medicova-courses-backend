@@ -38,6 +38,7 @@ interface CourseFilterParams {
   categories?: string | string[];
   subcategories?: string | string[];
   languages?: string | string[];
+  durations?: string | string[];
   priceFrom?: string; // Keep as string here, parse to number in service
   priceTo?: string;   // Keep as string here, parse to number in service
 }
@@ -240,6 +241,14 @@ export class StudentCourseController {
     required: false,
     type: [String],
     description: 'Filter by one or more supported languages (e.g., languages=English,languages=Arabic).',
+    style: 'form',
+    explode: false,
+  })
+  @ApiQuery({
+    name: 'durations',
+    required: false,
+    type: [String],
+    description: 'Filter by course duration ranges. Available values: less2Hours, 2_10Hours, 1_4Weeks, 1_3Months, 3_6Months, more6Months',
     style: 'form',
     explode: false,
   })
