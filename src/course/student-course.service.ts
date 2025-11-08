@@ -1127,13 +1127,25 @@ export class StudentCourseService {
       WHERE co.deleted_at IS NULL AND co.average_rating IS NOT NULL AND co.average_rating >= 1
       GROUP BY FLOOR(co.average_rating)
     ),
-    price_range AS (
+    -- 🟢 MODIFIED CTE: Calculate min/max price for EACH currency
+    price_ranges AS (
       SELECT 
-        MIN(COALESCE(cp."salePrice", cp."regularPrice")) as min_price,
-        MAX(COALESCE(cp."salePrice", cp."regularPrice")) as max_price
+        cp."currencyCode" as currency,
+        -- ✅ Use COALESCE for MIN (the lowest price a customer can pay)
+        MIN(COALESCE(cp."salePrice", cp."regularPrice")) as min_price, 
+        -- ✅ Use "regularPrice" for MAX (the highest potential value)
+        MAX(cp."regularPrice") as max_price
       FROM courses co
       LEFT JOIN course_pricing cp ON co.id = cp.course_id AND cp."isActive" = true
       WHERE co.deleted_at IS NULL AND cp.id IS NOT NULL
+      GROUP BY cp."currencyCode"
+    ),
+    -- 🟢 NEW CTE: Calculate the count of free courses
+    free_course_count AS (
+      SELECT 
+        COUNT(id) as free_count
+      FROM courses co
+      WHERE co.deleted_at IS NULL AND co.is_course_free = true
     )
     
     SELECT 
@@ -1150,13 +1162,28 @@ export class StudentCourseService {
       (SELECT json_agg(json_build_object('type', course_type, 'count', type_count)) FROM type_counts) as course_types,
       (SELECT json_agg(json_build_object('level', course_level, 'count', level_count)) FROM level_counts) as course_levels,
       (SELECT json_agg(json_build_object('rating', rating, 'count', rating_count)) FROM rating_counts) as ratings,
-      (SELECT json_build_object('min', min_price, 'max', max_price) FROM price_range) as price_range
-  `);
+      -- 🟢 FINAL SELECT: Aggregate into an array of price ranges (one object per currency)
+      (SELECT json_agg(json_build_object('currency', currency, 'min', min_price, 'max', max_price)) FROM price_ranges) as price_range,
+      -- 🟢 FINAL SELECT: Add 'free' object
+      (SELECT json_build_object('count', free_count) FROM free_course_count) as free
+    `);
 
-    return result[0] || {
-      categories: [], subcategories: [], languages: [],
-      courseTypes: [], courseLevels: [], ratings: [],
-      priceRange: { min: 0, max: 1000 }
-    };
+    // Structure the result to handle the array and ensure default values
+    const defaultPriceRange = [{ currency: 'EGP', min: 0, max: 1000 }];
+
+    return result[0]
+      ? {
+        ...result[0],
+        // Ensure price_range is an array or default
+        price_range: result[0].price_range || defaultPriceRange,
+        // Ensure 'free' is an object even if the count is zero
+        free: result[0].free || { count: 0 },
+      }
+      : {
+        categories: [], subcategories: [], languages: [],
+        courseTypes: [], courseLevels: [], ratings: [],
+        price_range: defaultPriceRange,
+        free: { count: 0 },
+      };
   }
 }
