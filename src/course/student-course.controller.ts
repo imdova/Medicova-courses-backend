@@ -306,6 +306,13 @@ export class StudentCourseController {
       }
     }
   })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Global search term applied to name',
+    example: 'programming',
+  })
   findAll(@Paginate() query: PaginateQuery, @Req() req, @Query() customFilters: CourseFilterParams) {
     return this.studentCourseService.getPaginatedCourses(query, req.user, customFilters);
   }
