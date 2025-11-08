@@ -310,7 +310,7 @@ export class StudentCourseController {
     name: 'search',
     required: false,
     type: String,
-    description: 'Global search term applied to name',
+    description: 'Global search term applied to name, tags, and metadata fields.',
     example: 'programming',
   })
   findAll(@Paginate() query: PaginateQuery, @Req() req, @Query() customFilters: CourseFilterParams) {
