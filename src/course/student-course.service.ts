@@ -177,6 +177,8 @@ export class StudentCourseService {
       .leftJoin('course.category', 'category')
       .leftJoin('course.subCategory', 'subCategory')
       .where('course.deleted_at IS NULL')
+      .andWhere('course.status = :status', { status: 'published' }) // Add this
+      .andWhere('course.isActive = :isActive', { isActive: true }) // Add this
 
       // Optimized count loading
       .loadRelationCountAndMap('course.studentCount', 'course.enrollments')
