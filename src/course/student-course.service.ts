@@ -1074,6 +1074,8 @@ export class StudentCourseService {
   }
 
   async getCourseFiltersSingleQuery(): Promise<any> {
+    const PUBLISHED_CONDITION = `co.deleted_at IS NULL AND co.status = 'published' AND co."isActive" = true`; // 👈 Define the core filter
+
     const result = await this.courseRepo.query(`
     WITH category_counts AS (
       SELECT 
@@ -1082,7 +1084,8 @@ export class StudentCourseService {
         COUNT(co.id) as category_count
       FROM courses co
       INNER JOIN course_categories c ON co.category_id = c.id
-      WHERE co.deleted_at IS NULL AND c.deleted_at IS NULL
+      -- ✅ ADDED: Filter by published status
+      WHERE ${PUBLISHED_CONDITION} AND c.deleted_at IS NULL 
       GROUP BY c.name, c.slug
     ),
     subcategory_counts AS (
@@ -1092,7 +1095,8 @@ export class StudentCourseService {
         COUNT(co.id) as subcategory_count
       FROM courses co
       INNER JOIN course_categories sc ON co.subcategory_id = sc.id
-      WHERE co.deleted_at IS NULL AND sc.deleted_at IS NULL
+      -- ✅ ADDED: Filter by published status
+      WHERE ${PUBLISHED_CONDITION} AND sc.deleted_at IS NULL 
       GROUP BY sc.name, sc.slug
     ),
     language_counts AS (
@@ -1100,7 +1104,8 @@ export class StudentCourseService {
         unnest(co.languages) as language_code,
         COUNT(co.id) as language_count
       FROM courses co
-      WHERE co.deleted_at IS NULL AND co.languages IS NOT NULL
+      -- ✅ ADDED: Filter by published status
+      WHERE ${PUBLISHED_CONDITION} AND co.languages IS NOT NULL
       GROUP BY unnest(co.languages)
     ),
     type_counts AS (
@@ -1108,7 +1113,8 @@ export class StudentCourseService {
         co.type as course_type,
         COUNT(co.id) as type_count
       FROM courses co
-      WHERE co.deleted_at IS NULL AND co.type IS NOT NULL
+      -- ✅ ADDED: Filter by published status
+      WHERE ${PUBLISHED_CONDITION} AND co.type IS NOT NULL
       GROUP BY co.type
     ),
     level_counts AS (
@@ -1116,7 +1122,8 @@ export class StudentCourseService {
         co.level as course_level,
         COUNT(co.id) as level_count
       FROM courses co
-      WHERE co.deleted_at IS NULL AND co.level IS NOT NULL
+      -- ✅ ADDED: Filter by published status
+      WHERE ${PUBLISHED_CONDITION} AND co.level IS NOT NULL
       GROUP BY co.level
     ),
     rating_counts AS (
@@ -1124,31 +1131,31 @@ export class StudentCourseService {
         FLOOR(co.average_rating) as rating,
         COUNT(co.id) as rating_count
       FROM courses co
-      WHERE co.deleted_at IS NULL AND co.average_rating IS NOT NULL AND co.average_rating >= 1
+      -- ✅ ADDED: Filter by published status
+      WHERE ${PUBLISHED_CONDITION} AND co.average_rating IS NOT NULL AND co.average_rating >= 1
       GROUP BY FLOOR(co.average_rating)
     ),
-    -- 🟢 MODIFIED CTE: Calculate min/max price for EACH currency
     price_ranges AS (
       SELECT 
         cp."currencyCode" as currency,
-        -- ✅ Use COALESCE for MIN (the lowest price a customer can pay)
         MIN(COALESCE(cp."salePrice", cp."regularPrice")) as min_price, 
-        -- ✅ Use "regularPrice" for MAX (the highest potential value)
         MAX(cp."regularPrice") as max_price
       FROM courses co
       LEFT JOIN course_pricing cp ON co.id = cp.course_id AND cp."isActive" = true
-      WHERE co.deleted_at IS NULL AND cp.id IS NOT NULL
+      -- ✅ ADDED: Filter by published status
+      WHERE ${PUBLISHED_CONDITION} AND cp.id IS NOT NULL
       GROUP BY cp."currencyCode"
     ),
-    -- 🟢 NEW CTE: Calculate the count of free courses
     free_course_count AS (
       SELECT 
         COUNT(id) as free_count
       FROM courses co
-      WHERE co.deleted_at IS NULL AND co.is_course_free = true
+      -- ✅ ADDED: Filter by published status
+      WHERE ${PUBLISHED_CONDITION} AND co.is_course_free = true
     )
     
     SELECT 
+      -- ... (The final SELECT remains the same)
       (SELECT json_agg(json_build_object('name', category_name, 'slug', category_slug, 'count', category_count)) FROM category_counts) as categories,
       (SELECT json_agg(json_build_object('name', subcategory_name, 'slug', subcategory_slug, 'count', subcategory_count)) FROM subcategory_counts) as subcategories,
       (SELECT json_agg(json_build_object('name', 
@@ -1162,21 +1169,17 @@ export class StudentCourseService {
       (SELECT json_agg(json_build_object('type', course_type, 'count', type_count)) FROM type_counts) as course_types,
       (SELECT json_agg(json_build_object('level', course_level, 'count', level_count)) FROM level_counts) as course_levels,
       (SELECT json_agg(json_build_object('rating', rating, 'count', rating_count)) FROM rating_counts) as ratings,
-      -- 🟢 FINAL SELECT: Aggregate into an array of price ranges (one object per currency)
       (SELECT json_agg(json_build_object('currency', currency, 'min', min_price, 'max', max_price)) FROM price_ranges) as price_range,
-      -- 🟢 FINAL SELECT: Add 'free' object
       (SELECT json_build_object('count', free_count) FROM free_course_count) as free
     `);
 
-    // Structure the result to handle the array and ensure default values
+    // ... (The return logic remains the same)
     const defaultPriceRange = [{ currency: 'EGP', min: 0, max: 1000 }];
 
     return result[0]
       ? {
         ...result[0],
-        // Ensure price_range is an array or default
         price_range: result[0].price_range || defaultPriceRange,
-        // Ensure 'free' is an object even if the count is zero
         free: result[0].free || { count: 0 },
       }
       : {
