@@ -147,6 +147,11 @@ export class StudentCourseService {
         customFilters.languages.filter(Boolean) :
         customFilters.languages.split(',').filter(Boolean);
 
+    const durations: string[] = !customFilters.durations ? [] :
+      Array.isArray(customFilters.durations) ?
+        customFilters.durations.filter(Boolean) :
+        customFilters.durations.split(',').filter(Boolean);
+
     const priceFrom = customFilters.priceFrom ? parseFloat(customFilters.priceFrom) : undefined;
     const priceTo = customFilters.priceTo ? parseFloat(customFilters.priceTo) : undefined;
 
@@ -225,6 +230,34 @@ export class StudentCourseService {
       qb.andWhere('course.languages && ARRAY[:...languagesArray]', { languagesArray: languages });
     }
 
+    // --- NEW: Apply Duration Filters ---
+    if (durations.length > 0) {
+      const durationConditions = durations.map(duration => {
+        switch (duration) {
+          case 'less2Hours':
+            return '(course.course_duration_unit = \'hours\' AND course.course_duration < 2)';
+          case '2_10Hours':
+            return '(course.course_duration_unit = \'hours\' AND course.course_duration BETWEEN 2 AND 10)';
+          case '1_4Weeks':
+            return '(course.course_duration_unit = \'weeks\' AND course.course_duration BETWEEN 1 AND 4)';
+          case '1_3Months':
+            // Use < 3 instead of BETWEEN 1 AND 3 to avoid overlap
+            return '((course.course_duration_unit = \'weeks\' AND course.course_duration BETWEEN 5 AND 12) OR (course.course_duration_unit = \'months\' AND course.course_duration >= 1 AND course.course_duration < 3))';
+          case '3_6Months':
+            // Use >= 3 instead of BETWEEN 3 AND 6 to avoid overlap
+            return '(course.course_duration_unit = \'months\' AND course.course_duration >= 3 AND course.course_duration <= 6)';
+          case 'more6Months':
+            return '(course.course_duration_unit = \'months\' AND course.course_duration > 6)';
+          default:
+            return null;
+        }
+      }).filter(condition => condition !== null);
+
+      if (durationConditions.length > 0) {
+        qb.andWhere(`(${durationConditions.join(' OR ')})`);
+      }
+    }
+
     if (priceFrom !== undefined || priceTo !== undefined) {
       const priceCondition = `
       EXISTS (
@@ -240,10 +273,38 @@ export class StudentCourseService {
       });
     }
 
-    // --- 7. Run Optimized Pagination ---
+    // --- 7. Apply Custom Search for Metadata and Tags ---
+    if (processedQuery.search) {
+      const searchTerm = processedQuery.search.trim();
+      if (searchTerm) {
+        // For tags array search
+        const tagsSearchCondition = `
+        EXISTS (
+          SELECT 1 FROM unnest(course.tags) AS tag
+          WHERE tag ILIKE :searchTermWildcard
+        )
+      `;
+
+        // For metadata.courseOverview JSONB search
+        const metadataSearchCondition = `
+        course.metadata->>'courseOverview' ILIKE :searchTermWildcard
+      `;
+
+        // Combine with existing name search from pagination
+        qb.andWhere(`(
+        course.name ILIKE :searchTermWildcard OR
+        ${tagsSearchCondition} OR
+        ${metadataSearchCondition}
+      )`, {
+          searchTermWildcard: `%${searchTerm}%`
+        });
+      }
+    }
+
+    // --- 8. Run Optimized Pagination ---
     const result = await paginate(processedQuery, qb, COURSE_PAGINATION_CONFIG) as any;
 
-    // --- 8. Efficient Post-Processing (Inline) ---
+    // --- 9. Efficient Post-Processing (Inline) ---
     const courses = result.data as Course[];
 
     // Extract unique instructor IDs
@@ -1132,7 +1193,7 @@ export class StudentCourseService {
       WHERE ${PUBLISHED_CONDITION} AND co.average_rating IS NOT NULL AND co.average_rating >= 1
       GROUP BY FLOOR(co.average_rating)
     ),
-    duration_counts AS (
+duration_counts AS (
   SELECT 
     CASE 
       -- Short durations (hours)
@@ -1141,11 +1202,11 @@ export class StudentCourseService {
       
       -- Medium durations (weeks ≈ months)
       WHEN co.course_duration_unit = 'weeks' AND co.course_duration BETWEEN 1 AND 4 THEN '1_4Weeks'
-      WHEN co.course_duration_unit = 'weeks' AND co.course_duration BETWEEN 5 AND 12 THEN '1_3Months' -- 5-12 weeks ≈ 1-3 months
+      WHEN co.course_duration_unit = 'weeks' AND co.course_duration BETWEEN 5 AND 12 THEN '1_3Months'
       
-      -- Long durations (months)
-      WHEN co.course_duration_unit = 'months' AND co.course_duration BETWEEN 1 AND 3 THEN '1_3Months'
-      WHEN co.course_duration_unit = 'months' AND co.course_duration BETWEEN 3 AND 6 THEN '3_6Months'
+      -- Long durations (months) - FIXED: No overlap
+      WHEN co.course_duration_unit = 'months' AND co.course_duration >= 1 AND co.course_duration < 3 THEN '1_3Months'
+      WHEN co.course_duration_unit = 'months' AND co.course_duration >= 3 AND co.course_duration <= 6 THEN '3_6Months'
       WHEN co.course_duration_unit = 'months' AND co.course_duration > 6 THEN 'more6Months'
       
       ELSE 'other'
@@ -1161,8 +1222,8 @@ export class StudentCourseService {
       WHEN co.course_duration_unit = 'hours' AND co.course_duration BETWEEN 2 AND 10 THEN '2_10Hours'
       WHEN co.course_duration_unit = 'weeks' AND co.course_duration BETWEEN 1 AND 4 THEN '1_4Weeks'
       WHEN co.course_duration_unit = 'weeks' AND co.course_duration BETWEEN 5 AND 12 THEN '1_3Months'
-      WHEN co.course_duration_unit = 'months' AND co.course_duration BETWEEN 1 AND 3 THEN '1_3Months'
-      WHEN co.course_duration_unit = 'months' AND co.course_duration BETWEEN 3 AND 6 THEN '3_6Months'
+      WHEN co.course_duration_unit = 'months' AND co.course_duration >= 1 AND co.course_duration < 3 THEN '1_3Months'
+      WHEN co.course_duration_unit = 'months' AND co.course_duration >= 3 AND co.course_duration <= 6 THEN '3_6Months'
       WHEN co.course_duration_unit = 'months' AND co.course_duration > 6 THEN 'more6Months'
       ELSE 'other'
     END
@@ -1199,17 +1260,19 @@ export class StudentCourseService {
       (SELECT json_agg(json_build_object('level', course_level, 'count', level_count)) FROM level_counts) as course_levels,
       (SELECT json_agg(json_build_object('rating', rating, 'count', rating_count)) FROM rating_counts) as ratings,
       (SELECT json_agg(json_build_object(
-        'label',
-        CASE duration_value
-          WHEN 'less2Hours' THEN 'Less Than 2 Hours'
-          WHEN '1_4Weeks' THEN '1-4 Weeks' 
-          WHEN '1_3Months' THEN '1-3 Months'
-          WHEN '3_6Months' THEN '3-6 Months'
-          ELSE 'Other'
-        END,
-        'value', duration_value,
-        'count', duration_count
-      )) FROM duration_counts WHERE duration_value != 'other') as durations,
+  'label',
+  CASE duration_value
+    WHEN 'less2Hours' THEN 'Less Than 2 Hours'
+    WHEN '2_10Hours' THEN '2-10 Hours'
+    WHEN '1_4Weeks' THEN '1-4 Weeks' 
+    WHEN '1_3Months' THEN '1-3 Months'
+    WHEN '3_6Months' THEN '3-6 Months'
+    WHEN 'more6Months' THEN 'More Than 6 Months'
+    ELSE 'Other'
+  END,
+  'value', duration_value,
+  'count', duration_count
+)) FROM duration_counts WHERE duration_value != 'other') as durations,
       (SELECT json_agg(json_build_object('currency', currency, 'min', min_price, 'max', max_price)) FROM price_ranges) as price_range,
       (SELECT json_build_object('count', free_count) FROM free_course_count) as free
   `);
