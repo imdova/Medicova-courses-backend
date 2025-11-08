@@ -30,6 +30,7 @@ export enum CourseStatus {
 }
 
 export enum DurationUnit {
+  HOURS = 'hours',
   DAYS = 'days',
   WEEKS = 'weeks',
   MONTHS = 'months',
