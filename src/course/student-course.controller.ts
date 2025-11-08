@@ -273,6 +273,11 @@ export class StudentCourseController {
     enum: CourseLevel,
     description: 'Filter by course difficulty level (beginner, intermediate, advanced). Corresponds to filterableColumns key "level".',
   })
+  @ApiQuery({
+    name: 'filter.isCourseFree',
+    required: false,
+    description: 'Filter by whether the course is free or paid',
+  })
   // Average Rating uses the GTE (>=) operator in your config
   @ApiQuery({
     name: 'filter.averageRating',
@@ -343,6 +348,12 @@ export class StudentCourseController {
         courseLevels: [
           { level: "beginner", count: 12 },
           { level: "intermediate", count: 10 }
+        ],
+        durations: [
+          { label: "Less Than 2 Hours", value: "less2Hours", count: 61 },
+          { label: "1-4 Weeks", value: "1_4Weeks", count: 20 },
+          { label: "1-3 Months", value: "1_3Months", count: 14 },
+          { label: "3-6 Months", value: "3_6Months", count: 6 }
         ],
         ratings: [
           { rating: 5, count: 9 },
