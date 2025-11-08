@@ -34,6 +34,8 @@ export const COURSE_PAGINATION_CONFIG: QueryConfig<Course> = {
   },
   searchableColumns: [
     'name',
+    'tags',
+    'metadata'
   ],
   relations: [],
 };
