@@ -306,6 +306,13 @@ export class StudentCourseController {
       }
     }
   })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Global search term applied to name',
+    example: 'programming',
+  })
   findAll(@Paginate() query: PaginateQuery, @Req() req, @Query() customFilters: CourseFilterParams) {
     return this.studentCourseService.getPaginatedCourses(query, req.user, customFilters);
   }
@@ -341,9 +348,12 @@ export class StudentCourseController {
           { rating: 5, count: 9 },
           { rating: 4, count: 14 }
         ],
-        priceRange: {
-          min: 10,
-          max: 500
+        price_range: [
+          { "currency": "EGP", "min": 10, "max": 500 }, // Price range for EGP
+          { "currency": "USD", "min": 5, "max": 100 }  // Price range for USD
+        ],
+        free: {
+          count: 5
         }
       }
     }
