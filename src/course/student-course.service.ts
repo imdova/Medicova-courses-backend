@@ -1077,7 +1077,7 @@ export class StudentCourseService {
   }
 
   async getCourseFiltersSingleQuery(): Promise<any> {
-    const PUBLISHED_CONDITION = `co.deleted_at IS NULL AND co.status = 'published' AND co."isActive" = true`; // 👈 Define the core filter
+    const PUBLISHED_CONDITION = `co.deleted_at IS NULL AND co.status = 'published' AND co."isActive" = true`;
 
     const result = await this.courseRepo.query(`
     WITH category_counts AS (
@@ -1087,7 +1087,6 @@ export class StudentCourseService {
         COUNT(co.id) as category_count
       FROM courses co
       INNER JOIN course_categories c ON co.category_id = c.id
-      -- ✅ ADDED: Filter by published status
       WHERE ${PUBLISHED_CONDITION} AND c.deleted_at IS NULL 
       GROUP BY c.name, c.slug
     ),
@@ -1098,7 +1097,6 @@ export class StudentCourseService {
         COUNT(co.id) as subcategory_count
       FROM courses co
       INNER JOIN course_categories sc ON co.subcategory_id = sc.id
-      -- ✅ ADDED: Filter by published status
       WHERE ${PUBLISHED_CONDITION} AND sc.deleted_at IS NULL 
       GROUP BY sc.name, sc.slug
     ),
@@ -1107,7 +1105,6 @@ export class StudentCourseService {
         unnest(co.languages) as language_code,
         COUNT(co.id) as language_count
       FROM courses co
-      -- ✅ ADDED: Filter by published status
       WHERE ${PUBLISHED_CONDITION} AND co.languages IS NOT NULL
       GROUP BY unnest(co.languages)
     ),
@@ -1116,7 +1113,6 @@ export class StudentCourseService {
         co.type as course_type,
         COUNT(co.id) as type_count
       FROM courses co
-      -- ✅ ADDED: Filter by published status
       WHERE ${PUBLISHED_CONDITION} AND co.type IS NOT NULL
       GROUP BY co.type
     ),
@@ -1125,7 +1121,6 @@ export class StudentCourseService {
         co.level as course_level,
         COUNT(co.id) as level_count
       FROM courses co
-      -- ✅ ADDED: Filter by published status
       WHERE ${PUBLISHED_CONDITION} AND co.level IS NOT NULL
       GROUP BY co.level
     ),
@@ -1134,10 +1129,44 @@ export class StudentCourseService {
         FLOOR(co.average_rating) as rating,
         COUNT(co.id) as rating_count
       FROM courses co
-      -- ✅ ADDED: Filter by published status
       WHERE ${PUBLISHED_CONDITION} AND co.average_rating IS NOT NULL AND co.average_rating >= 1
       GROUP BY FLOOR(co.average_rating)
     ),
+    duration_counts AS (
+  SELECT 
+    CASE 
+      -- Short durations (hours)
+      WHEN co.course_duration_unit = 'hours' AND co.course_duration < 2 THEN 'less2Hours'
+      WHEN co.course_duration_unit = 'hours' AND co.course_duration BETWEEN 2 AND 10 THEN '2_10Hours'
+      
+      -- Medium durations (weeks ≈ months)
+      WHEN co.course_duration_unit = 'weeks' AND co.course_duration BETWEEN 1 AND 4 THEN '1_4Weeks'
+      WHEN co.course_duration_unit = 'weeks' AND co.course_duration BETWEEN 5 AND 12 THEN '1_3Months' -- 5-12 weeks ≈ 1-3 months
+      
+      -- Long durations (months)
+      WHEN co.course_duration_unit = 'months' AND co.course_duration BETWEEN 1 AND 3 THEN '1_3Months'
+      WHEN co.course_duration_unit = 'months' AND co.course_duration BETWEEN 3 AND 6 THEN '3_6Months'
+      WHEN co.course_duration_unit = 'months' AND co.course_duration > 6 THEN 'more6Months'
+      
+      ELSE 'other'
+    END as duration_value,
+    COUNT(co.id) as duration_count
+  FROM courses co
+  WHERE ${PUBLISHED_CONDITION} 
+    AND co.course_duration IS NOT NULL 
+    AND co.course_duration_unit IS NOT NULL
+  GROUP BY 
+    CASE 
+      WHEN co.course_duration_unit = 'hours' AND co.course_duration < 2 THEN 'less2Hours'
+      WHEN co.course_duration_unit = 'hours' AND co.course_duration BETWEEN 2 AND 10 THEN '2_10Hours'
+      WHEN co.course_duration_unit = 'weeks' AND co.course_duration BETWEEN 1 AND 4 THEN '1_4Weeks'
+      WHEN co.course_duration_unit = 'weeks' AND co.course_duration BETWEEN 5 AND 12 THEN '1_3Months'
+      WHEN co.course_duration_unit = 'months' AND co.course_duration BETWEEN 1 AND 3 THEN '1_3Months'
+      WHEN co.course_duration_unit = 'months' AND co.course_duration BETWEEN 3 AND 6 THEN '3_6Months'
+      WHEN co.course_duration_unit = 'months' AND co.course_duration > 6 THEN 'more6Months'
+      ELSE 'other'
+    END
+),
     price_ranges AS (
       SELECT 
         cp."currencyCode" as currency,
@@ -1145,7 +1174,6 @@ export class StudentCourseService {
         MAX(cp."regularPrice") as max_price
       FROM courses co
       LEFT JOIN course_pricing cp ON co.id = cp.course_id AND cp."isActive" = true
-      -- ✅ ADDED: Filter by published status
       WHERE ${PUBLISHED_CONDITION} AND cp.id IS NOT NULL
       GROUP BY cp."currencyCode"
     ),
@@ -1153,12 +1181,10 @@ export class StudentCourseService {
       SELECT 
         COUNT(id) as free_count
       FROM courses co
-      -- ✅ ADDED: Filter by published status
       WHERE ${PUBLISHED_CONDITION} AND co.is_course_free = true
     )
     
     SELECT 
-      -- ... (The final SELECT remains the same)
       (SELECT json_agg(json_build_object('name', category_name, 'slug', category_slug, 'count', category_count)) FROM category_counts) as categories,
       (SELECT json_agg(json_build_object('name', subcategory_name, 'slug', subcategory_slug, 'count', subcategory_count)) FROM subcategory_counts) as subcategories,
       (SELECT json_agg(json_build_object('name', 
@@ -1172,11 +1198,22 @@ export class StudentCourseService {
       (SELECT json_agg(json_build_object('type', course_type, 'count', type_count)) FROM type_counts) as course_types,
       (SELECT json_agg(json_build_object('level', course_level, 'count', level_count)) FROM level_counts) as course_levels,
       (SELECT json_agg(json_build_object('rating', rating, 'count', rating_count)) FROM rating_counts) as ratings,
+      (SELECT json_agg(json_build_object(
+        'label',
+        CASE duration_value
+          WHEN 'less2Hours' THEN 'Less Than 2 Hours'
+          WHEN '1_4Weeks' THEN '1-4 Weeks' 
+          WHEN '1_3Months' THEN '1-3 Months'
+          WHEN '3_6Months' THEN '3-6 Months'
+          ELSE 'Other'
+        END,
+        'value', duration_value,
+        'count', duration_count
+      )) FROM duration_counts WHERE duration_value != 'other') as durations,
       (SELECT json_agg(json_build_object('currency', currency, 'min', min_price, 'max', max_price)) FROM price_ranges) as price_range,
       (SELECT json_build_object('count', free_count) FROM free_course_count) as free
-    `);
+  `);
 
-    // ... (The return logic remains the same)
     const defaultPriceRange = [{ currency: 'EGP', min: 0, max: 1000 }];
 
     return result[0]
@@ -1184,10 +1221,12 @@ export class StudentCourseService {
         ...result[0],
         price_range: result[0].price_range || defaultPriceRange,
         free: result[0].free || { count: 0 },
+        durations: result[0].durations || [] // Add empty array if no durations
       }
       : {
         categories: [], subcategories: [], languages: [],
         courseTypes: [], courseLevels: [], ratings: [],
+        durations: [], // Add empty durations array
         price_range: defaultPriceRange,
         free: { count: 0 },
       };

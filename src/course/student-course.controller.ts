@@ -349,6 +349,12 @@ export class StudentCourseController {
           { level: "beginner", count: 12 },
           { level: "intermediate", count: 10 }
         ],
+        durations: [
+          { label: "Less Than 2 Hours", value: "less2Hours", count: 61 },
+          { label: "1-4 Weeks", value: "1_4Weeks", count: 20 },
+          { label: "1-3 Months", value: "1_3Months", count: 14 },
+          { label: "3-6 Months", value: "3_6Months", count: 6 }
+        ],
         ratings: [
           { rating: 5, count: 9 },
           { rating: 4, count: 14 }
