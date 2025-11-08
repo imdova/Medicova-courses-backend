@@ -32,6 +32,9 @@ export const COURSE_PAGINATION_CONFIG: QueryConfig<Course> = {
     level: [FilterOperator.EQ],
     averageRating: [FilterOperator.GTE],
   },
+  searchableColumns: [
+    'name',
+  ],
   relations: [],
 };
 
