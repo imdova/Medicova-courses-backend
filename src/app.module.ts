@@ -61,6 +61,7 @@ import { IdentityVerification } from './user/entities/identity-verification.enti
 import { CourseVariable } from './course/course-variables/entities/course-variable.entity';
 import { Faq } from './admin/faq/entities/faq.entity';
 import { StudentSetting } from './admin/student-settings/entities/student-setting.entity';
+import { AcademySetting } from './academy/academy-settings/entities/academy-setting.entity';
 
 @Module({
   imports: [
@@ -114,7 +115,8 @@ import { StudentSetting } from './admin/student-settings/entities/student-settin
         IdentityVerification,
         CourseVariable,
         Faq,
-        StudentSetting
+        StudentSetting,
+        AcademySetting
       ],
       synchronize: true,
       extra: {
