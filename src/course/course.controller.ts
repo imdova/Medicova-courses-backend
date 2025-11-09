@@ -22,6 +22,7 @@ import {
   ApiBody,
   ApiParam,
   ApiQuery,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 import { Course } from './entities/course.entity';
 import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
@@ -31,6 +32,7 @@ import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 import { UpdateCourseDto } from './dto/update-course.dto';
 import { RateCourseDto } from './dto/rate-course.dto';
 
+@ApiBearerAuth('access_token')
 @ApiTags('Courses')
 @Controller('courses')
 export class CourseController {

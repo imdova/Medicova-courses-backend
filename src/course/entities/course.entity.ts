@@ -50,6 +50,17 @@ export enum ProgramType {
   DOCTORATE = 'doctorate',
 }
 
+export interface InstructorInfo {
+  id: string;
+  fullName: string;
+  userName: string;
+  photoUrl?: string | null;
+  coursesCount?: number;
+  studentsCount?: number;
+  averageRating?: number;
+  reviewsCount?: number;
+}
+
 @Entity('courses')
 export class Course extends BasicEntity {
   @ManyToOne(() => User, { eager: false })
@@ -291,4 +302,11 @@ export class Course extends BasicEntity {
   })
   @Column({ type: 'text', default: '', name: 'certification_text' })
   certificationText: string;
+
+  @ApiPropertyOptional({
+    description: 'Original creator information when course is reassigned',
+    type: Object,
+  })
+  @Column({ type: 'jsonb', nullable: true, name: 'original_creator' })
+  originalCreator?: InstructorInfo;
 }
