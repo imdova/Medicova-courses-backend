@@ -20,7 +20,7 @@ export class StudentSettingsController {
   // -----------------------------------------------------------------
   @Post()
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('student-settings:create')
+  @RequirePermissions('student-settings:create')
   @ApiOperation({ summary: 'Create a new student setting' })
   @ApiResponse({
     status: 201,
@@ -40,7 +40,7 @@ export class StudentSettingsController {
   // -----------------------------------------------------------------
   @Get()
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('student-settings:list')
+  @RequirePermissions('student-settings:list')
   @ApiOperation({ summary: 'Get a paginated list of all student settings with filtering' })
   @ApiResponse({
     status: 200,
@@ -85,7 +85,7 @@ export class StudentSettingsController {
   // -----------------------------------------------------------------
   @Get(':id')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('student-settings:read')
+  @RequirePermissions('student-settings:read')
   @ApiOperation({ summary: 'Get a single student setting by ID' })
   @ApiResponse({
     status: 200,
@@ -105,7 +105,7 @@ export class StudentSettingsController {
   // -----------------------------------------------------------------
   @Patch(':id')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('student-settings:update')
+  @RequirePermissions('student-settings:update')
   @ApiOperation({ summary: 'Update an existing student setting by ID' })
   @ApiResponse({
     status: 200,
@@ -131,7 +131,7 @@ export class StudentSettingsController {
   // DELETE (Soft Delete)
   // -----------------------------------------------------------------
   @Delete(':id')
-  //@UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('student-settings:delete')
   @ApiOperation({ summary: 'Soft delete a student setting by ID' })
   @ApiResponse({
