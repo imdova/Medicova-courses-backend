@@ -96,8 +96,35 @@ export class CourseService {
     } = createCourseDto;
 
     let finalInstructorId;
+    let originalCreator = null;
 
+    // If instructorId is provided (reassignment case), store original creator info
     if (instructorId) {
+      // Get the original creator (current user) info
+      const [currentUser, statsMap] = await Promise.all([
+        this.userRepository.findOne({
+          where: { id: userId },
+          relations: ['profile'],
+        }),
+        this.getInstructorStatsBulk([userId])
+      ]);
+
+      if (currentUser) {
+        const stats = statsMap.get(userId);
+        const profile = currentUser.profile;
+
+        originalCreator = {
+          id: currentUser.id,
+          fullName: profile ? `${profile.firstName} ${profile.lastName}` : 'Unknown',
+          userName: profile?.userName || 'Unknown',
+          photoUrl: profile?.photoUrl || null,
+          coursesCount: stats?.coursesCount || 0,
+          studentsCount: stats?.studentsCount || 0,
+          averageRating: stats?.averageRating || 0,
+          reviewsCount: stats?.reviewsCount || 0,
+        };
+      }
+
       // Verify the new instructor exists
       const newInstructor = await this.userRepository.findOne({
         where: { id: instructorId },
@@ -111,10 +138,10 @@ export class CourseService {
         );
       }
 
-      // Update both the column and the relation
       finalInstructorId = instructorId;
-    } else { finalInstructorId = userId; }
-
+    } else {
+      finalInstructorId = userId;
+    }
 
     const { category, subcategory } = await this.getCategoryAndSubcategory(
       categoryId,
@@ -123,28 +150,21 @@ export class CourseService {
 
     // 🟢 UPDATED TAG LOGIC: Validate existence, do not create new ones.
     if (tags && tags.length > 0) {
-      // 1. Fetch all existing tags corresponding to the submitted names
       const existingTags = await this.courseTagRepository.find({
         where: { name: In(tags) },
       });
 
       const existingNames = existingTags.map((tag) => tag.name);
-
-      // 2. Identify missing/invalid tags
       const invalidTags = tags.filter((name) => !existingNames.includes(name));
 
-      // 3. Throw error if any submitted tag does not exist
       if (invalidTags.length > 0) {
-        // Note: The tags need to be in the database and active/visible (if you add that check)
         throw new BadRequestException(
           `The following tags do not exist or are inactive: ${invalidTags.join(', ')}`,
         );
       }
-      // No need for Step 3 (Bulk Insert) from the original code.
-      // The `tags` array will be saved directly to the simple-array column.
     }
 
-    // Step 4: Save the course with tags array
+    // Step 4: Save the course with tags array and original creator info
     const course = this.courseRepository.create({
       ...rest,
       createdBy: finalInstructorId,
@@ -154,6 +174,7 @@ export class CourseService {
       pricings,
       academy: { id: academyId },
       slug,
+      originalCreator, // Store original creator info if reassignment happened
     });
 
     try {
@@ -420,7 +441,35 @@ export class CourseService {
       ...rest
     } = updateData;
 
-    if (instructorId) {
+    // If instructorId is provided and different from current instructor (reassignment)
+    if (instructorId && instructorId !== course.createdBy) {
+      // If originalCreator doesn't exist yet, store the current creator info
+      if (!course.originalCreator) {
+        const [currentInstructor, statsMap] = await Promise.all([
+          this.userRepository.findOne({
+            where: { id: course.createdBy },
+            relations: ['profile'],
+          }),
+          this.getInstructorStatsBulk([course.createdBy])
+        ]);
+
+        if (currentInstructor) {
+          const stats = statsMap.get(course.createdBy);
+          const profile = currentInstructor.profile;
+
+          course.originalCreator = {
+            id: currentInstructor.id,
+            fullName: profile ? `${profile.firstName} ${profile.lastName}` : 'Unknown',
+            userName: profile?.userName || 'Unknown',
+            photoUrl: profile?.photoUrl || null,
+            coursesCount: stats?.coursesCount || 0,
+            studentsCount: stats?.studentsCount || 0,
+            averageRating: stats?.averageRating || 0,
+            reviewsCount: stats?.reviewsCount || 0,
+          };
+        }
+      }
+
       // Verify the new instructor exists
       const newInstructor = await this.userRepository.findOne({
         where: { id: instructorId },
@@ -434,14 +483,13 @@ export class CourseService {
         );
       }
 
-      // Update both the column and the relation
       course.createdBy = instructorId;
-      course.instructor = newInstructor; // ✅ Update the relation object
+      course.instructor = newInstructor;
     }
 
     if (categoryId || subCategoryId) {
       const { category, subcategory } = await this.getCategoryAndSubcategory(
-        categoryId ?? course.category.id, // use current category if not provided
+        categoryId ?? course.category.id,
         subCategoryId,
       );
 
@@ -452,17 +500,13 @@ export class CourseService {
     // 🟢 UPDATED TAG LOGIC: Validate existence, do not create new ones.
     if (tags) {
       if (tags.length > 0) {
-        // 1. Fetch all existing tags corresponding to the submitted names
         const existingTags = await this.courseTagRepository.find({
           where: { name: In(tags) },
         });
 
         const existingNames = existingTags.map((tag) => tag.name);
-
-        // 2. Identify missing/invalid tags
         const invalidTags = tags.filter((name) => !existingNames.includes(name));
 
-        // 3. Throw error if any submitted tag does not exist
         if (invalidTags.length > 0) {
           throw new BadRequestException(
             `The following tags do not exist or are inactive: ${invalidTags.join(', ')}`,
@@ -470,7 +514,6 @@ export class CourseService {
         }
       }
 
-      // 4. Update course tags array only after validation passes (can be an empty array)
       course.tags = tags;
     }
 
@@ -486,7 +529,7 @@ export class CourseService {
           Object.assign(existing, p);
         } else {
           const newPricing = this.coursePricingRepository.create(p);
-          course.pricings.push(newPricing); // attach to course
+          course.pricings.push(newPricing);
         }
       }
     }

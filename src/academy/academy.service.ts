@@ -22,6 +22,35 @@ import { CourseStudent } from 'src/course/entities/course-student.entity';
 import { CreateAcademyKeywordDto } from './dto/create-academy-keyword.dto';
 import { AcademyKeyword } from './entities/academy-keywords.entity';
 import { instanceToPlain } from 'class-transformer'; // ⬅️ Add this import
+import { paginate, PaginateConfig, Paginated, PaginateQuery } from 'nestjs-paginate';
+
+export const ACADEMY_PAGINATION_CONFIG: PaginateConfig<Academy> = {
+  sortableColumns: [
+    'id',
+    'name',
+    'type',
+    'foundedYear',
+    'studentsCount',
+    'created_at',
+    'updated_at'
+  ],
+  defaultSortBy: [['created_at', 'DESC']],
+  searchableColumns: [
+    'name',
+    'description',
+    'email',
+    'address'
+  ],
+  filterableColumns: {
+    type: true,
+    isVerified: true,
+    'country.name': true,
+    'city.name': true,
+    'contactPerson.name': true,
+    'contactPerson.email': true,
+  },
+  relations: ['instructors'],
+};
 
 @Injectable()
 export class AcademyService {
@@ -151,6 +180,22 @@ export class AcademyService {
     });
 
     return result;
+  }
+
+  async findAllPaginated(query: PaginateQuery): Promise<Paginated<Academy>> {
+    const result = await paginate(query, this.academyRepository, ACADEMY_PAGINATION_CONFIG);
+
+    if (result.data.length === 0) {
+      return result;
+    }
+
+    // Enrich the paginated data with additional information
+    const enrichedData = await this.enrichAcademiesData(result.data);
+
+    return {
+      ...result,
+      data: enrichedData,
+    };
   }
 
   async findOne(id: string): Promise<any> {
@@ -522,5 +567,59 @@ export class AcademyService {
     const percentage = (filledCount / TOTAL_POINTS) * 100;
     // Return fixed to 2 decimal places
     return parseFloat(percentage.toFixed(2));
+  }
+
+  private async enrichAcademiesData(academies: Academy[]): Promise<any[]> {
+    const academyIds = academies.map((a) => a.id);
+    const createdByIds = Array.from(
+      new Set(academies.map((a) => a.created_by).filter(Boolean)),
+    );
+
+    // Fetch creators and student counts in parallel
+    const [creators, studentCountsRaw] = await Promise.all([
+      this.userRepository.find({
+        where: { id: In(createdByIds) },
+        relations: ['profile', 'role'],
+      }),
+      this.courseStudentRepository
+        .createQueryBuilder('cs')
+        .select('course.academy_id', 'academyId')
+        .addSelect('COUNT(DISTINCT cs.student_id)', 'count')
+        .innerJoin('cs.course', 'course')
+        .where('course.academy_id IN (:...academyIds)', { academyIds })
+        .groupBy('course.academy_id')
+        .getRawMany(),
+    ]);
+
+    const creatorsById = new Map(creators.map((c) => [c.id, c]));
+    const studentsCountMap = new Map(
+      studentCountsRaw.map((r) => [r.academyId as string, Number(r.count)]),
+    );
+
+    return academies.map((academy) => {
+      const creator = creatorsById.get(academy.created_by);
+      const studentsCount = studentsCountMap.get(academy.id) || 0;
+
+      const createdBy = creator
+        ? {
+          id: creator.id,
+          name: `${creator.profile?.firstName || ''} ${creator.profile?.lastName || ''}`.trim(),
+          photo: creator.profile?.photoUrl || null,
+          role: creator.role?.name || null,
+        }
+        : null;
+
+      // Return the full academy object with all properties plus the enriched createdBy
+      return {
+        // All original academy properties
+        ...academy,
+        // Ensure completionPercentage is properly parsed
+        completionPercentage: parseFloat(academy.completionPercentage as any),
+        // Update studentsCount with the real calculated value
+        studentsCount: studentsCount,
+        // Add the enriched createdBy object
+        createdBy,
+      };
+    });
   }
 }

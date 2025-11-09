@@ -60,6 +60,8 @@ import { AdminModule } from './admin/admin.module';
 import { IdentityVerification } from './user/entities/identity-verification.entity';
 import { CourseVariable } from './course/course-variables/entities/course-variable.entity';
 import { Faq } from './admin/faq/entities/faq.entity';
+import { StudentSetting } from './admin/student-settings/entities/student-setting.entity';
+import { AcademySetting } from './academy/academy-settings/entities/academy-setting.entity';
 
 @Module({
   imports: [
@@ -112,7 +114,9 @@ import { Faq } from './admin/faq/entities/faq.entity';
         AcademyKeyword,
         IdentityVerification,
         CourseVariable,
-        Faq
+        Faq,
+        StudentSetting,
+        AcademySetting
       ],
       synchronize: true,
       extra: {
