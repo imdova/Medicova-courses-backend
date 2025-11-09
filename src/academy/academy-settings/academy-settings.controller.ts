@@ -20,7 +20,7 @@ export class AcademySettingsController {
   // -----------------------------------------------------------------
   @Post()
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('academy-settings:create')
+  @RequirePermissions('academy-settings:create')
   @ApiOperation({ summary: 'Create a new academy setting' })
   @ApiResponse({
     status: 201,
@@ -40,7 +40,7 @@ export class AcademySettingsController {
   // -----------------------------------------------------------------
   @Get()
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('academy-settings:list')
+  @RequirePermissions('academy-settings:list')
   @ApiOperation({ summary: 'Get a paginated list of all academy settings with filtering' })
   @ApiResponse({
     status: 200,
@@ -78,7 +78,7 @@ export class AcademySettingsController {
   // -----------------------------------------------------------------
   @Get(':id')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('academy-settings:read')
+  @RequirePermissions('academy-settings:read')
   @ApiOperation({ summary: 'Get a single academy setting by ID' })
   @ApiResponse({
     status: 200,
@@ -98,7 +98,7 @@ export class AcademySettingsController {
   // -----------------------------------------------------------------
   @Patch(':id')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('academy-settings:update')
+  @RequirePermissions('academy-settings:update')
   @ApiOperation({ summary: 'Update an existing academy setting by ID' })
   @ApiResponse({
     status: 200,
@@ -125,7 +125,7 @@ export class AcademySettingsController {
   // -----------------------------------------------------------------
   @Delete(':id')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('academy-settings:delete')
+  @RequirePermissions('academy-settings:delete')
   @ApiOperation({ summary: 'Soft delete an academy setting by ID' })
   @ApiResponse({
     status: 200,
