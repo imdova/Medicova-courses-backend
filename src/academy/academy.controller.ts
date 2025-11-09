@@ -17,6 +17,8 @@ import {
   ApiResponse,
   ApiBody,
   ApiParam,
+  ApiBearerAuth,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { AcademyService } from './academy.service';
 import { CreateAcademyDto } from './dto/create-academy.dto';
@@ -27,11 +29,13 @@ import { Roles } from 'src/auth/decorator/roles.decorator';
 import { CreateUserDto } from 'src/user/dto/create-user.dto';
 import { CreateAcademyInstructorDto } from './dto/create-academy-instructor.dto';
 import { UpdateAcademyInstructorDto } from './dto/update-academy-instructor.dto';
-import { Academy } from './entities/academy.entity';
+import { Academy, AcademyType } from './entities/academy.entity';
 import { PermissionsGuard } from 'src/auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 import { CreateAcademyKeywordDto } from './dto/create-academy-keyword.dto';
+import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
 
+@ApiBearerAuth('access_token')
 @ApiTags('Academies')
 @Controller('academies')
 export class AcademyController {
@@ -74,6 +78,7 @@ export class AcademyController {
     return this.academyService.createKeyword(dto);
   }
 
+  // ---------- Admin: List all academies ----------
   @Get()
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('academy:list')
@@ -81,6 +86,35 @@ export class AcademyController {
   @ApiResponse({ status: HttpStatus.OK, description: 'List of all academies' })
   findAll() {
     return this.academyService.findAll();
+  }
+
+  // ---------- Admin: Paginated, filtered, sorted list of academies ----------
+  @Get('paginated')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('academy:list')
+  @ApiOperation({
+    summary: 'Get paginated list of academies with search, filtering and sorting'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated list of academies retrieved successfully.'
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Global search across name, description, city, country, email',
+  })
+  @ApiQuery({
+    name: 'filter.type',
+    required: false,
+    enum: AcademyType,
+    description: `Filter by academy type`,
+  })
+  async findAllPaginated(
+    @Paginate() query: PaginateQuery,
+  ): Promise<Paginated<Academy>> {
+    return this.academyService.findAllPaginated(query);
   }
 
   // ---------- Public: Get all available academy keywords ----------
