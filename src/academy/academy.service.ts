@@ -609,39 +609,16 @@ export class AcademyService {
         }
         : null;
 
-      const instructors = (academy.instructors || []).map((inst) => ({
-        id: inst.id,
-        name: inst.name,
-        photoUrl: inst.photoUrl || null,
-        biography: inst.biography || null,
-      }));
-
-      // Extract city and country names for easy frontend display
-      const cityName = academy.city?.name || null;
-      const countryName = academy.country?.name || null;
-
-      // Extract contact information
-      const contactName = academy.contactPerson?.name || null;
-      const contactEmail = academy.contactPerson?.email || academy.email || null;
-
+      // Return the full academy object with all properties plus the enriched createdBy
       return {
-        id: academy.id,
-        name: academy.name,
-        type: academy.type,
-        image: academy.image,
-        description: academy.description,
-        city: cityName,
-        country: countryName,
-        foundedYear: academy.foundedYear,
-        studentsCount: studentsCount,
-        contactName: contactName,
-        contactEmail: contactEmail,
-        isVerified: academy.isVerified,
+        // All original academy properties
+        ...academy,
+        // Ensure completionPercentage is properly parsed
         completionPercentage: parseFloat(academy.completionPercentage as any),
+        // Update studentsCount with the real calculated value
+        studentsCount: studentsCount,
+        // Add the enriched createdBy object
         createdBy,
-        instructors,
-        created_at: academy.created_at,
-        updated_at: academy.updated_at,
       };
     });
   }
