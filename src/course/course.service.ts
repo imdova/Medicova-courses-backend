@@ -1376,4 +1376,91 @@ export class CourseService {
       stats,
     };
   }
+
+  async getCoursesByIdsForCheckout(
+    courseIds: string[],
+  ): Promise<Course[]> {
+    const qb = this.courseRepository.createQueryBuilder('course');
+
+    qb.leftJoinAndSelect('course.category', 'category')
+      .leftJoinAndSelect('course.subCategory', 'subCategory')
+      .leftJoinAndSelect('course.instructor', 'instructor')
+      .leftJoinAndSelect('course.pricings', 'pricing')
+      .leftJoin('course.academy', 'academy')
+      .addSelect([
+        'academy.id',
+        'academy.name',
+        'academy.slug',
+        'academy.description',
+        'academy.image',
+        'academy.about',
+      ])
+      .leftJoinAndSelect('instructor.profile', 'instructorProfile')
+      .loadRelationCountAndMap('course.studentCount', 'course.enrollments')
+      .loadRelationCountAndMap(
+        'course.lecturesCount',
+        'course.sections',
+        'sectionLectures',
+        (qb) =>
+          qb
+            .leftJoin('sectionLectures.items', 'lectureItems')
+            .andWhere("lectureItems.curriculumType = :lectureType", {
+              lectureType: 'lecture',
+            }),
+      )
+      .loadRelationCountAndMap(
+        'course.quizzesCount',
+        'course.sections',
+        'sectionQuizzes',
+        (qb) =>
+          qb
+            .leftJoin('sectionQuizzes.items', 'quizItems')
+            .andWhere("quizItems.curriculumType = :quizType", {
+              quizType: 'quiz',
+            }),
+      )
+      .where('course.id IN (:...courseIds)', { courseIds })
+      .andWhere('course.deleted_at IS NULL')
+      .andWhere('course.status = :status', { status: 'published' }) // Only published for checkout
+      .andWhere('course.isActive = :isActive', { isActive: true }); // Only active courses
+
+    const courses = await qb.getMany();
+
+    if (courses.length === 0) {
+      return [];
+    }
+
+    // Extract all unique instructor IDs from courses
+    const instructorIds = [
+      ...new Set(
+        courses
+          .map((course: Course) => course.createdBy)
+          .filter((id): id is string => !!id)
+      ),
+    ];
+
+    // Fetch both academy instructors and instructor stats in parallel
+    const [academyInstructorsMap, instructorStatsMap] = await Promise.all([
+      this.getAcademyInstructorsBulk(courses),
+      this.getInstructorStatsBulk(instructorIds),
+    ]);
+
+    // Map all data to courses (same mapping logic)
+    return courses.map((course) => {
+      const mappedInstructor = this.mapInstructor(course);
+      const instructorStats = instructorStatsMap.get(course.createdBy);
+
+      return {
+        ...(course as any),
+        instructor: mappedInstructor ? {
+          ...mappedInstructor,
+          coursesCount: instructorStats?.coursesCount || 0,
+          studentsCount: instructorStats?.studentsCount || 0,
+          averageRating: instructorStats?.averageRating || 0,
+          reviewsCount: instructorStats?.reviewsCount || 0,
+        } : null,
+        academyInstructors: academyInstructorsMap.get(course.id) || [],
+      };
+    });
+  }
 }

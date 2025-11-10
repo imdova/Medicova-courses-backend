@@ -157,6 +157,40 @@ export class CourseController {
     );
   }
 
+  @Get('by-ids')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  //@RequirePermissions('course:list')
+  @ApiOperation({
+    summary: 'Get specific courses by their IDs with full course data',
+    description: 'Returns full course data including instructor stats, student counts, etc. Same format as paginated endpoint.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Array of courses with full enriched data',
+    type: [Course],
+  })
+  @ApiQuery({
+    name: 'ids',
+    required: true,
+    description: 'Comma-separated list of course UUIDs',
+    example: '51f783a3-78a7-4c8e-8937-8882f0e02306,3d50ed99-3d88-4edd-95dc-1f88c7b28c7d',
+  })
+  async findByIds(
+    @Query('ids') ids: string,
+  ): Promise<Course[]> {
+
+    // Convert comma-separated string to array and validate UUIDs
+    const courseIds = ids.split(',').map(id => id.trim()).filter(id => {
+      return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    });
+
+    if (courseIds.length === 0) {
+      return [];
+    }
+
+    return this.courseService.getCoursesByIdsForCheckout(courseIds);
+  }
+
   @Get('public')
   @ApiOperation({
     summary:
