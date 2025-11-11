@@ -1064,4 +1064,47 @@ export class QuizService {
       passRate: parseFloat(passRate.toFixed(2)),
     };
   }
+
+  async getQuizStudents(quizId: string): Promise<any> {
+    const quiz = await this.quizRepo.findOne({
+      where: { id: quizId },
+    });
+
+    if (!quiz) {
+      throw new NotFoundException(`Quiz with ID ${quizId} not found`);
+    }
+
+    // Use consistent lowercase aliases to avoid confusion
+    const studentAttempts = await this.attemptRepo
+      .createQueryBuilder('attempt')
+      .leftJoin('attempt.courseStudent', 'courseStudent')
+      .leftJoin('courseStudent.student', 'student')
+      .leftJoin('student.profile', 'profile')
+      .select([
+        'student.id as student_id',
+        'student.email as email',
+        'profile.firstName as first_name',
+        'profile.lastName as last_name',
+        'profile.photoUrl as photo_url',
+        'COUNT(attempt.id) as attempts_count',
+        'MAX(attempt.score) as best_score',
+        'BOOL_OR(attempt.passed) as has_passed',
+      ])
+      .where('attempt.quiz_id = :quizId', { quizId })
+      .groupBy('student.id, profile.id, student.email, profile.firstName, profile.lastName, profile.photoUrl')
+      .orderBy('best_score', 'DESC')
+      .getRawMany();
+
+    // Transform using consistent lowercase keys
+    return studentAttempts.map((row: any) => ({
+      studentId: row.student_id,
+      displayName: `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'Unknown',
+      email: row.email,
+      photoUrl: row.photo_url,
+      attemptsCount: parseInt(row.attempts_count) || 0,
+      bestScore: parseFloat(row.best_score) || 0,
+      hasPassed: row.has_passed === true || row.has_passed === 'true',
+      status: (row.has_passed === true || row.has_passed === 'true') ? 'Passed' : 'Failed',
+    }));
+  }
 }

@@ -289,6 +289,23 @@ export class QuizController {
     return this.quizService.getQuizAdminOverview(quizId);
   }
 
+  @Get(':quizId/students')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  //@RequirePermissions('quiz:students')
+  @ApiOperation({
+    summary: 'Get all students who attempted the quiz',
+    description: 'Returns all students with their attempt statistics (no pagination)'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of all students with attempt statistics',
+  })
+  async getQuizStudents(
+    @Param('quizId') quizId: string,
+  ): Promise<any> {
+    return this.quizService.getQuizStudents(quizId);
+  }
+
   @Patch(':id')
   @RequirePermissions('quiz:update')
   @ApiOperation({ summary: 'Update quiz by ID' })
