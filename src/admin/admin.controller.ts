@@ -182,7 +182,7 @@ export class AdminController {
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('admin:instructors:detailed-list')
+  @RequirePermissions('admin:instructors:detailed-list')
   @Get('instructors/detailed')
   @ApiOperation({
     summary: 'Get all instructors with detailed information including courses and student counts'
@@ -222,7 +222,7 @@ export class AdminController {
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('admin:instructors:overview')
+  @RequirePermissions('admin:instructors:overview')
   @Get('instructors/overview')
   @ApiOperation({
     summary: 'Get instructor overview statistics including total instructors, courses, and enrollments'
