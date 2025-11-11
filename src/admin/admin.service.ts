@@ -1611,4 +1611,162 @@ export class AdminService {
     // 5. Return the newly created rating
     return savedRating;
   }
+
+  async getAllInstructorsDetailed(
+    page = 1,
+    limit = 10,
+    search?: string
+  ): Promise<any> {
+    const instructorRoleId = await this.getRoleId('instructor');
+    if (!instructorRoleId) {
+      return { instructors: [], pagination: this.paginationMeta(1, limit, 0) };
+    }
+
+    const pageNum = Math.max(1, parseInt(page + '', 10) || 1);
+    const limitNum = Math.min(Math.max(1, parseInt(limit + '', 10) || 10), 100);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Step 1: Get instructor IDs with pagination and search
+    let instructorQuery = this.userRepository
+      .createQueryBuilder('user')
+      .leftJoin('user.profile', 'profile')
+      .select(['user.id'])
+      .where('user.roleId = :roleId', { roleId: instructorRoleId });
+
+    if (search) {
+      const searchTerm = `%${search.toLowerCase()}%`;
+      instructorQuery = instructorQuery.andWhere(
+        `(LOWER(profile.firstName) LIKE :searchTerm OR 
+       LOWER(profile.lastName) LIKE :searchTerm OR 
+       LOWER(user.email) LIKE :searchTerm)`,
+        { searchTerm }
+      );
+    }
+
+    const [instructorIds, total] = await Promise.all([
+      instructorQuery
+        .orderBy('user.created_at', 'DESC')
+        .offset(skip)
+        .limit(limitNum)
+        .getMany()
+        .then(users => users.map(user => user.id)),
+      instructorQuery.getCount()
+    ]);
+
+    if (instructorIds.length === 0) {
+      return { instructors: [], pagination: this.paginationMeta(pageNum, limitNum, total) };
+    }
+
+    // Step 2: Get detailed data for the paginated instructors in parallel
+    const [instructorDetails, courseCounts, studentCounts] = await Promise.all([
+      // Get basic instructor info
+      this.userRepository
+        .createQueryBuilder('user')
+        .leftJoinAndSelect('user.profile', 'profile')
+        .select([
+          'user.id',
+          'user.email',
+          'user.created_at',
+          'profile.firstName',
+          'profile.lastName',
+          'profile.phoneNumber',
+          'profile.photoUrl',
+          'profile.metadata',
+          'profile.country',
+          'profile.city'
+        ])
+        .where('user.id IN (:...instructorIds)', { instructorIds })
+        .orderBy('user.created_at', 'DESC')
+        .getMany(),
+
+      // Get course counts
+      this.courseRepository
+        .createQueryBuilder('course')
+        .select('course.createdBy', 'instructorId')
+        .addSelect('COUNT(course.id)', 'courseCount')
+        .where('course.createdBy IN (:...instructorIds)', { instructorIds })
+        .andWhere('course.status = :courseStatus', { courseStatus: CourseStatus.PUBLISHED })
+        .andWhere('course.isActive = :isActive', { isActive: true })
+        .groupBy('course.createdBy')
+        .getRawMany(),
+
+      // Get unique student counts
+      this.courseStudentRepo
+        .createQueryBuilder('enrollment')
+        .leftJoin('enrollment.course', 'course')
+        .select('course.createdBy', 'instructorId')
+        .addSelect('COUNT(DISTINCT enrollment.student_id)', 'studentCount')
+        .where('course.createdBy IN (:...instructorIds)', { instructorIds })
+        .andWhere('course.status = :courseStatus', { courseStatus: CourseStatus.PUBLISHED })
+        .andWhere('course.isActive = :isActive', { isActive: true })
+        .groupBy('course.createdBy')
+        .getRawMany()
+    ]);
+
+    // Create lookup maps
+    const courseCountMap = new Map(
+      courseCounts.map(item => [item.instructorId, parseInt(item.courseCount) || 0])
+    );
+
+    const studentCountMap = new Map(
+      studentCounts.map(item => [item.instructorId, parseInt(item.studentCount) || 0])
+    );
+
+    // Format the response
+    const formattedInstructors = instructorDetails.map(instructor => ({
+      id: instructor.id,
+      name: `${instructor.profile?.firstName || ''} ${instructor.profile?.lastName || ''}`.trim() || 'N/A',
+      email: instructor.email,
+      phone: instructor.profile?.phoneNumber || 'N/A',
+      photoUrl: instructor.profile?.photoUrl || null,
+      metaData: instructor.profile?.metadata || null,
+      country: instructor.profile?.country || 'N/A',
+      city: instructor.profile?.city || 'N/A',
+      joinDate: this.formatDate(instructor.created_at),
+      numberOfCourses: courseCountMap.get(instructor.id) || 0,
+      totalStudents: studentCountMap.get(instructor.id) || 0
+    }));
+
+    return {
+      instructors: formattedInstructors,
+      pagination: this.paginationMeta(pageNum, limitNum, total)
+    };
+  }
+
+  async getInstructorOverview(): Promise<any> {
+    const instructorRoleId = await this.getRoleId('instructor');
+
+    if (!instructorRoleId) {
+      return {
+        totalInstructors: 0,
+        totalCourses: 0,
+        totalEnrollments: 0
+      };
+    }
+
+    // Execute all counts in parallel
+    const [totalInstructors, totalCourses, totalEnrollments] = await Promise.all([
+      // Total instructors
+      this.userRepository.count({
+        where: { role: { id: instructorRoleId } }
+      }),
+
+      // Total published and active courses
+      this.courseRepository.count({
+        where: {
+          status: CourseStatus.PUBLISHED,
+          isActive: true
+        }
+      }),
+
+      // Total enrollments across all courses
+      this.courseStudentRepo.count()
+    ]);
+
+    return {
+      totalInstructors,
+      totalCourses,
+      totalEnrollments
+    };
+  }
 }
