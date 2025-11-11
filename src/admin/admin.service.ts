@@ -1626,63 +1626,16 @@ export class AdminService {
     const limitNum = Math.min(Math.max(1, parseInt(limit + '', 10) || 10), 100);
     const skip = (pageNum - 1) * limitNum;
 
-    // Build base query - counting DISTINCT students
-    let query = this.userRepository
-      .createQueryBuilder('user')
-      .leftJoinAndSelect('user.profile', 'profile')
-      .leftJoin(
-        Course,
-        'courses',
-        'courses.createdBy = user.id AND courses.status = :courseStatus AND courses.isActive = :isActive',
-        {
-          courseStatus: CourseStatus.PUBLISHED,
-          isActive: true
-        }
-      )
-      .leftJoin(
-        CourseStudent,
-        'enrollments',
-        'enrollments.course_id = courses.id'
-      )
-      .leftJoin(
-        'enrollments.student',
-        'student' // Join to the student entity to get unique students
-      )
-      .select([
-        'user.id AS id',
-        'user.email AS email',
-        'user.created_at AS joinDate',
-        'profile.firstName AS firstName',
-        'profile.lastName AS lastName',
-        'profile.phoneNumber AS phoneNumber',
-        'profile.country AS country',
-        'profile.city AS city',
-        'COUNT(DISTINCT courses.id) AS courseCount',
-        'COUNT(DISTINCT student.id) AS totalStudents' // Count distinct students instead of enrollments
-      ])
-      .where('user.roleId = :roleId', { roleId: instructorRoleId })
-      .groupBy('user.id, user.email, user.created_at, profile.firstName, profile.lastName, profile.phoneNumber, profile.country, profile.city');
-
-    // Apply search filter
-    if (search) {
-      const searchTerm = `%${search.toLowerCase()}%`;
-      query = query.andWhere(
-        `(LOWER(profile.firstName) LIKE :searchTerm OR 
-       LOWER(profile.lastName) LIKE :searchTerm OR 
-       LOWER(user.email) LIKE :searchTerm)`,
-        { searchTerm }
-      );
-    }
-
-    // Get total count (without grouping for count)
-    const totalQuery = this.userRepository
+    // Step 1: Get instructor IDs with pagination and search
+    let instructorQuery = this.userRepository
       .createQueryBuilder('user')
       .leftJoin('user.profile', 'profile')
+      .select(['user.id'])
       .where('user.roleId = :roleId', { roleId: instructorRoleId });
 
     if (search) {
       const searchTerm = `%${search.toLowerCase()}%`;
-      totalQuery.andWhere(
+      instructorQuery = instructorQuery.andWhere(
         `(LOWER(profile.firstName) LIKE :searchTerm OR 
        LOWER(profile.lastName) LIKE :searchTerm OR 
        LOWER(user.email) LIKE :searchTerm)`,
@@ -1690,26 +1643,84 @@ export class AdminService {
       );
     }
 
-    const total = await totalQuery.getCount();
+    const [instructorIds, total] = await Promise.all([
+      instructorQuery
+        .orderBy('user.created_at', 'DESC')
+        .offset(skip)
+        .limit(limitNum)
+        .getMany()
+        .then(users => users.map(user => user.id)),
+      instructorQuery.getCount()
+    ]);
 
-    // Get paginated results
-    const instructors = await query
-      .orderBy('user.created_at', 'DESC')
-      .offset(skip)
-      .limit(limitNum)
-      .getRawMany();
+    if (instructorIds.length === 0) {
+      return { instructors: [], pagination: this.paginationMeta(pageNum, limitNum, total) };
+    }
+
+    // Step 2: Get detailed data for the paginated instructors in parallel
+    const [instructorDetails, courseCounts, studentCounts] = await Promise.all([
+      // Get basic instructor info
+      this.userRepository
+        .createQueryBuilder('user')
+        .leftJoinAndSelect('user.profile', 'profile')
+        .select([
+          'user.id',
+          'user.email',
+          'user.created_at',
+          'profile.firstName',
+          'profile.lastName',
+          'profile.phoneNumber',
+          'profile.country',
+          'profile.city'
+        ])
+        .where('user.id IN (:...instructorIds)', { instructorIds })
+        .orderBy('user.created_at', 'DESC')
+        .getMany(),
+
+      // Get course counts
+      this.courseRepository
+        .createQueryBuilder('course')
+        .select('course.createdBy', 'instructorId')
+        .addSelect('COUNT(course.id)', 'courseCount')
+        .where('course.createdBy IN (:...instructorIds)', { instructorIds })
+        .andWhere('course.status = :courseStatus', { courseStatus: CourseStatus.PUBLISHED })
+        .andWhere('course.isActive = :isActive', { isActive: true })
+        .groupBy('course.createdBy')
+        .getRawMany(),
+
+      // Get unique student counts
+      this.courseStudentRepo
+        .createQueryBuilder('enrollment')
+        .leftJoin('enrollment.course', 'course')
+        .select('course.createdBy', 'instructorId')
+        .addSelect('COUNT(DISTINCT enrollment.student_id)', 'studentCount')
+        .where('course.createdBy IN (:...instructorIds)', { instructorIds })
+        .andWhere('course.status = :courseStatus', { courseStatus: CourseStatus.PUBLISHED })
+        .andWhere('course.isActive = :isActive', { isActive: true })
+        .groupBy('course.createdBy')
+        .getRawMany()
+    ]);
+
+    // Create lookup maps
+    const courseCountMap = new Map(
+      courseCounts.map(item => [item.instructorId, parseInt(item.courseCount) || 0])
+    );
+
+    const studentCountMap = new Map(
+      studentCounts.map(item => [item.instructorId, parseInt(item.studentCount) || 0])
+    );
 
     // Format the response
-    const formattedInstructors = instructors.map(instructor => ({
+    const formattedInstructors = instructorDetails.map(instructor => ({
       id: instructor.id,
-      name: `${instructor.firstname || ''} ${instructor.lastname || ''}`.trim() || 'N/A',
+      name: `${instructor.profile?.firstName || ''} ${instructor.profile?.lastName || ''}`.trim() || 'N/A',
       email: instructor.email,
-      phone: instructor.phonenumber || 'N/A',
-      country: instructor.country || 'N/A',
-      city: instructor.city || 'N/A',
-      joinDate: this.formatDate(instructor.joindate),
-      numberOfCourses: parseInt(instructor.coursecount) || 0,
-      totalStudents: parseInt(instructor.totalstudents) || 0
+      phone: instructor.profile?.phoneNumber || 'N/A',
+      country: instructor.profile?.country || 'N/A',
+      city: instructor.profile?.city || 'N/A',
+      joinDate: this.formatDate(instructor.created_at),
+      numberOfCourses: courseCountMap.get(instructor.id) || 0,
+      totalStudents: studentCountMap.get(instructor.id) || 0
     }));
 
     return {
