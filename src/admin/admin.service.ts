@@ -1611,4 +1611,110 @@ export class AdminService {
     // 5. Return the newly created rating
     return savedRating;
   }
+
+  async getAllInstructorsDetailed(
+    page = 1,
+    limit = 10,
+    search?: string
+  ): Promise<any> {
+    const instructorRoleId = await this.getRoleId('instructor');
+    if (!instructorRoleId) {
+      return { instructors: [], pagination: this.paginationMeta(1, limit, 0) };
+    }
+
+    const pageNum = Math.max(1, parseInt(page + '', 10) || 1);
+    const limitNum = Math.min(Math.max(1, parseInt(limit + '', 10) || 10), 100);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Build base query - counting DISTINCT students
+    let query = this.userRepository
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.profile', 'profile')
+      .leftJoin(
+        Course,
+        'courses',
+        'courses.createdBy = user.id AND courses.status = :courseStatus AND courses.isActive = :isActive',
+        {
+          courseStatus: CourseStatus.PUBLISHED,
+          isActive: true
+        }
+      )
+      .leftJoin(
+        CourseStudent,
+        'enrollments',
+        'enrollments.course_id = courses.id'
+      )
+      .leftJoin(
+        'enrollments.student',
+        'student' // Join to the student entity to get unique students
+      )
+      .select([
+        'user.id AS id',
+        'user.email AS email',
+        'user.created_at AS joinDate',
+        'profile.firstName AS firstName',
+        'profile.lastName AS lastName',
+        'profile.phoneNumber AS phoneNumber',
+        'profile.country AS country',
+        'profile.city AS city',
+        'COUNT(DISTINCT courses.id) AS courseCount',
+        'COUNT(DISTINCT student.id) AS totalStudents' // Count distinct students instead of enrollments
+      ])
+      .where('user.roleId = :roleId', { roleId: instructorRoleId })
+      .groupBy('user.id, user.email, user.created_at, profile.firstName, profile.lastName, profile.phoneNumber, profile.country, profile.city');
+
+    // Apply search filter
+    if (search) {
+      const searchTerm = `%${search.toLowerCase()}%`;
+      query = query.andWhere(
+        `(LOWER(profile.firstName) LIKE :searchTerm OR 
+       LOWER(profile.lastName) LIKE :searchTerm OR 
+       LOWER(user.email) LIKE :searchTerm)`,
+        { searchTerm }
+      );
+    }
+
+    // Get total count (without grouping for count)
+    const totalQuery = this.userRepository
+      .createQueryBuilder('user')
+      .leftJoin('user.profile', 'profile')
+      .where('user.roleId = :roleId', { roleId: instructorRoleId });
+
+    if (search) {
+      const searchTerm = `%${search.toLowerCase()}%`;
+      totalQuery.andWhere(
+        `(LOWER(profile.firstName) LIKE :searchTerm OR 
+       LOWER(profile.lastName) LIKE :searchTerm OR 
+       LOWER(user.email) LIKE :searchTerm)`,
+        { searchTerm }
+      );
+    }
+
+    const total = await totalQuery.getCount();
+
+    // Get paginated results
+    const instructors = await query
+      .orderBy('user.created_at', 'DESC')
+      .offset(skip)
+      .limit(limitNum)
+      .getRawMany();
+
+    // Format the response
+    const formattedInstructors = instructors.map(instructor => ({
+      id: instructor.id,
+      name: `${instructor.firstname || ''} ${instructor.lastname || ''}`.trim() || 'N/A',
+      email: instructor.email,
+      phone: instructor.phonenumber || 'N/A',
+      country: instructor.country || 'N/A',
+      city: instructor.city || 'N/A',
+      joinDate: this.formatDate(instructor.joindate),
+      numberOfCourses: parseInt(instructor.coursecount) || 0,
+      totalStudents: parseInt(instructor.totalstudents) || 0
+    }));
+
+    return {
+      instructors: formattedInstructors,
+      pagination: this.paginationMeta(pageNum, limitNum, total)
+    };
+  }
 }

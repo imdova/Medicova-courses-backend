@@ -182,6 +182,46 @@ export class AdminController {
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  //@RequirePermissions('admin:instructors:detailed-list')
+  @Get('instructors/detailed')
+  @ApiOperation({
+    summary: 'Get all instructors with detailed information including courses and student counts'
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number for pagination (default: 1)'
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of items per page (default: 10)'
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Search term to filter instructors by name or email'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Detailed list of instructors retrieved successfully',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal server error',
+  })
+  async getAllInstructorsDetailed(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('search') search?: string,
+  ): Promise<any> {
+    return this.adminService.getAllInstructorsDetailed(page, limit, search);
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('admin:students:overview')
   @Get('students/overview')
   @ApiOperation({ summary: 'Get total students, courses, enrollments, and time-series data for the dashboard.' })
