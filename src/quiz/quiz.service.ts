@@ -964,70 +964,41 @@ export class QuizService {
 
     const totalQuestions = quiz.quizQuestions?.length || 0;
 
-    // First, let's try a simple count to see if the basic query works
-    const simpleStats = await this.attemptRepo
-      .createQueryBuilder('attempt')
-      .select('COUNT(attempt.id)', 'totalattempts')
-      .where('attempt.quiz_id = :quizId', { quizId })
-      .getRawOne();
-
-    console.log('Simple stats:', simpleStats);
-
-    // Now let's try the full query with simpler column names
-    const statsQuery = this.attemptRepo
+    // Single optimized query to get all statistics
+    const stats = await this.attemptRepo
       .createQueryBuilder('attempt')
       .leftJoin('attempt.courseStudent', 'courseStudent')
-      .leftJoin('courseStudent.student', 'student')
       .select([
         'COUNT(attempt.id) as total_attempts',
         'AVG(attempt.score) as avg_score',
         'AVG(attempt.timeTaken) as avg_time',
+        'COUNT(CASE WHEN attempt.passed = true THEN 1 END) as passed_attempts',
+        'COUNT(DISTINCT courseStudent.student_id) as unique_students',
+        // For JSON completion check, we'll use a subquery approach
       ])
-      .where('attempt.quiz_id = :quizId', { quizId });
-
-    // Passed attempts: where "passed" column is true
-    const passedAttemptsQuery = this.attemptRepo
-      .createQueryBuilder('attempt')
-      .select('COUNT(attempt.id)', 'passed_attempts')
       .where('attempt.quiz_id = :quizId', { quizId })
-      .andWhere('attempt.passed = :passed', { passed: true });
+      .getRawOne();
 
-    // For JSON column type, we need to use json_array_length (not jsonb_array_length)
-    // But let's use a safer approach - get all attempts and filter in JavaScript
-    const allAttempts = await this.attemptRepo.find({
-      where: { quiz: { id: quizId } },
-      select: ['id', 'answers']
-    });
-
-    // Count completed attempts in JavaScript (where answers length = total questions)
-    const completedAttemptsNum = allAttempts.filter(attempt =>
-      attempt.answers && Array.isArray(attempt.answers) && attempt.answers.length === totalQuestions
-    ).length;
-
-    // Count unique students
-    const uniqueStudentsQuery = this.attemptRepo
+    // Get completed attempts count separately using a more efficient approach
+    // Instead of loading all attempts, we'll use a count query with JSON parsing
+    const completedAttemptsQuery = await this.attemptRepo
       .createQueryBuilder('attempt')
-      .leftJoin('attempt.courseStudent', 'courseStudent')
-      .select('COUNT(DISTINCT courseStudent.student_id)', 'unique_students')
-      .where('attempt.quiz_id = :quizId', { quizId });
-
-    // Execute remaining queries in parallel
-    const [
-      basicStats,
-      passedStats,
-      uniqueStudentsStats
-    ] = await Promise.all([
-      statsQuery.getRawOne(),
-      passedAttemptsQuery.getRawOne(),
-      uniqueStudentsQuery.getRawOne()
-    ]);
+      .select('COUNT(attempt.id)', 'completed_attempts')
+      .where('attempt.quiz_id = :quizId', { quizId })
+      .andWhere(`(
+      -- For PostgreSQL JSON columns, we can use json_array_length
+      -- This is more efficient than loading all data into memory
+      SELECT json_array_length(attempt.answers) = :totalQuestions
+    )`, { totalQuestions })
+      .getRawOne();
 
     // Extract values with proper fallbacks
-    const totalAttemptsNum = Number(basicStats?.total_attempts) || 0;
-    const avgScore = basicStats?.avg_score || 0;
-    const avgTime = basicStats?.avg_time || 0;
-    const passedAttemptsNum = Number(passedStats?.passed_attempts) || 0;
-    const totalStudents = Number(uniqueStudentsStats?.unique_students) || 0;
+    const totalAttemptsNum = Number(stats?.total_attempts) || 0;
+    const avgScore = stats?.avg_score || 0;
+    const avgTime = stats?.avg_time || 0;
+    const passedAttemptsNum = Number(stats?.passed_attempts) || 0;
+    const totalStudents = Number(stats?.unique_students) || 0;
+    const completedAttemptsNum = Number(completedAttemptsQuery?.completed_attempts) || 0;
 
     // Calculate rates
     const passRate = totalAttemptsNum > 0 ? (passedAttemptsNum / totalAttemptsNum) * 100 : 0;
