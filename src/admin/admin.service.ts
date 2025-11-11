@@ -1670,6 +1670,8 @@ export class AdminService {
           'profile.firstName',
           'profile.lastName',
           'profile.phoneNumber',
+          'profile.photoUrl',
+          'profile.metadata',
           'profile.country',
           'profile.city'
         ])
@@ -1716,6 +1718,8 @@ export class AdminService {
       name: `${instructor.profile?.firstName || ''} ${instructor.profile?.lastName || ''}`.trim() || 'N/A',
       email: instructor.email,
       phone: instructor.profile?.phoneNumber || 'N/A',
+      photoUrl: instructor.profile?.photoUrl || null,
+      metaData: instructor.profile?.metadata || null,
       country: instructor.profile?.country || 'N/A',
       city: instructor.profile?.city || 'N/A',
       joinDate: this.formatDate(instructor.created_at),
