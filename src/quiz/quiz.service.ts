@@ -1107,4 +1107,56 @@ export class QuizService {
       status: (row.has_passed === true || row.has_passed === 'true') ? 'Passed' : 'Failed',
     }));
   }
+
+  async getQuizAttempts(quizId: string): Promise<any[]> {
+    // First verify the quiz exists
+    const quiz = await this.quizRepo.findOne({
+      where: { id: quizId },
+    });
+
+    if (!quiz) {
+      throw new NotFoundException(`Quiz with ID ${quizId} not found`);
+    }
+
+    // Get all attempts with student details
+    const attempts = await this.attemptRepo
+      .createQueryBuilder('attempt')
+      .leftJoin('attempt.courseStudent', 'courseStudent')
+      .leftJoin('courseStudent.student', 'student')
+      .leftJoin('student.profile', 'profile')
+      .select([
+        'attempt.id as attempt_id',
+        'student.id as student_id',
+        'student.email as email',
+        'profile.firstName as first_name',
+        'profile.lastName as last_name',
+        'attempt.score as score',
+        'attempt.timeTaken as time_taken',
+        'attempt.passed as passed',
+        'attempt.created_at as submission_date',
+        // We'll calculate attempt number using a window function
+        `ROW_NUMBER() OVER (PARTITION BY student.id ORDER BY attempt.created_at) as attempt_number`
+      ])
+      .where('attempt.quiz_id = :quizId', { quizId })
+      .orderBy('student.email', 'ASC')
+      .addOrderBy('attempt.created_at', 'ASC')
+      .getRawMany();
+
+    // Transform to the response format
+    return attempts.map((row: any) => ({
+      attemptId: row.attempt_id,
+      studentId: row.student_id,
+      studentName: `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'Unknown',
+      email: row.email,
+      attemptNumber: parseInt(row.attempt_number) || 1,
+      score: parseFloat(row.score) || 0,
+      timeTaken: parseFloat(row.time_taken) || 0,
+      status: row.passed ? 'Passed' : 'Failed',
+      submissionDate: row.submission_date,
+      // Additional formatted fields for export
+      formattedScore: `${parseFloat(row.score) || 0}%`,
+      formattedTime: row.time_taken ? `${parseFloat(row.time_taken)} minutes` : 'N/A',
+      formattedDate: new Date(row.submission_date).toLocaleDateString(),
+    }));
+  }
 }

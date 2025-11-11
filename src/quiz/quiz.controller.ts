@@ -306,6 +306,23 @@ export class QuizController {
     return this.quizService.getQuizStudents(quizId);
   }
 
+  @Get(':quizId/attempts')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  //@RequirePermissions('quiz:attempts')
+  @ApiOperation({
+    summary: 'Get all attempts for a quiz',
+    description: 'Returns all attempts with student details (no pagination - for export)'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of all quiz attempts with student details',
+  })
+  async getQuizAttempts(
+    @Param('quizId') quizId: string,
+  ): Promise<any[]> {
+    return this.quizService.getQuizAttempts(quizId);
+  }
+
   @Patch(':id')
   @RequirePermissions('quiz:update')
   @ApiOperation({ summary: 'Update quiz by ID' })
