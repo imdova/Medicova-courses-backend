@@ -222,6 +222,20 @@ export class AdminController {
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  //@RequirePermissions('admin:instructors:overview')
+  @Get('instructors/overview')
+  @ApiOperation({
+    summary: 'Get instructor overview statistics including total instructors, courses, and enrollments'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Instructor overview statistics retrieved successfully',
+  })
+  async getInstructorOverview(): Promise<any> {
+    return this.adminService.getInstructorOverview();
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('admin:students:overview')
   @Get('students/overview')
   @ApiOperation({ summary: 'Get total students, courses, enrollments, and time-series data for the dashboard.' })

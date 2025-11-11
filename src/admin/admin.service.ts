@@ -1732,4 +1732,41 @@ export class AdminService {
       pagination: this.paginationMeta(pageNum, limitNum, total)
     };
   }
+
+  async getInstructorOverview(): Promise<any> {
+    const instructorRoleId = await this.getRoleId('instructor');
+
+    if (!instructorRoleId) {
+      return {
+        totalInstructors: 0,
+        totalCourses: 0,
+        totalEnrollments: 0
+      };
+    }
+
+    // Execute all counts in parallel
+    const [totalInstructors, totalCourses, totalEnrollments] = await Promise.all([
+      // Total instructors
+      this.userRepository.count({
+        where: { role: { id: instructorRoleId } }
+      }),
+
+      // Total published and active courses
+      this.courseRepository.count({
+        where: {
+          status: CourseStatus.PUBLISHED,
+          isActive: true
+        }
+      }),
+
+      // Total enrollments across all courses
+      this.courseStudentRepo.count()
+    ]);
+
+    return {
+      totalInstructors,
+      totalCourses,
+      totalEnrollments
+    };
+  }
 }
