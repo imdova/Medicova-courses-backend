@@ -729,6 +729,7 @@ export class QuizService {
     return {
       id: quiz.id,
       title: quiz.title,
+      retakes: quiz.retakes,
       passingScore: quiz.passing_score,
       answerTime: quiz.answer_time,
       instructor: quiz.instructor?.profile
@@ -944,5 +945,152 @@ export class QuizService {
         }
         : null,
     }));
+  }
+
+  async getQuizAdminOverview(quizId: string) {
+    const quiz = await this.quizRepo.findOne({
+      where: { id: quizId },
+      relations: [
+        'quizQuestions',
+        'quizQuestions.question',
+        'instructor',
+        'instructor.profile',
+      ],
+    });
+
+    if (!quiz) {
+      throw new NotFoundException(`Quiz with ID ${quizId} not found`);
+    }
+
+    const totalQuestions = quiz.quizQuestions?.length || 0;
+
+    // First, let's try a simple count to see if the basic query works
+    const simpleStats = await this.attemptRepo
+      .createQueryBuilder('attempt')
+      .select('COUNT(attempt.id)', 'totalattempts')
+      .where('attempt.quiz_id = :quizId', { quizId })
+      .getRawOne();
+
+    console.log('Simple stats:', simpleStats);
+
+    // Now let's try the full query with simpler column names
+    const statsQuery = this.attemptRepo
+      .createQueryBuilder('attempt')
+      .leftJoin('attempt.courseStudent', 'courseStudent')
+      .leftJoin('courseStudent.student', 'student')
+      .select([
+        'COUNT(attempt.id) as total_attempts',
+        'AVG(attempt.score) as avg_score',
+        'AVG(attempt.timeTaken) as avg_time',
+      ])
+      .where('attempt.quiz_id = :quizId', { quizId });
+
+    // Passed attempts: where "passed" column is true
+    const passedAttemptsQuery = this.attemptRepo
+      .createQueryBuilder('attempt')
+      .select('COUNT(attempt.id)', 'passed_attempts')
+      .where('attempt.quiz_id = :quizId', { quizId })
+      .andWhere('attempt.passed = :passed', { passed: true });
+
+    // For JSON column type, we need to use json_array_length (not jsonb_array_length)
+    // But let's use a safer approach - get all attempts and filter in JavaScript
+    const allAttempts = await this.attemptRepo.find({
+      where: { quiz: { id: quizId } },
+      select: ['id', 'answers']
+    });
+
+    // Count completed attempts in JavaScript (where answers length = total questions)
+    const completedAttemptsNum = allAttempts.filter(attempt =>
+      attempt.answers && Array.isArray(attempt.answers) && attempt.answers.length === totalQuestions
+    ).length;
+
+    // Count unique students
+    const uniqueStudentsQuery = this.attemptRepo
+      .createQueryBuilder('attempt')
+      .leftJoin('attempt.courseStudent', 'courseStudent')
+      .select('COUNT(DISTINCT courseStudent.student_id)', 'unique_students')
+      .where('attempt.quiz_id = :quizId', { quizId });
+
+    // Execute remaining queries in parallel
+    const [
+      basicStats,
+      passedStats,
+      uniqueStudentsStats
+    ] = await Promise.all([
+      statsQuery.getRawOne(),
+      passedAttemptsQuery.getRawOne(),
+      uniqueStudentsQuery.getRawOne()
+    ]);
+
+    // Extract values with proper fallbacks
+    const totalAttemptsNum = Number(basicStats?.total_attempts) || 0;
+    const avgScore = basicStats?.avg_score || 0;
+    const avgTime = basicStats?.avg_time || 0;
+    const passedAttemptsNum = Number(passedStats?.passed_attempts) || 0;
+    const totalStudents = Number(uniqueStudentsStats?.unique_students) || 0;
+
+    // Calculate rates
+    const passRate = totalAttemptsNum > 0 ? (passedAttemptsNum / totalAttemptsNum) * 100 : 0;
+    const completionRate = totalAttemptsNum > 0 ? (completedAttemptsNum / totalAttemptsNum) * 100 : 0;
+
+    // Get question order type
+    const questionOrder = quiz.randomize_questions ? 'random' : 'fixed';
+
+    // Get feedback type
+    const feedbackType = quiz.immediate_feedback ? 'immediate' : 'delayed';
+
+    return {
+      // Basic Quiz Info
+      id: quiz.id,
+      title: quiz.title,
+      status: quiz.status,
+      instructions: quiz.instructions,
+
+      // Quiz Settings
+      timeLimit: quiz.answer_time,
+      timeLimitType: quiz.answer_time_type,
+      retakes: quiz.retakes,
+      passingScore: quiz.passing_score,
+      questionOrder: questionOrder,
+      feedbackType: feedbackType,
+      randomizeAnswers: quiz.randomize_answers,
+      attemptMode: quiz.attempt_mode,
+      availability: quiz.availability,
+      startDate: quiz.start_date,
+      endDate: quiz.end_date,
+
+      // Questions Information
+      totalQuestions: totalQuestions,
+      questions: quiz.quizQuestions?.map((qq) => ({
+        id: qq.question.id,
+        text: qq.question.text,
+        type: qq.question.type,
+        imageUrl: qq.question.image_url,
+        points: qq.question.points,
+        explanation: qq.question.explanation,
+        order: qq.order,
+        answers: qq.question.answers || [],
+      })) || [],
+
+      // Instructor Information
+      instructor: quiz.instructor?.profile
+        ? {
+          id: quiz.instructor.id,
+          firstName: quiz.instructor.profile.firstName,
+          lastName: quiz.instructor.profile.lastName,
+          fullName: `${quiz.instructor.profile.firstName} ${quiz.instructor.profile.lastName}`,
+          email: quiz.instructor.email,
+          photoUrl: quiz.instructor.profile.photoUrl,
+        }
+        : null,
+
+      // Statistics
+      totalAttempts: totalAttemptsNum,
+      totalStudents: totalStudents,
+      averageScore: avgScore ? parseFloat(avgScore).toFixed(2) : '0.00',
+      averageTimeTaken: avgTime ? parseFloat(avgTime).toFixed(2) : '0.00',
+      completionRate: parseFloat(completionRate.toFixed(2)),
+      passRate: parseFloat(passRate.toFixed(2)),
+    };
   }
 }

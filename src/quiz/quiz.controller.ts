@@ -11,7 +11,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { QuizService } from './quiz.service';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
@@ -24,6 +24,7 @@ import { PermissionsGuard } from '../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 import { UpdateQuizWithQuestionsDto } from './dto/update-quiz-with-questions.dto';
 
+@ApiBearerAuth('access_token')
 @ApiTags('Quizzes')
 @Controller('quizzes')
 @UseGuards(AuthGuard('jwt'), PermissionsGuard)
@@ -278,6 +279,14 @@ export class QuizController {
   @ApiResponse({ status: 200, description: 'Quiz overview with stats' })
   async getQuizOverview(@Param('quizId') quizId: string) {
     return this.quizService.getQuizOverview(quizId);
+  }
+
+  @Get(':quizId/admin-overview')
+  @RequirePermissions('quiz:overview')
+  @ApiOperation({ summary: 'Get quiz overview' })
+  @ApiResponse({ status: 200, description: 'Quiz overview with stats' })
+  async getQuizAdminOverview(@Param('quizId') quizId: string) {
+    return this.quizService.getQuizAdminOverview(quizId);
   }
 
   @Patch(':id')
