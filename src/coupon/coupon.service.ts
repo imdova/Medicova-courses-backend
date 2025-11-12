@@ -334,26 +334,44 @@ export class CouponService {
     await this.couponRepository.softRemove(coupon);
   }
 
-  async checkCouponEligibility(couponCode: string, courseId: string) {
-    if (!couponCode || !courseId) {
+  async checkCouponEligibility(couponCode: string, courseIdsParam: string) {
+    if (!couponCode || !courseIdsParam) {
       throw new HttpException(
-        'couponCode and courseId are required',
+        'couponCode and courseIds are required',
         HttpStatus.BAD_REQUEST,
       );
     }
 
+    // Parse course IDs from comma-separated string
+    const courseIds = courseIdsParam.split(',').map(id => id.trim()).filter(id => id);
+
+    if (courseIds.length === 0) {
+      throw new HttpException(
+        'At least one valid course ID is required',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Remove duplicates
+    const uniqueCourseIds = [...new Set(courseIds)];
+
+    // Find coupon
     const coupon = await this.couponRepository.findOne({
-      where: { code: couponCode },
+      where: { code: couponCode }
     });
 
     if (!coupon) {
       throw new HttpException('Coupon not found', HttpStatus.NOT_FOUND);
     }
 
-    const isValid = Array.isArray(coupon.course_ids) && coupon.course_ids.includes(courseId);
+    // Check eligibility for each course
+    const results = uniqueCourseIds.map(courseId => {
+      const isValid = Array.isArray(coupon.course_ids) && coupon.course_ids.includes(courseId);
+      return { id: courseId, isValid };
+    });
 
     return {
-      isValid,
+      success: true,
       coupon: {
         code: coupon.code,
         discountType: coupon.offer_type,
@@ -361,6 +379,7 @@ export class CouponService {
         applicableFor: coupon.applicable_for,
         allowedCourses: coupon.course_ids ?? [],
       },
+      results
     };
   }
 
