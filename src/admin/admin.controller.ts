@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiParam, ApiBody, ApiOkResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { PermissionsGuard } from 'src/auth/permission.guard';
@@ -461,6 +461,30 @@ export class AdminController {
       startDate,
       endDate,
     );
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:students:get')
+  @Get('students/:id/overview')
+  @ApiOperation({
+    summary: 'Get detailed overview for a single student including profile, enrollments, and recent courses'
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'UUID of the student'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Student overview retrieved successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Student not found',
+  })
+  async getOneStudentOverview(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<any> {
+    return this.adminService.getOneStudentOverview(id);
   }
 
   // -----------------------------------------------------------------

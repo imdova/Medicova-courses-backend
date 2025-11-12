@@ -1769,4 +1769,208 @@ export class AdminService {
       totalEnrollments
     };
   }
+
+  async getOneStudentOverview(studentId: string): Promise<any> {
+    // ✅ OPTIMIZATION 1: Single query with all needed relations
+    const student = await this.userRepository.findOne({
+      where: {
+        id: studentId,
+        role: { name: 'student' }
+      },
+      relations: [
+        'profile',
+        'profile.category',
+        'profile.speciality'
+      ],
+      select: {
+        id: true,
+        email: true,
+        isEmailVerified: true,
+        isIdentityVerified: true,
+        isVerified: true,
+        created_at: true,
+        profile: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          userName: true,
+          phoneNumber: true,
+          dateOfBirth: true,
+          gender: true,
+          country: true,
+          state: true,
+          city: true,
+          photoUrl: true,
+          resumePath: true,
+          isPublic: true,
+          completionPercentage: true,
+          metadata: true,
+        }
+      }
+    });
+
+    if (!student) {
+      throw new NotFoundException('Student not found');
+    }
+
+    // ✅ OPTIMIZATION 2: Combine enrollment stats and recent courses in ONE optimized query
+    // This replaces the separate count() and find() queries
+    const enrollmentsQuery = this.courseStudentRepo
+      .createQueryBuilder('enrollment')
+      .leftJoinAndSelect('enrollment.course', 'course')
+      .leftJoin('course.instructor', 'instructor')
+      .leftJoin('instructor.profile', 'instructorProfile')
+      .addSelect([
+        'instructor.id',
+        'instructorProfile.id',
+        'instructorProfile.firstName',
+        'instructorProfile.lastName'
+      ])
+      .leftJoin('course.category', 'category')
+      .addSelect(['category.id', 'category.name'])
+      .where('enrollment.student_id = :studentId', { studentId })
+      .orderBy('enrollment.created_at', 'DESC');
+
+    // ✅ OPTIMIZATION 3: Get total count and recent enrollments in parallel
+    const [totalEnrollments, recentEnrollments] = await Promise.all([
+      enrollmentsQuery.getCount(),
+      enrollmentsQuery
+        .take(5)
+        .getMany()
+    ]);
+
+    // ✅ OPTIMIZATION 4: Only fetch progress if there are enrollments
+    let progressData = [];
+    let itemCountsMap = new Map();
+
+    if (recentEnrollments.length > 0) {
+      const enrollmentIds = recentEnrollments.map(e => e.id);
+
+      // Get progress data only for recent enrollments (not all)
+      [progressData, itemCountsMap] = await Promise.all([
+        // Progress data
+        this.progressRepo
+          .createQueryBuilder('progress')
+          .select('progress.course_student_id', 'enrollmentId')
+          .addSelect('COUNT(progress.id)', 'totalProgress')
+          .addSelect('SUM(CASE WHEN progress.completed = true THEN 1 ELSE 0 END)', 'completedProgress')
+          .where('progress.course_student_id IN (:...enrollmentIds)', { enrollmentIds })
+          .groupBy('progress.course_student_id')
+          .getRawMany(),
+
+        // ✅ OPTIMIZATION 5: Get item counts efficiently using a subquery
+        // Instead of loading all sections and items, count them directly
+        this.getItemCountsForCourses(recentEnrollments.map(e => e.course.id))
+      ]);
+    }
+
+    // ✅ OPTIMIZATION 6: Get completed courses count efficiently
+    const completedCoursesCount = await this.progressRepo
+      .createQueryBuilder('progress')
+      .select('progress.course_student_id', 'enrollmentId')
+      .addSelect('COUNT(progress.id)', 'total')
+      .addSelect('SUM(CASE WHEN progress.completed = true THEN 1 ELSE 0 END)', 'completed')
+      .innerJoin('progress.courseStudent', 'enrollment')
+      .where('enrollment.student_id = :studentId', { studentId })
+      .groupBy('progress.course_student_id')
+      .having('COUNT(progress.id) > 0')
+      .andHaving('SUM(CASE WHEN progress.completed = true THEN 1 ELSE 0 END) >= COUNT(progress.id)')
+      .getRawMany()
+      .then(results => results.length);
+
+    // ✅ OPTIMIZATION 7: Create progress map (O(n) lookup)
+    const progressMap = new Map();
+    progressData.forEach(item => {
+      const total = parseInt(item.totalProgress) || 0;
+      const completed = parseInt(item.completedProgress) || 0;
+      const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+      progressMap.set(item.enrollmentId, { progress, completed, total });
+    });
+
+    // ✅ OPTIMIZATION 8: Calculate age only if needed
+    const age = student.profile?.dateOfBirth
+      ? Math.floor((Date.now() - new Date(student.profile.dateOfBirth).getTime()) / 31557600000) // More accurate year calculation
+      : null;
+
+    // ✅ OPTIMIZATION 9: Format recent courses (simplified)
+    const recentCourses = recentEnrollments.map(enrollment => {
+      const progressInfo = progressMap.get(enrollment.id) || { progress: 0, completed: 0, total: 0 };
+      const totalItems = itemCountsMap.get(enrollment.course.id) || 0;
+
+      return {
+        id: enrollment.course.id,
+        name: enrollment.course.name,
+        thumbnail: enrollment.course.courseImage,
+        instructor: enrollment.course.instructor?.profile
+          ? `${enrollment.course.instructor.profile.firstName || ''} ${enrollment.course.instructor.profile.lastName || ''}`.trim() || 'N/A'
+          : 'N/A',
+        category: enrollment.course.category?.name,
+        enrollmentDate: enrollment.created_at,
+        status: enrollment.course.status,
+        progress: progressInfo.progress,
+        completedItems: progressInfo.completed,
+        totalItems: totalItems,
+        lastActivity: enrollment.updated_at,
+      };
+    });
+
+    // ✅ OPTIMIZATION 10: Simplified response structure
+    return {
+      student: {
+        id: student.id,
+        email: student.email,
+        isEmailVerified: student.isEmailVerified,
+        isIdentityVerified: student.isIdentityVerified,
+        isVerified: student.isVerified,
+        createdAt: student.created_at,
+        profile: student.profile ? {
+          firstName: student.profile.firstName,
+          lastName: student.profile.lastName,
+          fullName: `${student.profile.firstName || ''} ${student.profile.lastName || ''}`.trim(),
+          userName: student.profile.userName,
+          phoneNumber: student.profile.phoneNumber,
+          dateOfBirth: student.profile.dateOfBirth,
+          age,
+          gender: student.profile.gender,
+          country: student.profile.country,
+          state: student.profile.state,
+          city: student.profile.city,
+          photoUrl: student.profile.photoUrl,
+          resumePath: student.profile.resumePath,
+          isPublic: student.profile.isPublic,
+          completionPercentage: student.profile.completionPercentage,
+          category: student.profile.category,
+          speciality: student.profile.speciality,
+          metadata: student.profile.metadata,
+        } : null
+      },
+      statistics: {
+        totalEnrollments,
+        completedCourses: completedCoursesCount,
+      },
+      recentCourses,
+    };
+  }
+
+  // ✅ OPTIMIZATION 11: Helper method to get item counts efficiently
+  private async getItemCountsForCourses(courseIds: string[]): Promise<Map<string, number>> {
+    if (courseIds.length === 0) return new Map();
+
+    const results = await this.courseRepository
+      .createQueryBuilder('course')
+      .select('course.id', 'courseId')
+      .addSelect('COUNT(item.id)', 'itemCount')
+      .leftJoin('course.sections', 'section')
+      .leftJoin('section.items', 'item')
+      .where('course.id IN (:...courseIds)', { courseIds })
+      .groupBy('course.id')
+      .getRawMany();
+
+    const itemCountsMap = new Map<string, number>();
+    results.forEach(result => {
+      itemCountsMap.set(result.courseId, parseInt(result.itemCount) || 0);
+    });
+
+    return itemCountsMap;
+  }
 }
