@@ -112,6 +112,59 @@ export class BundleController {
     );
   }
 
+  @Get('course/:courseId')
+  @ApiOperation({
+    summary: 'Get all bundles that include a specific course (Public endpoint)'
+  })
+  @ApiParam({
+    name: 'courseId',
+    description: 'UUID of the course to find bundles for'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of bundles containing the specified course',
+    schema: {
+      example: [
+        {
+          "id": "0acc0660-c955-4113-a261-f24bbd7d33f5",
+          "title": "this is me bundle",
+          "slug": "this-is-me-bundle",
+          "description": "<p>this is my bundle description </p>",
+          "thumbnail_url": "https://example.com/images/bundle-thumb.jpg",
+          "is_free": false,
+          "status": "draft",
+          "active": true,
+          "number_of_purchases": 0,
+          "revenue": 0,
+          "pricings": [
+            {
+              "id": "a6f72689-44a0-4b99-bd8b-4954862de9e7",
+              "currency_code": "EGP",
+              "regular_price": 1585,
+              "sale_price": 951,
+              "discount_amount": 40,
+              "discount_enabled": true,
+              "is_active": true
+            }
+          ],
+          "courseBundles": [
+            {
+              "id": "c51dd602-4313-494d-8278-a6cbe37c221b",
+              "course": {
+                // full course data
+              }
+            }
+          ]
+        }
+      ]
+    }
+  })
+  async getBundlesByCourse(
+    @Param('courseId', ParseUUIDPipe) courseId: string
+  ): Promise<Bundle[]> {
+    return this.bundleService.findBundlesByCourse(courseId);
+  }
+
   @Get(':id')
   @RequirePermissions('bundle:get')
   @ApiOperation({ summary: 'Get a single bundle by ID' })
