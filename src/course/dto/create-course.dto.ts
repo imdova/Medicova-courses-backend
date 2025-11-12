@@ -122,14 +122,14 @@ export class CreateCourseDto {
   endDate?: string;
 
   // ----- 🆕 New fields -----
-  @ApiProperty({
-    description:
-      'Determines whether global or platform-level coupons can be applied to this program.',
-    example: true,
-    default: true,
-  })
-  @IsBoolean()
-  allowPlatformCoupons: boolean;
+  // @ApiProperty({
+  //   description:
+  //     'Determines whether global or platform-level coupons can be applied to this program.',
+  //   example: true,
+  //   default: true,
+  // })
+  // @IsBoolean()
+  // allowPlatformCoupons: boolean;
 
   @ApiProperty({
     description: 'Defines the type or category of the program.',
