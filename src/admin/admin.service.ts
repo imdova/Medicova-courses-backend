@@ -1769,4 +1769,100 @@ export class AdminService {
       totalEnrollments
     };
   }
+
+  async getOneStudentOverview(studentId: string): Promise<any> {
+    // Get student with profile and basic info
+    const student = await this.userRepository.findOne({
+      where: {
+        id: studentId,
+        role: { name: 'student' }
+      },
+      relations: [
+        'profile',
+        'profile.category',
+        'profile.speciality'
+      ],
+    });
+
+    if (!student) {
+      throw new NotFoundException('Student not found');
+    }
+
+    // Get enrollment stats and recent courses in parallel
+    const [enrollmentStats, recentEnrollments] = await Promise.all([
+      // Get total enrollments count
+      this.courseStudentRepo.count({
+        where: { student: { id: studentId } }
+      }),
+
+      // Get recent enrolled courses (last 5)
+      this.courseStudentRepo.find({
+        where: { student: { id: studentId } },
+        relations: [
+          'course',
+          'course.instructor',
+          'course.instructor.profile',
+          'course.category',
+          'course.pricings'
+        ],
+        order: { created_at: 'DESC' },
+        take: 5,
+      })
+    ]);
+
+    // Calculate age from date of birth
+    const age = student.profile?.dateOfBirth
+      ? Math.floor((new Date().getTime() - new Date(student.profile.dateOfBirth).getTime()) / 3.15576e+10)
+      : null;
+
+    // Format recent courses
+    const recentCourses = recentEnrollments.map(enrollment => ({
+      id: enrollment.course?.id,
+      name: enrollment.course?.name,
+      thumbnail: enrollment.course?.courseImage,
+      instructor: enrollment.course?.instructor?.profile
+        ? `${enrollment.course.instructor.profile.firstName || ''} ${enrollment.course.instructor.profile.lastName || ''}`.trim()
+        : 'N/A',
+      category: enrollment.course?.category?.name,
+      price: enrollment.course?.pricings?.[0]?.salePrice || 0,
+      enrollmentDate: enrollment.created_at,
+      status: enrollment.course?.status,
+    }));
+
+    return {
+      student: {
+        id: student.id,
+        email: student.email,
+        isEmailVerified: student.isEmailVerified,
+        isIdentityVerified: student.isIdentityVerified,
+        isVerified: student.isVerified,
+        createdAt: student.created_at,
+        profile: {
+          firstName: student.profile?.firstName,
+          lastName: student.profile?.lastName,
+          fullName: `${student.profile?.firstName || ''} ${student.profile?.lastName || ''}`.trim(),
+          userName: student.profile?.userName,
+          phoneNumber: student.profile?.phoneNumber,
+          dateOfBirth: student.profile?.dateOfBirth,
+          resumePath: student.profile?.resumePath,
+          age: age,
+          gender: student.profile?.gender,
+          country: student.profile?.country,
+          state: student.profile?.state,
+          city: student.profile?.city,
+          photoUrl: student.profile?.photoUrl,
+          isPublic: student.profile?.isPublic,
+          completionPercentage: student.profile?.completionPercentage,
+          category: student.profile?.category,
+          speciality: student.profile?.speciality,
+          metadata: student.profile?.metadata,
+        }
+      },
+      statistics: {
+        totalEnrollments: enrollmentStats,
+        recentEnrollments: recentEnrollments.length,
+      },
+      recentCourses,
+    };
+  }
 }
