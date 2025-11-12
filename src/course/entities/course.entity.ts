@@ -126,13 +126,13 @@ export class Course extends BasicEntity {
   @Column({ type: 'date', nullable: true, name: 'end_date' })
   endDate?: string;
 
-  @ApiProperty({
-    description:
-      'Determines whether global or platform-level coupons can be applied to this program.',
-    default: true,
-  })
-  @Column({ default: true, name: 'allow_platform_coupons' })
-  allowPlatformCoupons: boolean;
+  // @ApiProperty({
+  //   description:
+  //     'Determines whether global or platform-level coupons can be applied to this program.',
+  //   default: true,
+  // })
+  // @Column({ default: true, name: 'allow_platform_coupons' })
+  // allowPlatformCoupons: boolean;
 
   @ApiProperty({
     description: 'Defines the type or category of the program.',

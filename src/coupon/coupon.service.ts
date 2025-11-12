@@ -174,14 +174,14 @@ export class CouponService {
       );
     }
 
-    const disallowedCourses = await this.findCoursesDisallowingCoupons(courseIds);
-    if (disallowedCourses.length > 0) {
-      const names = disallowedCourses.map((c) => c.name).join(', ');
-      throw new HttpException(
-        `The following courses do not allow coupons: ${names}`,
-        HttpStatus.BAD_REQUEST,
-      );
-    }
+    // const disallowedCourses = await this.findCoursesDisallowingCoupons(courseIds);
+    // if (disallowedCourses.length > 0) {
+    //   const names = disallowedCourses.map((c) => c.name).join(', ');
+    //   throw new HttpException(
+    //     `The following courses do not allow coupons: ${names}`,
+    //     HttpStatus.BAD_REQUEST,
+    //   );
+    // }
 
     try {
       const coupon = this.couponRepository.create({
@@ -400,17 +400,17 @@ export class CouponService {
    * Find all courses among a given list that do NOT allow platform coupons.
    * Used to validate coupon applicability.
    */
-  async findCoursesDisallowingCoupons(courseIds: string[]): Promise<Course[]> {
-    if (!courseIds.length) return [];
+  // async findCoursesDisallowingCoupons(courseIds: string[]): Promise<Course[]> {
+  //   if (!courseIds.length) return [];
 
-    return this.courseRepository.find({
-      where: {
-        id: In(courseIds),
-        allowPlatformCoupons: false,
-      },
-      select: ['id', 'name'],
-    });
-  }
+  //   return this.courseRepository.find({
+  //     where: {
+  //       id: In(courseIds),
+  //       allowPlatformCoupons: false,
+  //     },
+  //     select: ['id', 'name'],
+  //   });
+  // }
 
   /**
  * Find any courses that do not belong to the given instructor.
