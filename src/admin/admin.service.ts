@@ -1771,7 +1771,6 @@ export class AdminService {
   }
 
   async getOneStudentOverview(studentId: string): Promise<any> {
-    // Get student with profile and basic info
     const student = await this.userRepository.findOne({
       where: {
         id: studentId,
@@ -1788,14 +1787,12 @@ export class AdminService {
       throw new NotFoundException('Student not found');
     }
 
-    // Get enrollment stats and recent courses in parallel
-    const [enrollmentStats, recentEnrollments] = await Promise.all([
-      // Get total enrollments count
+    // Get enrollment stats, recent enrollments, and progress data in parallel
+    const [enrollmentStats, recentEnrollments, progressData] = await Promise.all([
       this.courseStudentRepo.count({
         where: { student: { id: studentId } }
       }),
 
-      // Get recent enrolled courses (last 5)
       this.courseStudentRepo.find({
         where: { student: { id: studentId } },
         relations: [
@@ -1803,31 +1800,65 @@ export class AdminService {
           'course.instructor',
           'course.instructor.profile',
           'course.category',
-          'course.pricings'
+          'course.sections',
+          'course.sections.items'
         ],
         order: { created_at: 'DESC' },
         take: 5,
-      })
+      }),
+
+      // Get progress data for all enrollments
+      this.progressRepo
+        .createQueryBuilder('progress')
+        .select('courseStudent.id', 'enrollmentId')
+        .addSelect('course.id', 'courseId')
+        .addSelect('COUNT(progress.id)', 'totalProgress')
+        .addSelect('COUNT(CASE WHEN progress.completed = true THEN 1 END)', 'completedProgress')
+        .innerJoin('progress.courseStudent', 'courseStudent')
+        .innerJoin('courseStudent.course', 'course')
+        .innerJoin('progress.item', 'item')
+        .where('courseStudent.student_id = :studentId', { studentId })
+        .groupBy('courseStudent.id')
+        .addGroupBy('course.id')
+        .getRawMany()
     ]);
 
-    // Calculate age from date of birth
+    // Create progress map for quick lookup
+    const progressMap = new Map();
+    progressData.forEach(item => {
+      const total = parseInt(item.totalProgress) || 0;
+      const completed = parseInt(item.completedProgress) || 0;
+      const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+      progressMap.set(item.enrollmentId, { progress, completed, total });
+    });
+
+    // Calculate age
     const age = student.profile?.dateOfBirth
       ? Math.floor((new Date().getTime() - new Date(student.profile.dateOfBirth).getTime()) / 3.15576e+10)
       : null;
 
-    // Format recent courses
-    const recentCourses = recentEnrollments.map(enrollment => ({
-      id: enrollment.course?.id,
-      name: enrollment.course?.name,
-      thumbnail: enrollment.course?.courseImage,
-      instructor: enrollment.course?.instructor?.profile
-        ? `${enrollment.course.instructor.profile.firstName || ''} ${enrollment.course.instructor.profile.lastName || ''}`.trim()
-        : 'N/A',
-      category: enrollment.course?.category?.name,
-      price: enrollment.course?.pricings?.[0]?.salePrice || 0,
-      enrollmentDate: enrollment.created_at,
-      status: enrollment.course?.status,
-    }));
+    // Format recent courses with progress
+    const recentCourses = recentEnrollments.map(enrollment => {
+      const progress = progressMap.get(enrollment.id) || { progress: 0, completed: 0, total: 0 };
+      const totalItems = enrollment.course?.sections?.reduce((sum, section) =>
+        sum + (section.items?.length || 0), 0) || 0;
+
+      return {
+        id: enrollment.course?.id,
+        name: enrollment.course?.name,
+        thumbnail: enrollment.course?.courseImage,
+        instructor: enrollment.course?.instructor?.profile
+          ? `${enrollment.course.instructor.profile.firstName || ''} ${enrollment.course.instructor.profile.lastName || ''}`.trim()
+          : 'N/A',
+        category: enrollment.course?.category?.name,
+        enrollmentDate: enrollment.created_at,
+        status: enrollment.course?.status,
+        progress: progress.progress,
+        completedItems: progress.completed,
+        totalItems: totalItems,
+        lastActivity: enrollment.updated_at,
+      };
+    });
 
     return {
       student: {
@@ -1844,13 +1875,13 @@ export class AdminService {
           userName: student.profile?.userName,
           phoneNumber: student.profile?.phoneNumber,
           dateOfBirth: student.profile?.dateOfBirth,
-          resumePath: student.profile?.resumePath,
           age: age,
           gender: student.profile?.gender,
           country: student.profile?.country,
           state: student.profile?.state,
           city: student.profile?.city,
           photoUrl: student.profile?.photoUrl,
+          resumePath: student.profile?.resumePath,
           isPublic: student.profile?.isPublic,
           completionPercentage: student.profile?.completionPercentage,
           category: student.profile?.category,
@@ -1860,7 +1891,11 @@ export class AdminService {
       },
       statistics: {
         totalEnrollments: enrollmentStats,
-        recentEnrollments: recentEnrollments.length,
+        completedCourses: progressData.filter(item => {
+          const total = parseInt(item.totalProgress) || 0;
+          const completed = parseInt(item.completedProgress) || 0;
+          return total > 0 && completed >= total;
+        }).length,
       },
       recentCourses,
     };
