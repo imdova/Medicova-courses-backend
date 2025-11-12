@@ -291,4 +291,34 @@ export class BundleService {
       throw new ForbiddenException('You cannot access this bundle');
     }
   }
+
+  async findBundlesByCourse(courseId: string): Promise<Bundle[]> {
+    // Validate that the course exists and is not deleted
+    const course = await this.courseRepository.findOne({
+      where: { id: courseId, deleted_at: null },
+      select: ['id'] // We only need to check existence
+    });
+
+    if (!course) {
+      throw new NotFoundException('Course not found');
+    }
+
+    // Find all bundles that contain this course and are active
+    const bundles = await this.bundleRepository
+      .createQueryBuilder('bundle')
+      .leftJoinAndSelect('bundle.pricings', 'pricings')
+      .leftJoinAndSelect('bundle.courseBundles', 'courseBundles')
+      .leftJoinAndSelect('courseBundles.course', 'course')
+      .leftJoinAndSelect('course.category', 'category')
+      .leftJoinAndSelect('course.subCategory', 'subCategory')
+      .leftJoinAndSelect('course.pricings', 'coursePricings')
+      .leftJoinAndSelect('course.sections', 'sections')
+      .where('bundle.deleted_at IS NULL')
+      .andWhere('bundle.active = :active', { active: true })
+      .andWhere('courseBundles.course_id = :courseId', { courseId })
+      .orderBy('bundle.created_at', 'DESC')
+      .getMany();
+
+    return bundles;
+  }
 }
