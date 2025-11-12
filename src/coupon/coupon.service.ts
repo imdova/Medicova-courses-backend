@@ -74,6 +74,8 @@ export class CouponService {
     role: string,
     academyId?: string,
   ): Promise<Coupon> {
+    let categoryId: string | undefined;
+    let subcategoryId: string | undefined;
     let courseIds: string[] = [];
     const createdByAcademy = role.includes('academy') && academyId;
     let finalAcademyId: string | undefined = createdByAcademy ? academyId : undefined;
@@ -104,6 +106,7 @@ export class CouponService {
           );
         }
 
+        categoryId = dto.category_id;
         courseIds = await this.findIdsByCategory(dto.category_id);
         break;
 
@@ -115,6 +118,7 @@ export class CouponService {
           );
         }
 
+        subcategoryId = dto.subcategory_id;
         courseIds = await this.findIdsBySubcategory(dto.subcategory_id);
         break;
 
@@ -189,6 +193,8 @@ export class CouponService {
         academy_id: finalAcademyId,
         created_by: userId,
         course_ids: courseIds,
+        category_id: categoryId,
+        subcategory_id: subcategoryId,
       });
 
       return await this.couponRepository.save(coupon);
@@ -357,12 +363,17 @@ export class CouponService {
 
     // Find coupon
     const coupon = await this.couponRepository.findOne({
-      where: { code: couponCode }
+      where: { code: couponCode },
+      relations: ['category', 'subcategory']
     });
 
     if (!coupon) {
       throw new HttpException('Coupon not found', HttpStatus.NOT_FOUND);
     }
+
+    // Get category/subcategory names from the relations
+    const allowedCategory = coupon.category?.name || null;
+    const allowedSubcategory = coupon.subcategory?.name || null;
 
     // Check eligibility for each course
     const results = uniqueCourseIds.map(courseId => {
@@ -378,6 +389,8 @@ export class CouponService {
         discountValue: coupon.amount,
         applicableFor: coupon.applicable_for,
         allowedCourses: coupon.course_ids ?? [],
+        ...(allowedCategory && { allowedCategory }),
+        ...(allowedSubcategory && { allowedSubcategory }),
       },
       results
     };

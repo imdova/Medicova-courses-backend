@@ -21,6 +21,7 @@ import {
   ApiNotFoundResponse,
   ApiNoContentResponse,
   ApiQuery,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 import { CouponService } from './coupon.service';
 import { CreateCouponDto } from './dto/create-coupon.dto';
@@ -31,6 +32,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { PermissionsGuard } from '../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
+@ApiBearerAuth('access_token')
 @ApiTags('Coupons')
 @Controller('coupons')
 @UseGuards(AuthGuard('jwt'), PermissionsGuard)
