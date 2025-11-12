@@ -20,6 +20,8 @@ import {
   ApiOkResponse,
   ApiNotFoundResponse,
   ApiNoContentResponse,
+  ApiQuery,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 import { CouponService } from './coupon.service';
 import { CreateCouponDto } from './dto/create-coupon.dto';
@@ -30,6 +32,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { PermissionsGuard } from '../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
+@ApiBearerAuth('access_token')
 @ApiTags('Coupons')
 @Controller('coupons')
 @UseGuards(AuthGuard('jwt'), PermissionsGuard)
@@ -73,29 +76,38 @@ export class CouponController {
 
   @Get(':couponCode/check')
   @RequirePermissions('coupon:check_course_eligibility')
-  @ApiOperation({ summary: 'Check if a course is eligible for a given coupon' })
+  @ApiOperation({ summary: 'Check if multiple courses are eligible for a given coupon' })
+  @ApiQuery({
+    name: 'courseIds',
+    required: true,
+    type: String,
+    description: 'Comma-separated list of course IDs'
+  })
   @ApiOkResponse({
-    description: 'Coupon eligibility check result',
+    description: 'Coupon eligibility check result for multiple courses',
     schema: {
       example: {
-        isValid: true,
+        success: true,
         coupon: {
           code: 'WELCOME20',
           discountType: 'percentage',
           discountValue: 20,
           applicableFor: 'category_courses',
           allowedCourses: ['670f91c...', '670f91d...'],
-          allowedCategory: 'UI/UX Design',
-          allowedSubcategory: null,
         },
+        results: [
+          { id: '670f91c', isValid: true },
+          { id: '670f91d', isValid: true },
+          { id: '670f91e', isValid: false }
+        ]
       },
     },
   })
   async checkCouponEligibility(
     @Param('couponCode') couponCode: string,
-    @Query('courseId') courseId: string,
+    @Query('courseIds') courseIds: string,
   ) {
-    return this.couponService.checkCouponEligibility(couponCode, courseId);
+    return this.couponService.checkCouponEligibility(couponCode, courseIds);
   }
 
   @Get(':id')

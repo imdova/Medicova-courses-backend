@@ -1,6 +1,7 @@
 import { BasicEntity } from '../../common/entities/basic.entity';
-import { Entity, Column } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { CourseCategory } from 'src/course/course-category/entities/course-category.entity';
 
 export enum OfferType {
   PERCENTAGE = 'PERCENTAGE',
@@ -119,4 +120,27 @@ export class Coupon extends BasicEntity {
   })
   @Column({ type: 'uuid', nullable: true })
   academy_id: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Category ID for category-based coupons',
+    format: 'uuid',
+  })
+  @Column({ type: 'uuid', name: 'category_id', nullable: true })
+  category_id: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Subcategory ID for subcategory-based coupons',
+    format: 'uuid',
+  })
+  @Column({ type: 'uuid', name: 'subcategory_id', nullable: true })
+  subcategory_id: string | null;
+
+  // In Coupon entity - add these relations
+  @ManyToOne(() => CourseCategory, { nullable: true })
+  @JoinColumn({ name: 'category_id' })
+  category: CourseCategory;
+
+  @ManyToOne(() => CourseCategory, { nullable: true })
+  @JoinColumn({ name: 'subcategory_id' })
+  subcategory: CourseCategory;
 }
