@@ -464,7 +464,7 @@ export class AdminController {
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('admin:students:get')
+  @RequirePermissions('admin:students:get')
   @Get('students/:id/overview')
   @ApiOperation({
     summary: 'Get detailed overview for a single student including profile, enrollments, and recent courses'
