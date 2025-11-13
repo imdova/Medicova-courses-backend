@@ -30,11 +30,11 @@ import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Bundles')
 @Controller('bundles')
-@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class BundleController {
   constructor(private readonly bundleService: BundleService) { }
 
   @Post()
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('bundle:create')
   @ApiOperation({ summary: 'Create a new bundle with courses and pricing' })
   @ApiBody({ type: CreateBundleDto })
@@ -52,6 +52,7 @@ export class BundleController {
   }
 
   @Get()
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('bundle:list')
   @ApiOperation({ summary: 'Get all bundles with pagination' })
   @ApiResponse({ status: 200, description: 'Paginated list of bundles' })
@@ -166,6 +167,7 @@ export class BundleController {
   }
 
   @Get(':id')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('bundle:get')
   @ApiOperation({ summary: 'Get a single bundle by ID' })
   @ApiParam({ name: 'id', description: 'UUID of the bundle' })
@@ -182,6 +184,7 @@ export class BundleController {
   }
 
   @Patch(':id')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('bundle:update')
   @ApiOperation({ summary: 'Update a bundle (details, courses, pricing)' })
   @ApiParam({ name: 'id', description: 'UUID of the bundle' })
@@ -201,6 +204,7 @@ export class BundleController {
   }
 
   @Delete(':id')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('bundle:delete')
   @ApiOperation({ summary: 'Soft delete a bundle and its relations' })
   @ApiParam({ name: 'id', description: 'UUID of the bundle' })
