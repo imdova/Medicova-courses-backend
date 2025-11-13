@@ -292,30 +292,51 @@ export class BundleService {
     }
   }
 
-  async findBundlesByCourse(courseId: string): Promise<Bundle[]> {
-    // Validate that the course exists and is not deleted
-    const course = await this.courseRepository.findOne({
-      where: { id: courseId, deleted_at: null },
-      select: ['id'] // We only need to check existence
-    });
+  async findBundlesByCourses(courseIdsParam: string): Promise<Bundle[]> {
+    // Parse and validate course IDs
+    const courseIds = courseIdsParam.split(',').map(id => id.trim()).filter(id => id);
 
-    if (!course) {
-      throw new NotFoundException('Course not found');
+    if (courseIds.length === 0) {
+      throw new BadRequestException('At least one course ID is required');
     }
 
-    // Find all bundles that contain this course and are active
+    // Validate that all courses exist
+    const existingCourses = await this.courseRepository.find({
+      where: { id: In(courseIds), deleted_at: null },
+      select: ['id']
+    });
+
+    if (existingCourses.length !== courseIds.length) {
+      const foundIds = existingCourses.map(c => c.id);
+      const invalidIds = courseIds.filter(id => !foundIds.includes(id));
+      throw new NotFoundException(`The following courses were not found: ${invalidIds.join(', ')}`);
+    }
+
     const bundles = await this.bundleRepository
       .createQueryBuilder('bundle')
       .leftJoinAndSelect('bundle.pricings', 'pricings')
       .leftJoinAndSelect('bundle.courseBundles', 'courseBundles')
       .leftJoinAndSelect('courseBundles.course', 'course')
+      // Load ALL course relations for complete data
       .leftJoinAndSelect('course.category', 'category')
       .leftJoinAndSelect('course.subCategory', 'subCategory')
       .leftJoinAndSelect('course.pricings', 'coursePricings')
       .leftJoinAndSelect('course.sections', 'sections')
       .where('bundle.deleted_at IS NULL')
-      .andWhere('bundle.active = :active', { active: true })
-      .andWhere('courseBundles.course_id = :courseId', { courseId })
+      //.andWhere('bundle.active = :active', { active: true })
+      //.andWhere('bundle.status = :status', { status: BundleStatus.PUBLISHED })
+      .andWhere('course.deleted_at IS NULL')
+      .andWhere(qb => {
+        // Subquery to find bundles that contain any of the specified courses
+        const subQuery = qb.subQuery()
+          .select('bundleSub.id')
+          .from('bundles', 'bundleSub')
+          .leftJoin('bundleSub.courseBundles', 'cb')
+          .where('bundleSub.id = bundle.id')
+          .andWhere('cb.course_id IN (:...courseIds)', { courseIds })
+          .getQuery();
+        return `EXISTS (${subQuery})`;
+      })
       .orderBy('bundle.created_at', 'DESC')
       .getMany();
 
