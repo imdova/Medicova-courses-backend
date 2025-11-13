@@ -10,6 +10,7 @@ import {
   NotFoundException,
   UseGuards,
   Req,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -113,27 +114,29 @@ export class BundleController {
     );
   }
 
-  @Get('course/:courseId')
+  @Get('bundles/courses')
   @ApiOperation({
-    summary: 'Get all bundles that include a specific course (Public endpoint)'
+    summary: 'Get all bundles that include any of the specified courses (Public endpoint)'
   })
-  @ApiParam({
-    name: 'courseId',
-    description: 'UUID of the course to find bundles for'
+  @ApiQuery({
+    name: 'courseIds',
+    required: true,
+    type: String,
+    description: 'Comma-separated list of course UUIDs'
   })
   @ApiResponse({
     status: 200,
-    description: 'List of bundles containing the specified course',
+    description: 'List of bundles containing any of the specified courses',
     schema: {
       example: [
         {
           "id": "0acc0660-c955-4113-a261-f24bbd7d33f5",
-          "title": "this is me bundle",
-          "slug": "this-is-me-bundle",
-          "description": "<p>this is my bundle description </p>",
+          "title": "Web Development Bundle",
+          "slug": "web-dev-bundle",
+          "description": "<p>Complete web development courses bundle</p>",
           "thumbnail_url": "https://example.com/images/bundle-thumb.jpg",
           "is_free": false,
-          "status": "draft",
+          "status": "published",
           "active": true,
           "number_of_purchases": 0,
           "revenue": 0,
@@ -152,7 +155,13 @@ export class BundleController {
             {
               "id": "c51dd602-4313-494d-8278-a6cbe37c221b",
               "course": {
-                // full course data
+                // full course data for ALL courses in the bundle
+              }
+            },
+            {
+              "id": "d62ee713-5244-594e-9379-a7d4cc8d332c",
+              "course": {
+                // another course in the same bundle
               }
             }
           ]
@@ -160,10 +169,10 @@ export class BundleController {
       ]
     }
   })
-  async getBundlesByCourse(
-    @Param('courseId', ParseUUIDPipe) courseId: string
+  async getBundlesByCourses(
+    @Query('courseIds') courseIds: string
   ): Promise<Bundle[]> {
-    return this.bundleService.findBundlesByCourse(courseId);
+    return this.bundleService.findBundlesByCourses(courseIds);
   }
 
   @Get(':id')
