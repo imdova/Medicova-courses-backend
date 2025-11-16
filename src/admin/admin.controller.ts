@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, DefaultValuePipe, Get, Param, ParseIntPipe, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiParam, ApiBody, ApiOkResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { PermissionsGuard } from 'src/auth/permission.guard';
@@ -20,6 +20,7 @@ enum StatsType {
   COURSES = 'courses',
   STUDENTS = 'students',
   INSTRUCTORS = 'instructors',
+  ACADEMIES = 'academies',
 }
 export enum GenderFilter {
   ALL = 'all',
@@ -485,6 +486,48 @@ export class AdminController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<any> {
     return this.adminService.getOneStudentOverview(id);
+  }
+
+  // Add this to admin.controller.ts
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:dashboard:summary')
+  @Get('summary')
+  @ApiOperation({ summary: 'Get summary statistics including students, instructors, academies, and courses' })
+  @ApiResponse({
+    status: 200,
+    description: 'Summary statistics retrieved successfully',
+  })
+  async getSummaryStats(): Promise<any> {
+    return this.adminService.getSummaryStats();
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:courses:top')
+  @Get('courses/top')
+  @ApiOperation({ summary: 'Get top courses by enrollment count with ratings and instructor info' })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of top courses to return (default: 10)'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Top courses retrieved successfully',
+  })
+  async getTopCourses(
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number = 10,
+  ): Promise<any> {
+    return this.adminService.getTopCourses(limit);
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:enrollments:geo-stats')
+  @Get('enrollments/geo-stats')
+  @ApiOperation({ summary: 'Get enrollment distribution aggregated by country/state.' })
+  @ApiResponse({ status: 200, description: 'Enrollment geographic statistics retrieved successfully.' })
+  async getEnrollmentGeoStats(): Promise<any> {
+    return this.adminService.getEnrollmentGeoStats();
   }
 
   // -----------------------------------------------------------------
