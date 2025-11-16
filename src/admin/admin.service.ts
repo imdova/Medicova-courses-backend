@@ -2187,4 +2187,33 @@ export class AdminService {
       ranking: index + 1,
     }));
   }
+
+  async getEnrollmentGeoStats(): Promise<any> {
+    const studentRoleId = await this.getRoleId('student');
+    if (!studentRoleId) return [];
+
+    // Get total enrollments for percentage calculation
+    const totalEnrollments = await this.courseStudentRepo.count();
+
+    const GEO_COUNT_ALIAS = 'enrollmentcount';
+
+    const geoStats = await this.courseStudentRepo
+      .createQueryBuilder('enrollment')
+      .innerJoin('enrollment.student', 'student')
+      .innerJoin('student.profile', 'profile')
+      .select('profile.country', 'country')
+      .addSelect('COUNT(enrollment.id)', GEO_COUNT_ALIAS)
+      .where('student.roleId = :roleId', { roleId: studentRoleId })
+      .andWhere('profile.country IS NOT NULL')
+      .groupBy('profile.country')
+      .orderBy(GEO_COUNT_ALIAS, 'DESC')
+      .getRawMany();
+
+    return geoStats.map(stat => ({
+      country: stat.country,
+      enrollments: parseInt(stat[GEO_COUNT_ALIAS], 10),
+      percentage: totalEnrollments > 0 ?
+        Math.round((parseInt(stat[GEO_COUNT_ALIAS], 10) / totalEnrollments) * 1000) / 10 : 0,
+    }));
+  }
 }

@@ -521,6 +521,15 @@ export class AdminController {
     return this.adminService.getTopCourses(limit);
   }
 
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  //@RequirePermissions('admin:enrollments:geo-stats')
+  @Get('enrollments/geo-stats')
+  @ApiOperation({ summary: 'Get enrollment distribution aggregated by country/state.' })
+  @ApiResponse({ status: 200, description: 'Enrollment geographic statistics retrieved successfully.' })
+  async getEnrollmentGeoStats(): Promise<any> {
+    return this.adminService.getEnrollmentGeoStats();
+  }
+
   // -----------------------------------------------------------------
   // 🟢 NEW: CREATE STUDENT ENDPOINT
   // -----------------------------------------------------------------
