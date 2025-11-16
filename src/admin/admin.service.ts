@@ -2171,19 +2171,19 @@ export class AdminService {
       .addGroupBy('profile.lastName')
       .addGroupBy('profile.photoUrl')
       .orderBy('"enrolledStudents"', 'DESC')
-      .addOrderBy('course.averageRating', 'DESC') // Secondary sort by rating
+      .addOrderBy('course.averageRating', 'DESC')
       .limit(limit)
       .getRawMany();
 
-    // Format and add ranking
+    // Format and add ranking using the correct field names
     return results.map((result, index) => ({
-      courseId: result.course_id || result.courseId,
-      courseName: result.course_name || result.courseName,
+      courseId: result.course_id,
+      courseName: result.course_name,
       instructorName: result.instructorName?.trim() || 'Unknown Instructor',
       instructorPhotoUrl: result.instructorPhotoUrl,
-      enrolledStudents: parseInt(result.enrolledstudents || result.enrolledStudents, 10) || 0,
-      averageRating: Math.round((result.course_averagerating || result.course_averageRating || 0) * 10) / 10,
-      ratingCount: parseInt(result.course_ratingcount || result.course_ratingCount, 10) || 0,
+      enrolledStudents: parseInt(result.enrolledStudents, 10) || 0,
+      averageRating: Math.round((result.course_average_rating || 0) * 10) / 10,
+      ratingCount: parseInt(result.course_rating_count, 10) || 0,
       ranking: index + 1,
     }));
   }
