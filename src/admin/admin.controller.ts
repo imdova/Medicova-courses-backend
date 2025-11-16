@@ -490,7 +490,7 @@ export class AdminController {
 
   // Add this to admin.controller.ts
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('admin:dashboard:summary')
+  @RequirePermissions('admin:dashboard:summary')
   @Get('summary')
   @ApiOperation({ summary: 'Get summary statistics including students, instructors, academies, and courses' })
   @ApiResponse({
@@ -502,7 +502,7 @@ export class AdminController {
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('admin:courses:top')
+  @RequirePermissions('admin:courses:top')
   @Get('courses/top')
   @ApiOperation({ summary: 'Get top courses by enrollment count with ratings and instructor info' })
   @ApiQuery({
@@ -522,7 +522,7 @@ export class AdminController {
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('admin:enrollments:geo-stats')
+  @RequirePermissions('admin:enrollments:geo-stats')
   @Get('enrollments/geo-stats')
   @ApiOperation({ summary: 'Get enrollment distribution aggregated by country/state.' })
   @ApiResponse({ status: 200, description: 'Enrollment geographic statistics retrieved successfully.' })
