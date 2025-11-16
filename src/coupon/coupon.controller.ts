@@ -35,11 +35,11 @@ import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 @ApiBearerAuth('access_token')
 @ApiTags('Coupons')
 @Controller('coupons')
-@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class CouponController {
   constructor(private readonly couponService: CouponService) { }
 
   @Post()
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('coupon:create')
   @ApiOperation({ summary: 'Create a new coupon' })
   @ApiCreatedResponse({
@@ -60,6 +60,7 @@ export class CouponController {
   }
 
   @Get()
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('coupon:list')
   @ApiOperation({ summary: 'Retrieve paginated list of coupons' })
   @ApiOkResponse({
@@ -75,7 +76,8 @@ export class CouponController {
   }
 
   @Get(':couponCode/check')
-  @RequirePermissions('coupon:check_course_eligibility')
+  // @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  // @RequirePermissions('coupon:check_course_eligibility')
   @ApiOperation({ summary: 'Check if multiple courses are eligible for a given coupon' })
   @ApiQuery({
     name: 'courseIds',
@@ -111,6 +113,7 @@ export class CouponController {
   }
 
   @Get(':id')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('coupon:get')
   @ApiOperation({ summary: 'Get a coupon by ID' })
   @ApiOkResponse({ description: 'Coupon found', type: Coupon })
@@ -125,6 +128,7 @@ export class CouponController {
   }
 
   @Patch(':id')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('coupon:update')
   @ApiOperation({ summary: 'Update (partially) a coupon by ID' })
   @ApiOkResponse({
@@ -147,6 +151,7 @@ export class CouponController {
   }
 
   @Delete(':id')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('coupon:delete')
   @ApiOperation({ summary: 'Delete a coupon by ID (soft delete)' })
   @ApiNoContentResponse({ description: 'Coupon deleted successfully' })
