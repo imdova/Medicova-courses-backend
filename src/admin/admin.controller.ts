@@ -530,6 +530,53 @@ export class AdminController {
     return this.adminService.getEnrollmentGeoStats();
   }
 
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:courses:summary')
+  @Get('courses-summary')
+  @ApiOperation({
+    summary: 'Get comprehensive courses summary statistics',
+    description: 'Get total courses, active/inactive counts, published/draft counts, enrollment and completion statistics'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Courses summary statistics retrieved successfully',
+  })
+  async getCoursesSummary(): Promise<any> {
+    return this.adminService.getCoursesSummary();
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:categories:top')
+  @Get('categories/top')
+  @ApiOperation({
+    summary: 'Get top categories by course count and enrollments',
+    description: 'Get categories with the number of courses and total enrollments for each category'
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of top categories to return (default: 10, max: 50)'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Top categories retrieved successfully',
+  })
+  async getTopCategories(
+    @Query('limit') limit?: string,
+  ): Promise<any> {
+    // Parse and validate limit parameter
+    let limitNum = 10; // default
+    if (limit) {
+      const parsed = parseInt(limit, 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        limitNum = Math.min(parsed, 50); // Cap at 50 for safety
+      }
+    }
+
+    return this.adminService.getTopCategories(limitNum);
+  }
+
   // -----------------------------------------------------------------
   // 🟢 NEW: CREATE STUDENT ENDPOINT
   // -----------------------------------------------------------------
