@@ -2304,4 +2304,42 @@ export class AdminService {
       throw new InternalServerErrorException('Failed to retrieve courses summary statistics');
     }
   }
+
+  async getTopCategories(limit = 10): Promise<
+    {
+      categoryId: string;
+      categoryName: string;
+      courseCount: number;
+      totalEnrollments: number;
+      ranking: number;
+    }[]
+  > {
+    const safeLimit = Math.min(Math.max(1, limit), 50);
+
+    const results = await this.courseRepository
+      .createQueryBuilder('course')
+      .innerJoin('course.category', 'category')
+      .leftJoin('course.enrollments', 'enrollments')
+      .select('category.id', 'categoryId')
+      .addSelect('category.name', 'categoryName')
+      .addSelect('COUNT(DISTINCT course.id)', 'courseCount')
+      .addSelect('COUNT(DISTINCT enrollments.id)', 'totalEnrollments')
+      .where('course.status = :status', { status: CourseStatus.PUBLISHED })
+      .andWhere('course.isActive = :isActive', { isActive: true })
+      .andWhere('category.id IS NOT NULL') // Only include courses with categories
+      .groupBy('category.id')
+      .addGroupBy('category.name')
+      .orderBy('"totalEnrollments"', 'DESC')
+      .addOrderBy('"courseCount"', 'DESC')
+      .limit(safeLimit)
+      .getRawMany();
+
+    return results.map((result, index) => ({
+      categoryId: result.categoryid || result.categoryId,
+      categoryName: result.categoryname || result.categoryName,
+      courseCount: parseInt(result.coursecount || result.courseCount, 10) || 0,
+      totalEnrollments: parseInt(result.totalenrollments || result.totalEnrollments, 10) || 0,
+      ranking: index + 1,
+    }));
+  }
 }
