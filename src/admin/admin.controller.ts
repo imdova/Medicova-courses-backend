@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, DefaultValuePipe, Get, Param, ParseIntPipe, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiParam, ApiBody, ApiOkResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { PermissionsGuard } from 'src/auth/permission.guard';
@@ -499,6 +499,26 @@ export class AdminController {
   })
   async getSummaryStats(): Promise<any> {
     return this.adminService.getSummaryStats();
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  //@RequirePermissions('admin:courses:top')
+  @Get('courses/top')
+  @ApiOperation({ summary: 'Get top courses by enrollment count with ratings and instructor info' })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of top courses to return (default: 10)'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Top courses retrieved successfully',
+  })
+  async getTopCourses(
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number = 10,
+  ): Promise<any> {
+    return this.adminService.getTopCourses(limit);
   }
 
   // -----------------------------------------------------------------

@@ -2104,4 +2104,61 @@ export class AdminService {
       throw new InternalServerErrorException('Failed to retrieve summary statistics');
     }
   }
+
+  async getTopCourses(limit = 10): Promise<
+    {
+      courseId: string;
+      courseName: string;
+      instructorName: string;
+      instructorPhotoUrl: string | null;
+      enrolledStudents: number;
+      averageRating: number;
+      ratingCount: number;
+      ranking: number;
+    }[]
+  > {
+    // Get top courses by enrollment count
+    const results = await this.courseRepository
+      .createQueryBuilder('course')
+      .innerJoin('course.instructor', 'instructor')
+      .innerJoin('instructor.profile', 'profile')
+      .leftJoin('course.enrollments', 'enrollments')
+      .select([
+        'course.id',
+        'course.name',
+        'course.averageRating',
+        'course.ratingCount'
+      ])
+      .addSelect(
+        `CONCAT(COALESCE(profile.firstName, ''), ' ', COALESCE(profile.lastName, ''))`,
+        'instructorName',
+      )
+      .addSelect('profile.photoUrl', 'instructorPhotoUrl')
+      .addSelect('COUNT(DISTINCT enrollments.id)', 'enrolledStudents')
+      .where('course.status = :status', { status: CourseStatus.PUBLISHED })
+      .andWhere('course.isActive = :isActive', { isActive: true })
+      .groupBy('course.id')
+      .addGroupBy('course.name')
+      .addGroupBy('course.averageRating')
+      .addGroupBy('course.ratingCount')
+      .addGroupBy('profile.firstName')
+      .addGroupBy('profile.lastName')
+      .addGroupBy('profile.photoUrl')
+      .orderBy('"enrolledStudents"', 'DESC')
+      .addOrderBy('course.averageRating', 'DESC') // Secondary sort by rating
+      .limit(limit)
+      .getRawMany();
+
+    // Format and add ranking
+    return results.map((result, index) => ({
+      courseId: result.course_id || result.courseId,
+      courseName: result.course_name || result.courseName,
+      instructorName: result.instructorName?.trim() || 'Unknown Instructor',
+      instructorPhotoUrl: result.instructorPhotoUrl,
+      enrolledStudents: parseInt(result.enrolledstudents || result.enrolledStudents, 10) || 0,
+      averageRating: Math.round((result.course_averagerating || result.course_averageRating || 0) * 10) / 10,
+      ratingCount: parseInt(result.course_ratingcount || result.course_ratingCount, 10) || 0,
+      ranking: index + 1,
+    }));
+  }
 }
