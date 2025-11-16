@@ -2053,13 +2053,28 @@ export class AdminService {
         this.getRoleId('instructor')
       ]);
 
-      // Execute all counts in a single parallel operation
+      // Get course statistics in a single query
+      const courseStats = await this.courseRepository
+        .createQueryBuilder('course')
+        .select([
+          'COUNT(course.id) AS totalActive',
+          'SUM(CASE WHEN course.isCourseFree = true THEN 1 ELSE 0 END) AS freeCount',
+          'SUM(CASE WHEN course.isCourseFree = false THEN 1 ELSE 0 END) AS paidCount'
+        ])
+        .where('course.status = :status', { status: CourseStatus.PUBLISHED })
+        .andWhere('course.isActive = :isActive', { isActive: true })
+        .getRawOne();
+
+      const activeCourses = parseInt(courseStats.totalactive) || 0;
+      const freeCoursesCount = parseInt(courseStats.freecount) || 0;
+      const paidCoursesCount = parseInt(courseStats.paidcount) || 0;
+
+      // Execute remaining counts in parallel
       const [
         totalStudents,
         enrolledStudents,
         totalInstructors,
         totalAcademies,
-        activeCourses
       ] = await Promise.all([
         // Total students
         studentRoleId ? this.userRepository.count({
@@ -2080,17 +2095,22 @@ export class AdminService {
           where: { role: { id: instructorRoleId } }
         }) : 0,
 
-        // Total academies (assuming you have an Academy repository)
-        this.academyRepository.count(), // Replace with your actual academy repository
-
-        // Active courses
-        this.courseRepository.count({
-          where: {
-            status: CourseStatus.PUBLISHED,
-            isActive: true
-          }
-        })
+        // Total academies
+        this.academyRepository.count(),
       ]);
+
+      // Calculate ratios
+      const freeToPaidRatio = paidCoursesCount > 0
+        ? Math.round((freeCoursesCount / paidCoursesCount) * 100) / 100
+        : freeCoursesCount > 0 ? Infinity : 0;
+
+      const freeCoursesPercentage = activeCourses > 0
+        ? Math.round((freeCoursesCount / activeCourses) * 1000) / 10
+        : 0;
+
+      const paidCoursesPercentage = activeCourses > 0
+        ? Math.round((paidCoursesCount / activeCourses) * 1000) / 10
+        : 0;
 
       return {
         totalStudents,
@@ -2098,6 +2118,12 @@ export class AdminService {
         totalInstructors,
         totalAcademies,
         activeCourses,
+        coursesBreakdown: {
+          free: freeCoursesCount,
+          paid: paidCoursesCount,
+          freePercentage: freeCoursesPercentage,
+          paidPercentage: paidCoursesPercentage,
+        },
       };
     } catch (error) {
       console.error('Failed to fetch summary stats', error);
