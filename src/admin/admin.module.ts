@@ -19,12 +19,13 @@ import { EmailService } from '../common/email.service';
 import { CourseRating } from 'src/course/entities/course-rating.entity';
 import { FaqModule } from './faq/faq.module';
 import { StudentSettingsModule } from './student-settings/student-settings.module';
+import { Academy } from 'src/academy/entities/academy.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Course, Profile, Role, CourseSectionItem, CourseProgress, CourseStudent, IdentityVerification, Quiz, QuizQuestion, QuizAttempt, Question, CourseRating]),
+  imports: [TypeOrmModule.forFeature([User, Course, Profile, Role, CourseSectionItem, CourseProgress, CourseStudent, IdentityVerification, Quiz, QuizQuestion, QuizAttempt, Question, CourseRating, Academy]),
   forwardRef(() => ProfileModule),
-  FaqModule,
-  StudentSettingsModule],
+    FaqModule,
+    StudentSettingsModule],
   controllers: [AdminController],
   providers: [AdminService, EmailService],
 })

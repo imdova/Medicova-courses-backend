@@ -21,6 +21,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { ProfileService } from 'src/profile/profile.service';
 import { EmailService } from '../common/email.service';
 import { CourseRating } from 'src/course/entities/course-rating.entity';
+import { Academy } from 'src/academy/entities/academy.entity';
 
 @Injectable()
 export class AdminService {
@@ -54,6 +55,8 @@ export class AdminService {
     private readonly quizAttemptRepository: Repository<QuizAttempt>, // 👈 New injection
     @InjectRepository(CourseRating)
     private ratingRepo: Repository<CourseRating>,
+    @InjectRepository(Academy) // Replace 'Academy' with your actual academy entity
+    private readonly academyRepository: Repository<Academy>,
     private readonly profileService: ProfileService,
     private readonly emailService: EmailService,
     private readonly dataSource: DataSource
@@ -508,14 +511,17 @@ export class AdminService {
       name: string;
       photoUrl: string | null;
       totalEnrollments: number;
+      averageRating: number;
+      totalReviews: number;
+      totalCourses: number;
       ranking: number;
     }[]
   > {
     const instructorRoleId = await this.getRoleId('instructor');
     if (!instructorRoleId) return [];
 
-    // 🧮 Aggregate total enrollments per instructor
-    const results = await this.courseStudentRepo
+    // Get enrollment and course data first
+    const enrollmentResults = await this.courseStudentRepo
       .createQueryBuilder('courseStudent')
       .innerJoin('courseStudent.course', 'course')
       .innerJoin('course.instructor', 'instructor')
@@ -526,7 +532,9 @@ export class AdminService {
         'name',
       )
       .addSelect('profile.photoUrl', 'photoUrl')
-      .addSelect('COUNT(courseStudent.id)', 'totalEnrollments')
+      .addSelect('profile.averageRating', 'averageRating')
+      .addSelect('COUNT(DISTINCT courseStudent.id)', 'totalEnrollments')
+      .addSelect('COUNT(DISTINCT course.id)', 'totalCourses')
       .where('instructor.roleId = :roleId', { roleId: instructorRoleId })
       .andWhere('course.status = :status', { status: CourseStatus.PUBLISHED })
       .andWhere('course.isActive = true')
@@ -534,16 +542,45 @@ export class AdminService {
       .addGroupBy('profile.firstName')
       .addGroupBy('profile.lastName')
       .addGroupBy('profile.photoUrl')
-      .orderBy('"totalEnrollments"', 'DESC') // double quotes = preserve alias casing
+      .addGroupBy('profile.averageRating')
+      .orderBy('"totalEnrollments"', 'DESC')
       .limit(limit)
       .getRawMany();
 
-    // 🥇 Add ranking position
-    return results.map((r, index) => ({
+    if (enrollmentResults.length === 0) return [];
+
+    // Get instructor IDs for rating count query
+    const instructorIds = enrollmentResults.map(r => r.instructorid || r.instructorId);
+
+    // Count profile ratings for these instructors
+    const ratingCounts = await this.profileRepository
+      .createQueryBuilder('profile')
+      .innerJoin('profile.ratings', 'ratings')
+      .innerJoin('profile.user', 'user')
+      .select('user.id', 'instructorId')
+      .addSelect('COUNT(ratings.id)', 'totalReviews')
+      .where('user.id IN (:...instructorIds)', { instructorIds })
+      .andWhere('user.roleId = :roleId', { roleId: instructorRoleId })
+      .groupBy('user.id')
+      .getRawMany();
+
+    // Create a map for quick rating count lookup
+    const ratingCountMap = new Map();
+    ratingCounts.forEach(r => {
+      ratingCountMap.set(r.instructorid || r.instructorId,
+        parseInt(r.totalreviews || r.totalReviews, 10) || 0
+      );
+    });
+
+    // Combine all data
+    return enrollmentResults.map((r, index) => ({
       instructorId: r.instructorid || r.instructorId,
       name: r.name?.trim() || 'Unknown Instructor',
       photoUrl: r.photourl || r.photoUrl || null,
       totalEnrollments: parseInt(r.totalenrollments || r.totalEnrollments, 10) || 0,
+      totalCourses: parseInt(r.totalcourses || r.totalCourses, 10) || 0,
+      totalReviews: ratingCountMap.get(r.instructorid || r.instructorId) || 0,
+      averageRating: Math.round(parseFloat(r.averagerating || r.averageRating || 0) * 10) / 10,
       ranking: index + 1,
     }));
   }
@@ -602,6 +639,10 @@ export class AdminService {
       case 'enrollments': // ✅ NEW CASE FOR ENROLLMENTS
         alias = 'enrollment';
         repo = this.courseStudentRepo; // Use the CourseStudent repository
+        break;
+      case 'academies': // ✅ NEW CASE FOR ENROLLMENTS
+        alias = 'academy';
+        repo = this.academyRepository; // Use the CourseStudent repository
         break;
       default:
         return [];
@@ -1972,5 +2013,66 @@ export class AdminService {
     });
 
     return itemCountsMap;
+  }
+
+  // Add this method to AdminService class in admin.service.ts
+  async getSummaryStats(): Promise<any> {
+    try {
+      // Get role IDs in parallel
+      const [studentRoleId, instructorRoleId] = await Promise.all([
+        this.getRoleId('student'),
+        this.getRoleId('instructor')
+      ]);
+
+      // Execute all counts in a single parallel operation
+      const [
+        totalStudents,
+        enrolledStudents,
+        totalInstructors,
+        totalAcademies,
+        activeCourses
+      ] = await Promise.all([
+        // Total students
+        studentRoleId ? this.userRepository.count({
+          where: { role: { id: studentRoleId } }
+        }) : 0,
+
+        // Enrolled students (distinct students with enrollments)
+        studentRoleId ? this.courseStudentRepo
+          .createQueryBuilder('cs')
+          .innerJoin('cs.student', 'student')
+          .where('student.roleId = :roleId', { roleId: studentRoleId })
+          .select('COUNT(DISTINCT student.id)', 'count')
+          .getRawOne()
+          .then(result => parseInt(result?.count || '0')) : 0,
+
+        // Total instructors
+        instructorRoleId ? this.userRepository.count({
+          where: { role: { id: instructorRoleId } }
+        }) : 0,
+
+        // Total academies (assuming you have an Academy repository)
+        this.academyRepository.count(), // Replace with your actual academy repository
+
+        // Active courses
+        this.courseRepository.count({
+          where: {
+            status: CourseStatus.PUBLISHED,
+            isActive: true
+          }
+        })
+      ]);
+
+      return {
+        totalStudents,
+        enrolledStudents,
+        totalInstructors,
+        totalAcademies,
+        activeCourses,
+      };
+    } catch (error) {
+      console.error('Failed to fetch summary stats', error);
+      throw new InternalServerErrorException('Failed to retrieve summary statistics');
+    }
   }
 }

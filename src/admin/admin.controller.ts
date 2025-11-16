@@ -20,6 +20,7 @@ enum StatsType {
   COURSES = 'courses',
   STUDENTS = 'students',
   INSTRUCTORS = 'instructors',
+  ACADEMIES = 'academies',
 }
 export enum GenderFilter {
   ALL = 'all',
@@ -485,6 +486,19 @@ export class AdminController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<any> {
     return this.adminService.getOneStudentOverview(id);
+  }
+
+  // Add this to admin.controller.ts
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  //@RequirePermissions('admin:dashboard:summary')
+  @Get('summary')
+  @ApiOperation({ summary: 'Get summary statistics including students, instructors, academies, and courses' })
+  @ApiResponse({
+    status: 200,
+    description: 'Summary statistics retrieved successfully',
+  })
+  async getSummaryStats(): Promise<any> {
+    return this.adminService.getSummaryStats();
   }
 
   // -----------------------------------------------------------------
