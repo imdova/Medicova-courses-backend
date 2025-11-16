@@ -531,7 +531,7 @@ export class AdminController {
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('admin:courses:summary')
+  @RequirePermissions('admin:courses:summary')
   @Get('courses-summary')
   @ApiOperation({
     summary: 'Get comprehensive courses summary statistics',
@@ -546,7 +546,7 @@ export class AdminController {
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('admin:categories:top')
+  @RequirePermissions('admin:categories:top')
   @Get('categories/top')
   @ApiOperation({
     summary: 'Get top categories by course count and enrollments',
