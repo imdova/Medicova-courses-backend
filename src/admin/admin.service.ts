@@ -520,37 +520,38 @@ export class AdminService {
     const instructorRoleId = await this.getRoleId('instructor');
     if (!instructorRoleId) return [];
 
-    // Get enrollment and course data first
+    // Get ALL instructors first
+    const allInstructors = await this.userRepository
+      .createQueryBuilder('user')
+      .innerJoin('user.profile', 'profile')
+      .select([
+        'user.id',
+        'profile.firstName',
+        'profile.lastName',
+        'profile.photoUrl',
+        'profile.averageRating'
+      ])
+      .where('user.roleId = :roleId', { roleId: instructorRoleId })
+      .orderBy('user.created_at', 'DESC')
+      .getMany();
+
+    if (allInstructors.length === 0) return [];
+
+    const instructorIds = allInstructors.map(instructor => instructor.id);
+
+    // Get enrollment and course data for these instructors
     const enrollmentResults = await this.courseStudentRepo
       .createQueryBuilder('courseStudent')
       .innerJoin('courseStudent.course', 'course')
       .innerJoin('course.instructor', 'instructor')
-      .innerJoin('instructor.profile', 'profile')
       .select('instructor.id', 'instructorId')
-      .addSelect(
-        `CONCAT(COALESCE(profile.firstName, ''), ' ', COALESCE(profile.lastName, ''))`,
-        'name',
-      )
-      .addSelect('profile.photoUrl', 'photoUrl')
-      .addSelect('profile.averageRating', 'averageRating')
       .addSelect('COUNT(DISTINCT courseStudent.id)', 'totalEnrollments')
       .addSelect('COUNT(DISTINCT course.id)', 'totalCourses')
-      .where('instructor.roleId = :roleId', { roleId: instructorRoleId })
+      .where('instructor.id IN (:...instructorIds)', { instructorIds })
       .andWhere('course.status = :status', { status: CourseStatus.PUBLISHED })
       .andWhere('course.isActive = true')
       .groupBy('instructor.id')
-      .addGroupBy('profile.firstName')
-      .addGroupBy('profile.lastName')
-      .addGroupBy('profile.photoUrl')
-      .addGroupBy('profile.averageRating')
-      .orderBy('"totalEnrollments"', 'DESC')
-      .limit(limit)
       .getRawMany();
-
-    if (enrollmentResults.length === 0) return [];
-
-    // Get instructor IDs for rating count query
-    const instructorIds = enrollmentResults.map(r => r.instructorid || r.instructorId);
 
     // Count profile ratings for these instructors
     const ratingCounts = await this.profileRepository
@@ -564,7 +565,15 @@ export class AdminService {
       .groupBy('user.id')
       .getRawMany();
 
-    // Create a map for quick rating count lookup
+    // Create maps for quick lookup
+    const enrollmentMap = new Map();
+    enrollmentResults.forEach(r => {
+      enrollmentMap.set(r.instructorid || r.instructorId, {
+        totalEnrollments: parseInt(r.totalenrollments || r.totalEnrollments, 10) || 0,
+        totalCourses: parseInt(r.totalcourses || r.totalCourses, 10) || 0,
+      });
+    });
+
     const ratingCountMap = new Map();
     ratingCounts.forEach(r => {
       ratingCountMap.set(r.instructorid || r.instructorId,
@@ -572,17 +581,37 @@ export class AdminService {
       );
     });
 
-    // Combine all data
-    return enrollmentResults.map((r, index) => ({
-      instructorId: r.instructorid || r.instructorId,
-      name: r.name?.trim() || 'Unknown Instructor',
-      photoUrl: r.photourl || r.photoUrl || null,
-      totalEnrollments: parseInt(r.totalenrollments || r.totalEnrollments, 10) || 0,
-      totalCourses: parseInt(r.totalcourses || r.totalCourses, 10) || 0,
-      totalReviews: ratingCountMap.get(r.instructorid || r.instructorId) || 0,
-      averageRating: Math.round(parseFloat(r.averagerating || r.averageRating || 0) * 10) / 10,
-      ranking: index + 1,
-    }));
+    // Combine all data for ALL instructors
+    const combinedResults = allInstructors.map((instructor, index) => {
+      const enrollmentData = enrollmentMap.get(instructor.id) || {
+        totalEnrollments: 0,
+        totalCourses: 0,
+      };
+
+      // FIX: averageRating is already a number, no need for parseFloat
+      const averageRating = instructor.profile.averageRating || 0;
+      const roundedRating = Math.round(averageRating * 10) / 10;
+
+      return {
+        instructorId: instructor.id,
+        name: `${instructor.profile.firstName || ''} ${instructor.profile.lastName || ''}`.trim() || 'Unknown Instructor',
+        photoUrl: instructor.profile.photoUrl,
+        totalEnrollments: enrollmentData.totalEnrollments,
+        totalCourses: enrollmentData.totalCourses,
+        totalReviews: ratingCountMap.get(instructor.id) || 0,
+        averageRating: roundedRating,
+        ranking: index + 1,
+      };
+    });
+
+    // Sort by totalEnrollments (descending) and apply limit
+    return combinedResults
+      .sort((a, b) => b.totalEnrollments - a.totalEnrollments)
+      .slice(0, limit)
+      .map((result, index) => ({
+        ...result,
+        ranking: index + 1, // Re-rank after sorting
+      }));
   }
 
   /**
