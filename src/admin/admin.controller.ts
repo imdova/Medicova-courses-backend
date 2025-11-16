@@ -530,6 +530,21 @@ export class AdminController {
     return this.adminService.getEnrollmentGeoStats();
   }
 
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  //@RequirePermissions('admin:courses:summary')
+  @Get('courses-summary')
+  @ApiOperation({
+    summary: 'Get comprehensive courses summary statistics',
+    description: 'Get total courses, active/inactive counts, published/draft counts, enrollment and completion statistics'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Courses summary statistics retrieved successfully',
+  })
+  async getCoursesSummary(): Promise<any> {
+    return this.adminService.getCoursesSummary();
+  }
+
   // -----------------------------------------------------------------
   // 🟢 NEW: CREATE STUDENT ENDPOINT
   // -----------------------------------------------------------------

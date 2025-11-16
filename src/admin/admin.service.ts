@@ -2216,4 +2216,92 @@ export class AdminService {
         Math.round((parseInt(stat[GEO_COUNT_ALIAS], 10) / totalEnrollments) * 1000) / 10 : 0,
     }));
   }
+
+  async getCoursesSummary(): Promise<any> {
+    try {
+      // 1. Get all course statistics in one query
+      const courseStats = await this.courseRepository
+        .createQueryBuilder('course')
+        .select([
+          'COUNT(course.id) AS total_courses',
+          'SUM(CASE WHEN course.isActive = true THEN 1 ELSE 0 END) AS active_courses',
+          'SUM(CASE WHEN course.isActive = false THEN 1 ELSE 0 END) AS inactive_courses',
+          'SUM(CASE WHEN course.status = :published THEN 1 ELSE 0 END) AS published_courses',
+          'SUM(CASE WHEN course.status = :draft THEN 1 ELSE 0 END) AS draft_courses'
+        ])
+        .setParameters({
+          published: CourseStatus.PUBLISHED,
+          draft: CourseStatus.DRAFT
+        })
+        .getRawOne();
+
+      const totalCourses = parseInt(courseStats.total_courses) || 0;
+      const activeCourses = parseInt(courseStats.active_courses) || 0;
+      const inactiveCourses = parseInt(courseStats.inactive_courses) || 0;
+      const publishedCourses = parseInt(courseStats.published_courses) || 0;
+      const draftCourses = parseInt(courseStats.draft_courses) || 0;
+
+      // 2. Get total enrollments
+      const totalEnrollments = await this.courseStudentRepo.count();
+
+      // 3. Get completed courses count (courses where ALL enrolled students completed ALL items)
+      const completedCoursesResult = await this.dataSource
+        .createQueryBuilder()
+        .select('COUNT(*)', 'completed_courses_count')
+        .from(qb => {
+          return qb
+            .select('course.id', 'course_id')
+            .from(Course, 'course')
+            .innerJoin('course.enrollments', 'enrollments')
+            .leftJoin(
+              qb => qb
+                .select('course.id', 'course_id')
+                .addSelect('COUNT(item.id)', 'total_items')
+                .from(CourseSectionItem, 'item')
+                .innerJoin('item.section', 'section')
+                .innerJoin('section.course', 'course')
+                .groupBy('course.id'),
+              'course_items',
+              'course_items.course_id = course.id'
+            )
+            .leftJoin(
+              qb => qb
+                .select('cs.id', 'enrollment_id')
+                .addSelect('course.id', 'course_id')
+                .addSelect('COUNT(progress.id)', 'completed_items')
+                .from(CourseProgress, 'progress')
+                .innerJoin('progress.courseStudent', 'cs')
+                .innerJoin('cs.course', 'course')
+                .where('progress.completed = true')
+                .groupBy('cs.id, course.id'),
+              'student_progress',
+              'student_progress.course_id = course.id AND student_progress.enrollment_id = enrollments.id'
+            )
+            .groupBy('course.id, course_items.total_items')
+            .having('COUNT(enrollments.id) > 0') // Course has at least one enrollment
+            .andHaving('COUNT(CASE WHEN student_progress.completed_items < course_items.total_items OR student_progress.completed_items IS NULL THEN 1 END) = 0');
+          // This HAVING clause ensures:
+          // - No student has completed fewer items than total course items
+          // - No student has NULL progress (meaning they haven't started)
+        }, 'completed_courses')
+        .getRawOne();
+
+      const completedCoursesCount = parseInt(completedCoursesResult?.completed_courses_count) || 0;
+      const incompletedCoursesCount = totalCourses - completedCoursesCount;
+
+      return {
+        totalCourses,
+        activeCourses,
+        inactiveCourses,
+        publishedCourses,
+        draftCourses,
+        totalEnrollments,
+        completedCoursesCount,
+        incompletedCoursesCount,
+      };
+    } catch (error) {
+      console.error('Failed to fetch courses summary', error);
+      throw new InternalServerErrorException('Failed to retrieve courses summary statistics');
+    }
+  }
 }
