@@ -671,6 +671,21 @@ export class AdminController {
     return this.adminService.getRecentInstructors(limitNum);
   }
 
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  //@RequirePermissions('admin:academies:summary')
+  @Get('academies-summary')
+  @ApiOperation({
+    summary: 'Get academies summary statistics',
+    description: 'Get total academies, approved and not-approved counts'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Academies summary statistics retrieved successfully',
+  })
+  async getAcademiesSummary(): Promise<any> {
+    return this.adminService.getAcademiesSummary();
+  }
+
   // -----------------------------------------------------------------
   // 🟢 NEW: CREATE STUDENT ENDPOINT
   // -----------------------------------------------------------------

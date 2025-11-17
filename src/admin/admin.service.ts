@@ -2589,4 +2589,32 @@ export class AdminService {
       return [];
     }
   }
+
+  async getAcademiesSummary(): Promise<any> {
+    try {
+      // Get all academy statistics in one query
+      const stats = await this.academyRepository
+        .createQueryBuilder('academy')
+        .select([
+          'COUNT(academy.id) AS total_academies',
+          'SUM(CASE WHEN academy.isVerified = true THEN 1 ELSE 0 END) AS approved_academies',
+          'SUM(CASE WHEN academy.isVerified = false OR academy.isVerified IS NULL THEN 1 ELSE 0 END) AS not_approved_academies'
+        ])
+        .getRawOne();
+
+      return {
+        totalAcademies: parseInt(stats?.total_academies || '0', 10),
+        approvedAcademies: parseInt(stats?.approved_academies || '0', 10),
+        notApprovedAcademies: parseInt(stats?.not_approved_academies || '0', 10)
+      };
+
+    } catch (error) {
+      console.error('Failed to fetch academies summary:', error);
+      return {
+        totalAcademies: 0,
+        approvedAcademies: 0,
+        notApprovedAcademies: 0
+      };
+    }
+  }
 }
