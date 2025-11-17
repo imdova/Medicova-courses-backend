@@ -686,6 +686,38 @@ export class AdminController {
     return this.adminService.getAcademiesSummary();
   }
 
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  //@RequirePermissions('admin:academies:top')
+  @Get('academies/top')
+  @ApiOperation({
+    summary: 'Get top academies by student enrollment',
+    description: 'Get academies with course counts and student enrollments, ranked by student count'
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of top academies to return (default: 10, max: 50)'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Top academies retrieved successfully',
+  })
+  async getTopAcademies(
+    @Query('limit') limit?: string,
+  ): Promise<any> {
+    // Parse and validate limit parameter
+    let limitNum = 10; // default
+    if (limit) {
+      const parsed = parseInt(limit, 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        limitNum = Math.min(parsed, 50); // Cap at 50 for safety
+      }
+    }
+
+    return this.adminService.getTopAcademies(limitNum);
+  }
+
   // -----------------------------------------------------------------
   // 🟢 NEW: CREATE STUDENT ENDPOINT
   // -----------------------------------------------------------------

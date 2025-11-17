@@ -2617,4 +2617,48 @@ export class AdminService {
       };
     }
   }
+
+  async getTopAcademies(limit = 10): Promise<
+    {
+      academyId: string;
+      academyName: string;
+      courseCount: number;
+      totalStudents: number;
+      ranking: number;
+    }[]
+  > {
+    try {
+      const safeLimit = Math.min(Math.max(1, limit), 50);
+
+      const results = await this.courseRepository
+        .createQueryBuilder('course')
+        .innerJoin('course.academy', 'academy')
+        .leftJoin('course.enrollments', 'enrollments')
+        .select([
+          'academy.id AS academy_id',
+          'academy.name AS academy_name',
+          'COUNT(DISTINCT course.id) AS course_count',
+          'COUNT(DISTINCT enrollments.id) AS total_students'
+        ])
+        .where('course.status = :status', { status: CourseStatus.PUBLISHED })
+        .andWhere('course.isActive = :isActive', { isActive: true })
+        .groupBy('academy.id, academy.name')
+        .orderBy('total_students', 'DESC')
+        .addOrderBy('course_count', 'DESC')
+        .limit(safeLimit)
+        .getRawMany();
+
+      return results.map((result, index) => ({
+        academyId: result.academy_id,
+        academyName: result.academy_name || 'Unknown Academy',
+        courseCount: parseInt(result.course_count, 10) || 0,
+        totalStudents: parseInt(result.total_students, 10) || 0,
+        ranking: index + 1,
+      }));
+
+    } catch (error) {
+      console.error('Failed to fetch top academies:', error);
+      return [];
+    }
+  }
 }
