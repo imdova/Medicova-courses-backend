@@ -2589,4 +2589,109 @@ export class AdminService {
       return [];
     }
   }
+
+  async getAcademiesSummary(): Promise<any> {
+    try {
+      // Get all academy statistics in one query
+      const stats = await this.academyRepository
+        .createQueryBuilder('academy')
+        .select([
+          'COUNT(academy.id) AS total_academies',
+          'SUM(CASE WHEN academy.isVerified = true THEN 1 ELSE 0 END) AS approved_academies',
+          'SUM(CASE WHEN academy.isVerified = false OR academy.isVerified IS NULL THEN 1 ELSE 0 END) AS not_approved_academies'
+        ])
+        .getRawOne();
+
+      return {
+        totalAcademies: parseInt(stats?.total_academies || '0', 10),
+        approvedAcademies: parseInt(stats?.approved_academies || '0', 10),
+        notApprovedAcademies: parseInt(stats?.not_approved_academies || '0', 10)
+      };
+
+    } catch (error) {
+      console.error('Failed to fetch academies summary:', error);
+      return {
+        totalAcademies: 0,
+        approvedAcademies: 0,
+        notApprovedAcademies: 0
+      };
+    }
+  }
+
+  async getTopAcademies(limit = 10): Promise<
+    {
+      academyId: string;
+      academyName: string;
+      courseCount: number;
+      totalStudents: number;
+      ranking: number;
+    }[]
+  > {
+    try {
+      const safeLimit = Math.min(Math.max(1, limit), 50);
+
+      // Get all academies first
+      const allAcademies = await this.academyRepository
+        .createQueryBuilder('academy')
+        .select(['academy.id', 'academy.name'])
+        .orderBy('academy.created_at', 'DESC')
+        .getMany();
+
+      if (allAcademies.length === 0) return [];
+
+      const academyIds = allAcademies.map(academy => academy.id);
+
+      // Get course and student counts for these academies
+      const academyStats = await this.courseRepository
+        .createQueryBuilder('course')
+        .innerJoin('course.academy', 'academy')
+        .leftJoin('course.enrollments', 'enrollments')
+        .select([
+          'academy.id AS academy_id',
+          'academy.name AS academy_name',
+          'COUNT(DISTINCT course.id) AS course_count',
+          'COUNT(DISTINCT enrollments.id) AS total_students'
+        ])
+        .where('academy.id IN (:...academyIds)', { academyIds })
+        .andWhere('course.status = :status', { status: CourseStatus.PUBLISHED })
+        .andWhere('course.isActive = :isActive', { isActive: true })
+        .groupBy('academy.id, academy.name')
+        .getRawMany();
+
+      // Create a map for quick lookup
+      const statsMap = new Map();
+      academyStats.forEach(stat => {
+        statsMap.set(stat.academy_id, {
+          courseCount: parseInt(stat.course_count, 10) || 0,
+          totalStudents: parseInt(stat.total_students, 10) || 0,
+        });
+      });
+
+      // Combine all academies with their stats (default to 0 if not found)
+      const academiesWithStats = allAcademies.map(academy => {
+        const stats = statsMap.get(academy.id) || { courseCount: 0, totalStudents: 0 };
+
+        return {
+          academyId: academy.id,
+          academyName: academy.name || 'Unknown Academy',
+          courseCount: stats.courseCount,
+          totalStudents: stats.totalStudents,
+          ranking: 0, // Will be set after sorting
+        };
+      });
+
+      // Sort by totalStudents (descending) and apply limit
+      return academiesWithStats
+        .sort((a, b) => b.totalStudents - a.totalStudents)
+        .slice(0, safeLimit)
+        .map((academy, index) => ({
+          ...academy,
+          ranking: index + 1,
+        }));
+
+    } catch (error) {
+      console.error('Failed to fetch top academies:', error);
+      return [];
+    }
+  }
 }
