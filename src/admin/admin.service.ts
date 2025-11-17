@@ -2342,4 +2342,135 @@ export class AdminService {
       ranking: index + 1,
     }));
   }
+
+  async getStudentsSummary(): Promise<any> {
+    try {
+      const studentRoleId = await this.getRoleId('student');
+      if (!studentRoleId) {
+        return {
+          totalStudents: 0,
+          totalEnrollments: 0,
+          completedProfiles: 0,
+          incompletedProfiles: 0
+        };
+      }
+
+      // Get student count and profile completion stats
+      const studentStats = await this.userRepository
+        .createQueryBuilder('user')
+        .innerJoin('user.profile', 'profile')
+        .select([
+          'COUNT(user.id) AS total_students',
+          'SUM(CASE WHEN profile.completionPercentage = 100 THEN 1 ELSE 0 END) AS completed_profiles',
+          'SUM(CASE WHEN profile.completionPercentage < 100 OR profile.completionPercentage IS NULL THEN 1 ELSE 0 END) AS incompleted_profiles'
+        ])
+        .where('user.roleId = :roleId', { roleId: studentRoleId })
+        .getRawOne();
+
+      // Get total enrollments separately (since it's a different entity)
+      const totalEnrollments = await this.courseStudentRepo.count();
+
+      return {
+        totalStudents: parseInt(studentStats?.total_students || '0', 10),
+        totalEnrollments: totalEnrollments,
+        completedProfiles: parseInt(studentStats?.completed_profiles || '0', 10),
+        incompletedProfiles: parseInt(studentStats?.incompleted_profiles || '0', 10)
+      };
+
+    } catch (error) {
+      console.error('Failed to fetch students summary:', error);
+      return {
+        totalStudents: 0,
+        totalEnrollments: 0,
+        completedProfiles: 0,
+        incompletedProfiles: 0
+      };
+    }
+  }
+
+  async getTopStudents(limit = 10): Promise<
+    {
+      studentId: string;
+      name: string;
+      email: string;
+      photoUrl: string | null;
+      joinDate: string;
+      completedCourses: number;
+      ranking: number;
+    }[]
+  > {
+    try {
+      const studentRoleId = await this.getRoleId('student');
+      if (!studentRoleId) return [];
+
+      const safeLimit = Math.min(Math.max(1, limit), 50);
+
+      // Get students with their completed course counts
+      const results = await this.dataSource
+        .createQueryBuilder()
+        .select([
+          'user.id AS student_id',
+          'user.email AS email',
+          'user.created_at AS join_date',
+          'profile.first_name AS first_name',
+          'profile.last_name AS last_name',
+          'profile.photo_url AS photo_url',
+          'COUNT(DISTINCT completed_courses.course_id) AS completed_courses_count'
+        ])
+        .from(qb => {
+          return qb
+            .select('student.id', 'student_id')
+            .addSelect('course.id', 'course_id')
+            .from(User, 'student')
+            .innerJoin('student.enrollments', 'enrollment')
+            .innerJoin('enrollment.course', 'course')
+            .innerJoin(
+              qb => qb
+                .select('course.id', 'course_id')
+                .addSelect('COUNT(item.id)', 'total_items')
+                .from(CourseSectionItem, 'item')
+                .innerJoin('item.section', 'section')
+                .innerJoin('section.course', 'course')
+                .groupBy('course.id'),
+              'course_items',
+              'course_items.course_id = course.id'
+            )
+            .innerJoin(
+              qb => qb
+                .select('progress.course_student_id', 'enrollment_id')
+                .addSelect('COUNT(progress.id)', 'completed_items')
+                .from(CourseProgress, 'progress')
+                .where('progress.completed = true')
+                .groupBy('progress.course_student_id'),
+              'student_progress',
+              'student_progress.enrollment_id = enrollment.id'
+            )
+            .where('student.roleId = :roleId', { roleId: studentRoleId })
+            .andWhere('course_items.total_items > 0')
+            .andWhere('student_progress.completed_items >= course_items.total_items')
+            .groupBy('student.id, course.id');
+        }, 'completed_courses')
+        .innerJoin(User, 'user', 'user.id = completed_courses.student_id')
+        .innerJoin('user.profile', 'profile')
+        .groupBy('user.id, user.email, user.created_at, profile.first_name, profile.last_name, profile.photo_url')
+        .orderBy('completed_courses_count', 'DESC')
+        .addOrderBy('user.created_at', 'ASC') // Secondary sort by join date
+        .limit(safeLimit)
+        .getRawMany();
+
+      return results.map((result, index) => ({
+        studentId: result.student_id,
+        name: `${result.first_name || ''} ${result.last_name || ''}`.trim() || 'Unknown Student',
+        email: result.email,
+        photoUrl: result.photo_url,
+        joinDate: this.formatDate(result.join_date),
+        completedCourses: parseInt(result.completed_courses_count, 10) || 0,
+        ranking: index + 1,
+      }));
+
+    } catch (error) {
+      console.error('Failed to fetch top students:', error);
+      return [];
+    }
+  }
 }
