@@ -624,6 +624,53 @@ export class AdminController {
     return this.adminService.getTopStudents(limitNum);
   }
 
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:instructors:summary')
+  @Get('instructors-summary')
+  @ApiOperation({
+    summary: 'Get instructors summary statistics',
+    description: 'Get total instructors, approved and not-approved counts'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Instructors summary statistics retrieved successfully',
+  })
+  async getInstructorsSummary(): Promise<any> {
+    return this.adminService.getInstructorsSummary();
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:instructors:recent')
+  @Get('instructors/recent')
+  @ApiOperation({
+    summary: 'Get recent instructors with their statistics',
+    description: 'Get recently added instructors with course counts, student enrollments, and verification status'
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of recent instructors to return (default: 10, max: 50)'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Recent instructors retrieved successfully',
+  })
+  async getRecentInstructors(
+    @Query('limit') limit?: string,
+  ): Promise<any> {
+    // Parse and validate limit parameter
+    let limitNum = 10; // default
+    if (limit) {
+      const parsed = parseInt(limit, 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        limitNum = Math.min(parsed, 50); // Cap at 50 for safety
+      }
+    }
+
+    return this.adminService.getRecentInstructors(limitNum);
+  }
+
   // -----------------------------------------------------------------
   // 🟢 NEW: CREATE STUDENT ENDPOINT
   // -----------------------------------------------------------------
