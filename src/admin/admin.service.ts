@@ -2405,22 +2405,13 @@ export class AdminService {
 
       const safeLimit = Math.min(Math.max(1, limit), 50);
 
-      // Get students with their completed course counts
-      const results = await this.dataSource
-        .createQueryBuilder()
-        .select([
-          'user.id AS student_id',
-          'user.email AS email',
-          'user.created_at AS join_date',
-          'profile.first_name AS first_name',
-          'profile.last_name AS last_name',
-          'profile.photo_url AS photo_url',
-          'COUNT(DISTINCT completed_courses.course_id) AS completed_courses_count'
-        ])
-        .from(qb => {
-          return qb
+      const results = await this.userRepository
+        .createQueryBuilder('user')
+        .innerJoin('user.profile', 'profile')
+        .leftJoin(
+          qb => qb
             .select('student.id', 'student_id')
-            .addSelect('course.id', 'course_id')
+            .addSelect('COUNT(DISTINCT course.id)', 'completed_count')
             .from(User, 'student')
             .innerJoin('student.enrollments', 'enrollment')
             .innerJoin('enrollment.course', 'course')
@@ -2448,13 +2439,22 @@ export class AdminService {
             .where('student.roleId = :roleId', { roleId: studentRoleId })
             .andWhere('course_items.total_items > 0')
             .andWhere('student_progress.completed_items >= course_items.total_items')
-            .groupBy('student.id, course.id');
-        }, 'completed_courses')
-        .innerJoin(User, 'user', 'user.id = completed_courses.student_id')
-        .innerJoin('user.profile', 'profile')
-        .groupBy('user.id, user.email, user.created_at, profile.first_name, profile.last_name, profile.photo_url')
+            .groupBy('student.id'),
+          'completions',
+          'completions.student_id = user.id'
+        )
+        .select([
+          'user.id AS student_id',
+          'user.email AS email',
+          'user.created_at AS join_date',
+          'profile.firstName AS first_name',
+          'profile.lastName AS last_name',
+          'profile.photoUrl AS photo_url',
+          'COALESCE(completions.completed_count, 0) AS completed_courses_count'
+        ])
+        .where('user.roleId = :roleId', { roleId: studentRoleId })
         .orderBy('completed_courses_count', 'DESC')
-        .addOrderBy('user.created_at', 'ASC') // Secondary sort by join date
+        .addOrderBy('user.created_at', 'DESC')
         .limit(safeLimit)
         .getRawMany();
 
