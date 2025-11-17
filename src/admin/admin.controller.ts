@@ -625,7 +625,7 @@ export class AdminController {
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('admin:instructors:summary')
+  @RequirePermissions('admin:instructors:summary')
   @Get('instructors-summary')
   @ApiOperation({
     summary: 'Get instructors summary statistics',
@@ -640,7 +640,7 @@ export class AdminController {
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('admin:instructors:recent')
+  @RequirePermissions('admin:instructors:recent')
   @Get('instructors/recent')
   @ApiOperation({
     summary: 'Get recent instructors with their statistics',
