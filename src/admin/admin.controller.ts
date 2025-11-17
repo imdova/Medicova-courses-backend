@@ -577,6 +577,147 @@ export class AdminController {
     return this.adminService.getTopCategories(limitNum);
   }
 
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:students:summary')
+  @Get('students-summary')
+  @ApiOperation({
+    summary: 'Get comprehensive students summary statistics',
+    description: 'Get total students, enrollments, and profile completion statistics'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Students summary statistics retrieved successfully',
+  })
+  async getStudentsSummary(): Promise<any> {
+    return this.adminService.getStudentsSummary();
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:students:top')
+  @Get('students/top')
+  @ApiOperation({
+    summary: 'Get top students by course completions',
+    description: 'Get students who completed the most courses (finished all items in a course)'
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of top students to return (default: 10, max: 50)'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Top students retrieved successfully',
+  })
+  async getTopStudents(
+    @Query('limit') limit?: string,
+  ): Promise<any> {
+    // Parse and validate limit parameter
+    let limitNum = 10; // default
+    if (limit) {
+      const parsed = parseInt(limit, 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        limitNum = Math.min(parsed, 50); // Cap at 50 for safety
+      }
+    }
+
+    return this.adminService.getTopStudents(limitNum);
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:instructors:summary')
+  @Get('instructors-summary')
+  @ApiOperation({
+    summary: 'Get instructors summary statistics',
+    description: 'Get total instructors, approved and not-approved counts'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Instructors summary statistics retrieved successfully',
+  })
+  async getInstructorsSummary(): Promise<any> {
+    return this.adminService.getInstructorsSummary();
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:instructors:recent')
+  @Get('instructors/recent')
+  @ApiOperation({
+    summary: 'Get recent instructors with their statistics',
+    description: 'Get recently added instructors with course counts, student enrollments, and verification status'
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of recent instructors to return (default: 10, max: 50)'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Recent instructors retrieved successfully',
+  })
+  async getRecentInstructors(
+    @Query('limit') limit?: string,
+  ): Promise<any> {
+    // Parse and validate limit parameter
+    let limitNum = 10; // default
+    if (limit) {
+      const parsed = parseInt(limit, 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        limitNum = Math.min(parsed, 50); // Cap at 50 for safety
+      }
+    }
+
+    return this.adminService.getRecentInstructors(limitNum);
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:academies:summary')
+  @Get('academies-summary')
+  @ApiOperation({
+    summary: 'Get academies summary statistics',
+    description: 'Get total academies, approved and not-approved counts'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Academies summary statistics retrieved successfully',
+  })
+  async getAcademiesSummary(): Promise<any> {
+    return this.adminService.getAcademiesSummary();
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:academies:top')
+  @Get('academies/top')
+  @ApiOperation({
+    summary: 'Get top academies by student enrollment',
+    description: 'Get academies with course counts and student enrollments, ranked by student count'
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of top academies to return (default: 10, max: 50)'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Top academies retrieved successfully',
+  })
+  async getTopAcademies(
+    @Query('limit') limit?: string,
+  ): Promise<any> {
+    // Parse and validate limit parameter
+    let limitNum = 10; // default
+    if (limit) {
+      const parsed = parseInt(limit, 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        limitNum = Math.min(parsed, 50); // Cap at 50 for safety
+      }
+    }
+
+    return this.adminService.getTopAcademies(limitNum);
+  }
+
   // -----------------------------------------------------------------
   // 🟢 NEW: CREATE STUDENT ENDPOINT
   // -----------------------------------------------------------------

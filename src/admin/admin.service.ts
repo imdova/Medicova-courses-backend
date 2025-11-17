@@ -2342,4 +2342,356 @@ export class AdminService {
       ranking: index + 1,
     }));
   }
+
+  async getStudentsSummary(): Promise<any> {
+    try {
+      const studentRoleId = await this.getRoleId('student');
+      if (!studentRoleId) {
+        return {
+          totalStudents: 0,
+          totalEnrollments: 0,
+          completedProfiles: 0,
+          incompletedProfiles: 0
+        };
+      }
+
+      // Get student count and profile completion stats
+      const studentStats = await this.userRepository
+        .createQueryBuilder('user')
+        .innerJoin('user.profile', 'profile')
+        .select([
+          'COUNT(user.id) AS total_students',
+          'SUM(CASE WHEN profile.completionPercentage = 100 THEN 1 ELSE 0 END) AS completed_profiles',
+          'SUM(CASE WHEN profile.completionPercentage < 100 OR profile.completionPercentage IS NULL THEN 1 ELSE 0 END) AS incompleted_profiles'
+        ])
+        .where('user.roleId = :roleId', { roleId: studentRoleId })
+        .getRawOne();
+
+      // Get total enrollments separately (since it's a different entity)
+      const totalEnrollments = await this.courseStudentRepo.count();
+
+      return {
+        totalStudents: parseInt(studentStats?.total_students || '0', 10),
+        totalEnrollments: totalEnrollments,
+        completedProfiles: parseInt(studentStats?.completed_profiles || '0', 10),
+        incompletedProfiles: parseInt(studentStats?.incompleted_profiles || '0', 10)
+      };
+
+    } catch (error) {
+      console.error('Failed to fetch students summary:', error);
+      return {
+        totalStudents: 0,
+        totalEnrollments: 0,
+        completedProfiles: 0,
+        incompletedProfiles: 0
+      };
+    }
+  }
+
+  async getTopStudents(limit = 10): Promise<
+    {
+      studentId: string;
+      name: string;
+      email: string;
+      photoUrl: string | null;
+      joinDate: string;
+      completedCourses: number;
+      ranking: number;
+    }[]
+  > {
+    try {
+      const studentRoleId = await this.getRoleId('student');
+      if (!studentRoleId) return [];
+
+      const safeLimit = Math.min(Math.max(1, limit), 50);
+
+      const results = await this.userRepository
+        .createQueryBuilder('user')
+        .innerJoin('user.profile', 'profile')
+        .leftJoin(
+          qb => qb
+            .select('student.id', 'student_id')
+            .addSelect('COUNT(DISTINCT course.id)', 'completed_count')
+            .from(User, 'student')
+            .innerJoin('student.enrollments', 'enrollment')
+            .innerJoin('enrollment.course', 'course')
+            .innerJoin(
+              qb => qb
+                .select('course.id', 'course_id')
+                .addSelect('COUNT(item.id)', 'total_items')
+                .from(CourseSectionItem, 'item')
+                .innerJoin('item.section', 'section')
+                .innerJoin('section.course', 'course')
+                .groupBy('course.id'),
+              'course_items',
+              'course_items.course_id = course.id'
+            )
+            .innerJoin(
+              qb => qb
+                .select('progress.course_student_id', 'enrollment_id')
+                .addSelect('COUNT(progress.id)', 'completed_items')
+                .from(CourseProgress, 'progress')
+                .where('progress.completed = true')
+                .groupBy('progress.course_student_id'),
+              'student_progress',
+              'student_progress.enrollment_id = enrollment.id'
+            )
+            .where('student.roleId = :roleId', { roleId: studentRoleId })
+            .andWhere('course_items.total_items > 0')
+            .andWhere('student_progress.completed_items >= course_items.total_items')
+            .groupBy('student.id'),
+          'completions',
+          'completions.student_id = user.id'
+        )
+        .select([
+          'user.id AS student_id',
+          'user.email AS email',
+          'user.created_at AS join_date',
+          'profile.firstName AS first_name',
+          'profile.lastName AS last_name',
+          'profile.photoUrl AS photo_url',
+          'COALESCE(completions.completed_count, 0) AS completed_courses_count'
+        ])
+        .where('user.roleId = :roleId', { roleId: studentRoleId })
+        .orderBy('completed_courses_count', 'DESC')
+        .addOrderBy('user.created_at', 'DESC')
+        .limit(safeLimit)
+        .getRawMany();
+
+      return results.map((result, index) => ({
+        studentId: result.student_id,
+        name: `${result.first_name || ''} ${result.last_name || ''}`.trim() || 'Unknown Student',
+        email: result.email,
+        photoUrl: result.photo_url,
+        joinDate: this.formatDate(result.join_date),
+        completedCourses: parseInt(result.completed_courses_count, 10) || 0,
+        ranking: index + 1,
+      }));
+
+    } catch (error) {
+      console.error('Failed to fetch top students:', error);
+      return [];
+    }
+  }
+
+  async getInstructorsSummary(): Promise<any> {
+    try {
+      const instructorRoleId = await this.getRoleId('instructor');
+      if (!instructorRoleId) {
+        return {
+          totalInstructors: 0,
+          approvedInstructors: 0,
+          notApprovedInstructors: 0
+        };
+      }
+
+      // Get all instructor statistics in one query
+      const stats = await this.userRepository
+        .createQueryBuilder('user')
+        .select([
+          'COUNT(user.id) AS total_instructors',
+          'SUM(CASE WHEN user.isVerified = true THEN 1 ELSE 0 END) AS approved_instructors',
+          'SUM(CASE WHEN user.isVerified = false OR user.isVerified IS NULL THEN 1 ELSE 0 END) AS not_approved_instructors'
+        ])
+        .where('user.roleId = :roleId', { roleId: instructorRoleId })
+        .getRawOne();
+
+      return {
+        totalInstructors: parseInt(stats?.total_instructors || '0', 10),
+        approvedInstructors: parseInt(stats?.approved_instructors || '0', 10),
+        notApprovedInstructors: parseInt(stats?.not_approved_instructors || '0', 10)
+      };
+
+    } catch (error) {
+      console.error('Failed to fetch instructors summary:', error);
+      return {
+        totalInstructors: 0,
+        approvedInstructors: 0,
+        notApprovedInstructors: 0
+      };
+    }
+  }
+
+  async getRecentInstructors(limit = 10): Promise<
+    {
+      instructorId: string;
+      name: string;
+      photoUrl: string | null;
+      courseCount: number;
+      totalStudents: number;
+      isVerified: boolean;
+      joinDate: string;
+    }[]
+  > {
+    try {
+      const instructorRoleId = await this.getRoleId('instructor');
+      if (!instructorRoleId) return [];
+
+      const safeLimit = Math.min(Math.max(1, limit), 50);
+
+      // Get recent instructors with their basic info
+      const instructors = await this.userRepository
+        .createQueryBuilder('user')
+        .innerJoinAndSelect('user.profile', 'profile')
+        .select([
+          'user.id',
+          'user.isVerified',
+          'user.created_at',
+          'profile.firstName',
+          'profile.lastName',
+          'profile.photoUrl'
+        ])
+        .where('user.roleId = :roleId', { roleId: instructorRoleId })
+        .orderBy('user.created_at', 'DESC')
+        .limit(safeLimit)
+        .getMany();
+
+      if (instructors.length === 0) return [];
+
+      // Get course and student counts in parallel
+      const instructorStats = await Promise.all(
+        instructors.map(async (instructor) => {
+          const [courseCount, totalStudents] = await Promise.all([
+            // Course count - createdBy is a direct string/UUID
+            this.courseRepository.count({
+              where: {
+                createdBy: instructor.id, // Direct string comparison
+                status: CourseStatus.PUBLISHED,
+                isActive: true
+              }
+            }),
+            // Student count (enrollments in instructor's courses)
+            this.courseStudentRepo
+              .createQueryBuilder('enrollment')
+              .innerJoin('enrollment.course', 'course')
+              .where('course.createdBy = :instructorId', { instructorId: instructor.id })
+              .andWhere('course.status = :status', { status: CourseStatus.PUBLISHED })
+              .andWhere('course.isActive = :isActive', { isActive: true })
+              .getCount()
+          ]);
+
+          return {
+            instructorId: instructor.id,
+            name: `${instructor.profile.firstName || ''} ${instructor.profile.lastName || ''}`.trim() || 'Unknown Instructor',
+            photoUrl: instructor.profile.photoUrl,
+            courseCount,
+            totalStudents,
+            isVerified: Boolean(instructor.isVerified),
+            joinDate: this.formatDate(instructor.created_at),
+          };
+        })
+      );
+
+      return instructorStats;
+
+    } catch (error) {
+      console.error('Failed to fetch recent instructors:', error);
+      return [];
+    }
+  }
+
+  async getAcademiesSummary(): Promise<any> {
+    try {
+      // Get all academy statistics in one query
+      const stats = await this.academyRepository
+        .createQueryBuilder('academy')
+        .select([
+          'COUNT(academy.id) AS total_academies',
+          'SUM(CASE WHEN academy.isVerified = true THEN 1 ELSE 0 END) AS approved_academies',
+          'SUM(CASE WHEN academy.isVerified = false OR academy.isVerified IS NULL THEN 1 ELSE 0 END) AS not_approved_academies'
+        ])
+        .getRawOne();
+
+      return {
+        totalAcademies: parseInt(stats?.total_academies || '0', 10),
+        approvedAcademies: parseInt(stats?.approved_academies || '0', 10),
+        notApprovedAcademies: parseInt(stats?.not_approved_academies || '0', 10)
+      };
+
+    } catch (error) {
+      console.error('Failed to fetch academies summary:', error);
+      return {
+        totalAcademies: 0,
+        approvedAcademies: 0,
+        notApprovedAcademies: 0
+      };
+    }
+  }
+
+  async getTopAcademies(limit = 10): Promise<
+    {
+      academyId: string;
+      academyName: string;
+      courseCount: number;
+      totalStudents: number;
+      ranking: number;
+    }[]
+  > {
+    try {
+      const safeLimit = Math.min(Math.max(1, limit), 50);
+
+      // Get all academies first
+      const allAcademies = await this.academyRepository
+        .createQueryBuilder('academy')
+        .select(['academy.id', 'academy.name'])
+        .orderBy('academy.created_at', 'DESC')
+        .getMany();
+
+      if (allAcademies.length === 0) return [];
+
+      const academyIds = allAcademies.map(academy => academy.id);
+
+      // Get course and student counts for these academies
+      const academyStats = await this.courseRepository
+        .createQueryBuilder('course')
+        .innerJoin('course.academy', 'academy')
+        .leftJoin('course.enrollments', 'enrollments')
+        .select([
+          'academy.id AS academy_id',
+          'academy.name AS academy_name',
+          'COUNT(DISTINCT course.id) AS course_count',
+          'COUNT(DISTINCT enrollments.id) AS total_students'
+        ])
+        .where('academy.id IN (:...academyIds)', { academyIds })
+        .andWhere('course.status = :status', { status: CourseStatus.PUBLISHED })
+        .andWhere('course.isActive = :isActive', { isActive: true })
+        .groupBy('academy.id, academy.name')
+        .getRawMany();
+
+      // Create a map for quick lookup
+      const statsMap = new Map();
+      academyStats.forEach(stat => {
+        statsMap.set(stat.academy_id, {
+          courseCount: parseInt(stat.course_count, 10) || 0,
+          totalStudents: parseInt(stat.total_students, 10) || 0,
+        });
+      });
+
+      // Combine all academies with their stats (default to 0 if not found)
+      const academiesWithStats = allAcademies.map(academy => {
+        const stats = statsMap.get(academy.id) || { courseCount: 0, totalStudents: 0 };
+
+        return {
+          academyId: academy.id,
+          academyName: academy.name || 'Unknown Academy',
+          courseCount: stats.courseCount,
+          totalStudents: stats.totalStudents,
+          ranking: 0, // Will be set after sorting
+        };
+      });
+
+      // Sort by totalStudents (descending) and apply limit
+      return academiesWithStats
+        .sort((a, b) => b.totalStudents - a.totalStudents)
+        .slice(0, safeLimit)
+        .map((academy, index) => ({
+          ...academy,
+          ranking: index + 1,
+        }));
+
+    } catch (error) {
+      console.error('Failed to fetch top academies:', error);
+      return [];
+    }
+  }
 }
