@@ -2511,4 +2511,82 @@ export class AdminService {
       };
     }
   }
+
+  async getRecentInstructors(limit = 10): Promise<
+    {
+      instructorId: string;
+      name: string;
+      photoUrl: string | null;
+      courseCount: number;
+      totalStudents: number;
+      isVerified: boolean;
+      joinDate: string;
+    }[]
+  > {
+    try {
+      const instructorRoleId = await this.getRoleId('instructor');
+      if (!instructorRoleId) return [];
+
+      const safeLimit = Math.min(Math.max(1, limit), 50);
+
+      // Get recent instructors with their basic info
+      const instructors = await this.userRepository
+        .createQueryBuilder('user')
+        .innerJoinAndSelect('user.profile', 'profile')
+        .select([
+          'user.id',
+          'user.isVerified',
+          'user.created_at',
+          'profile.firstName',
+          'profile.lastName',
+          'profile.photoUrl'
+        ])
+        .where('user.roleId = :roleId', { roleId: instructorRoleId })
+        .orderBy('user.created_at', 'DESC')
+        .limit(safeLimit)
+        .getMany();
+
+      if (instructors.length === 0) return [];
+
+      // Get course and student counts in parallel
+      const instructorStats = await Promise.all(
+        instructors.map(async (instructor) => {
+          const [courseCount, totalStudents] = await Promise.all([
+            // Course count - createdBy is a direct string/UUID
+            this.courseRepository.count({
+              where: {
+                createdBy: instructor.id, // Direct string comparison
+                status: CourseStatus.PUBLISHED,
+                isActive: true
+              }
+            }),
+            // Student count (enrollments in instructor's courses)
+            this.courseStudentRepo
+              .createQueryBuilder('enrollment')
+              .innerJoin('enrollment.course', 'course')
+              .where('course.createdBy = :instructorId', { instructorId: instructor.id })
+              .andWhere('course.status = :status', { status: CourseStatus.PUBLISHED })
+              .andWhere('course.isActive = :isActive', { isActive: true })
+              .getCount()
+          ]);
+
+          return {
+            instructorId: instructor.id,
+            name: `${instructor.profile.firstName || ''} ${instructor.profile.lastName || ''}`.trim() || 'Unknown Instructor',
+            photoUrl: instructor.profile.photoUrl,
+            courseCount,
+            totalStudents,
+            isVerified: Boolean(instructor.isVerified),
+            joinDate: this.formatDate(instructor.created_at),
+          };
+        })
+      );
+
+      return instructorStats;
+
+    } catch (error) {
+      console.error('Failed to fetch recent instructors:', error);
+      return [];
+    }
+  }
 }
