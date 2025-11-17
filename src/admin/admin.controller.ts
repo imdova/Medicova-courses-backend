@@ -624,6 +624,21 @@ export class AdminController {
     return this.adminService.getTopStudents(limitNum);
   }
 
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  //@RequirePermissions('admin:instructors:summary')
+  @Get('instructors-summary')
+  @ApiOperation({
+    summary: 'Get instructors summary statistics',
+    description: 'Get total instructors, approved and not-approved counts'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Instructors summary statistics retrieved successfully',
+  })
+  async getInstructorsSummary(): Promise<any> {
+    return this.adminService.getInstructorsSummary();
+  }
+
   // -----------------------------------------------------------------
   // 🟢 NEW: CREATE STUDENT ENDPOINT
   // -----------------------------------------------------------------

@@ -2473,4 +2473,42 @@ export class AdminService {
       return [];
     }
   }
+
+  async getInstructorsSummary(): Promise<any> {
+    try {
+      const instructorRoleId = await this.getRoleId('instructor');
+      if (!instructorRoleId) {
+        return {
+          totalInstructors: 0,
+          approvedInstructors: 0,
+          notApprovedInstructors: 0
+        };
+      }
+
+      // Get all instructor statistics in one query
+      const stats = await this.userRepository
+        .createQueryBuilder('user')
+        .select([
+          'COUNT(user.id) AS total_instructors',
+          'SUM(CASE WHEN user.isVerified = true THEN 1 ELSE 0 END) AS approved_instructors',
+          'SUM(CASE WHEN user.isVerified = false OR user.isVerified IS NULL THEN 1 ELSE 0 END) AS not_approved_instructors'
+        ])
+        .where('user.roleId = :roleId', { roleId: instructorRoleId })
+        .getRawOne();
+
+      return {
+        totalInstructors: parseInt(stats?.total_instructors || '0', 10),
+        approvedInstructors: parseInt(stats?.approved_instructors || '0', 10),
+        notApprovedInstructors: parseInt(stats?.not_approved_instructors || '0', 10)
+      };
+
+    } catch (error) {
+      console.error('Failed to fetch instructors summary:', error);
+      return {
+        totalInstructors: 0,
+        approvedInstructors: 0,
+        notApprovedInstructors: 0
+      };
+    }
+  }
 }
