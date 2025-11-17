@@ -577,6 +577,53 @@ export class AdminController {
     return this.adminService.getTopCategories(limitNum);
   }
 
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:students:summary')
+  @Get('students-summary')
+  @ApiOperation({
+    summary: 'Get comprehensive students summary statistics',
+    description: 'Get total students, enrollments, and profile completion statistics'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Students summary statistics retrieved successfully',
+  })
+  async getStudentsSummary(): Promise<any> {
+    return this.adminService.getStudentsSummary();
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:students:top')
+  @Get('students/top')
+  @ApiOperation({
+    summary: 'Get top students by course completions',
+    description: 'Get students who completed the most courses (finished all items in a course)'
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of top students to return (default: 10, max: 50)'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Top students retrieved successfully',
+  })
+  async getTopStudents(
+    @Query('limit') limit?: string,
+  ): Promise<any> {
+    // Parse and validate limit parameter
+    let limitNum = 10; // default
+    if (limit) {
+      const parsed = parseInt(limit, 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        limitNum = Math.min(parsed, 50); // Cap at 50 for safety
+      }
+    }
+
+    return this.adminService.getTopStudents(limitNum);
+  }
+
   // -----------------------------------------------------------------
   // 🟢 NEW: CREATE STUDENT ENDPOINT
   // -----------------------------------------------------------------
