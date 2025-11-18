@@ -6,8 +6,11 @@ import {
     Column,
     Entity,
     Index,
+    JoinColumn,
+    ManyToOne,
 } from 'typeorm';
 import { BasicEntity } from '../../common/entities/basic.entity';
+import { BlogCategory } from '../blog-category/entities/blog-category.entity';
 
 @Entity()
 export class Blog extends BasicEntity {
@@ -126,4 +129,36 @@ export class Blog extends BasicEntity {
     })
     @Column({ type: 'jsonb' })
     content: Record<string, any>;
+
+    @ApiPropertyOptional({
+        description: 'UUID of the primary blog category.',
+        type: String,
+        format: 'uuid',
+        nullable: true,
+    })
+    @Column({ type: 'uuid', name: 'category_id', nullable: true })
+    categoryId: string | null;
+
+    @ManyToOne(() => BlogCategory, (category) => category.blogs, {
+        nullable: true,
+        onDelete: 'SET NULL', // Handle deletion of a category
+    })
+    @JoinColumn({ name: 'category_id' })
+    category: BlogCategory;
+
+    @ApiPropertyOptional({
+        description: 'UUID of the secondary blog subcategory.',
+        type: String,
+        format: 'uuid',
+        nullable: true,
+    })
+    @Column({ type: 'uuid', name: 'sub_category_id', nullable: true })
+    subCategoryId: string | null;
+
+    @ManyToOne(() => BlogCategory, (subCategory) => subCategory.subCategoryBlogs, {
+        nullable: true,
+        onDelete: 'SET NULL', // Handle deletion of a subcategory
+    })
+    @JoinColumn({ name: 'sub_category_id' })
+    subCategory: BlogCategory;
 }

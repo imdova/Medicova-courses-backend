@@ -64,6 +64,7 @@ import { StudentSetting } from './admin/student-settings/entities/student-settin
 import { AcademySetting } from './academy/academy-settings/entities/academy-setting.entity';
 import { BlogModule } from './blog/blog.module';
 import { Blog } from './blog/entities/blog.entity';
+import { BlogCategory } from './blog/blog-category/entities/blog-category.entity';
 
 @Module({
   imports: [
@@ -119,7 +120,8 @@ import { Blog } from './blog/entities/blog.entity';
         Faq,
         StudentSetting,
         AcademySetting,
-        Blog
+        Blog,
+        BlogCategory
       ],
       synchronize: true,
       extra: {
