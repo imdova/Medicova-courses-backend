@@ -10,7 +10,8 @@ import {
   Query,
   HttpStatus,
   HttpCode,
-  UseGuards
+  UseGuards,
+  Req
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { BlogCategoryService } from './blog-category.service';
@@ -42,8 +43,8 @@ export class BlogCategoryController {
     status: 409,
     description: 'Category with this name or slug already exists.'
   })
-  create(@Body() createBlogCategoryDto: CreateBlogCategoryDto) {
-    return this.blogCategoryService.create(createBlogCategoryDto);
+  create(@Body() createBlogCategoryDto: CreateBlogCategoryDto, @Req() req) {
+    return this.blogCategoryService.create(createBlogCategoryDto, req.user.sub);
   }
 
   @Get()

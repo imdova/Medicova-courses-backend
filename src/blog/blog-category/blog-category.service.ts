@@ -15,7 +15,7 @@ export class BlogCategoryService {
     private readonly blogRepository: Repository<Blog>,
   ) { }
 
-  async create(createBlogCategoryDto: CreateBlogCategoryDto): Promise<BlogCategory> {
+  async create(createBlogCategoryDto: CreateBlogCategoryDto, userId: string,): Promise<BlogCategory> {
     let parent: BlogCategory = null;
 
     // Validate parent category if provided
@@ -31,6 +31,7 @@ export class BlogCategoryService {
 
     const category = this.blogCategoryRepository.create({
       ...createBlogCategoryDto,
+      createdBy: userId,
       parent,
     });
 
