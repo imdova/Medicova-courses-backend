@@ -62,6 +62,8 @@ import { CourseVariable } from './course/course-variables/entities/course-variab
 import { Faq } from './admin/faq/entities/faq.entity';
 import { StudentSetting } from './admin/student-settings/entities/student-setting.entity';
 import { AcademySetting } from './academy/academy-settings/entities/academy-setting.entity';
+import { BlogModule } from './blog/blog.module';
+import { Blog } from './blog/entities/blog.entity';
 
 @Module({
   imports: [
@@ -116,15 +118,16 @@ import { AcademySetting } from './academy/academy-settings/entities/academy-sett
         CourseVariable,
         Faq,
         StudentSetting,
-        AcademySetting
+        AcademySetting,
+        Blog
       ],
       synchronize: true,
       extra: {
         max: 5
       },
-      ssl: {
-        rejectUnauthorized: false, // ✅ Allow self-signed certs from Cloud SQL
-      },
+      // ssl: {
+      //   rejectUnauthorized: false, // ✅ Allow self-signed certs from Cloud SQL
+      // },
     }),
     MailerModule.forRoot({
       transport: process.env.SMTP_TRANSPORT,
@@ -148,6 +151,7 @@ import { AcademySetting } from './academy/academy-settings/entities/academy-sett
     AssignmentModule,
     PaymentModule,
     AdminModule,
+    BlogModule,
   ],
   controllers: [AppController],
   providers: [AppService, DatabaseService],
