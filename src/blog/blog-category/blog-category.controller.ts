@@ -29,7 +29,7 @@ export class BlogCategoryController {
   constructor(private readonly blogCategoryService: BlogCategoryService) { }
 
   @Post()
-  //@RequirePermissions('blog_category:create')
+  @RequirePermissions('blog_category:create')
   @ApiOperation({ summary: 'Create a new blog category' })
   @ApiResponse({
     status: 201,
@@ -48,7 +48,7 @@ export class BlogCategoryController {
   }
 
   @Get()
-  //@RequirePermissions('blog_category:list')
+  @RequirePermissions('blog_category:list')
   @ApiOperation({ summary: 'Get all blog categories' })
   @ApiResponse({
     status: 200,
@@ -91,7 +91,7 @@ export class BlogCategoryController {
   // }
 
   @Get(':id')
-  //@RequirePermissions('blog_category:get_by_id')
+  @RequirePermissions('blog_category:get_by_id')
   @ApiOperation({ summary: 'Get blog category by ID' })
   @ApiParam({
     name: 'id',
@@ -140,7 +140,7 @@ export class BlogCategoryController {
   // }
 
   @Patch(':id')
-  //@RequirePermissions('blog_category:update')
+  @RequirePermissions('blog_category:update')
   @ApiOperation({ summary: 'Update a blog category' })
   @ApiBody({ description: 'Category update data', type: CreateBlogCategoryDto })
   @ApiParam({
@@ -168,7 +168,7 @@ export class BlogCategoryController {
   }
 
   @Delete(':id')
-  //@RequirePermissions('blog_category:delete')
+  @RequirePermissions('blog_category:delete')
   @ApiOperation({ summary: 'Delete a blog category' })
   @ApiParam({
     name: 'id',
