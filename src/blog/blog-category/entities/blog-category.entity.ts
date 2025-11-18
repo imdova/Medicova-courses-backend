@@ -1,0 +1,107 @@
+import { Entity, Column, Index, OneToMany, ManyToOne, JoinColumn } from 'typeorm';
+import { BasicEntity } from '../../../common/entities/basic.entity';
+import { Blog } from '../../entities/blog.entity';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+// 🟢 NEW: Define the structure for FAQ (Frequently Asked Questions)
+export interface FaqItem {
+    question: string;
+    answer: string;
+}
+
+// 🟢 NEW: Define the structure for all SEO Meta Information
+export interface SeoMeta {
+    metaTitle?: string;
+    metaDescription?: string;
+    metaKeywords?: string[];
+}
+
+@Entity('blog_categories')
+export class BlogCategory extends BasicEntity {
+    @ApiProperty({
+        description: 'User ID of the admin who created the course-category',
+        format: 'uuid',
+    })
+    @Column({ type: 'uuid', name: 'created_by' })
+    createdBy: string;
+
+    @ApiProperty({ description: 'Name of the category', maxLength: 255 })
+    @Column({ length: 255, unique: true })
+    name: string;
+
+    @ApiPropertyOptional({ description: 'Slug for SEO-friendly URLs' })
+    @Column({ length: 255, unique: true })
+    slug: string;
+
+    @ApiPropertyOptional({ description: 'Category description', maxLength: 500 })
+    @Column({ length: 500, nullable: true })
+    description?: string;
+
+    // ✅ New priority field
+    @ApiPropertyOptional({
+        description: 'Priority of the category (higher number = higher priority)',
+        default: 0,
+    })
+    @Column({ type: 'int', default: 0 })
+    priority: number;
+
+    // ✅ New isActive field
+    @ApiPropertyOptional({
+        description: 'Whether the category is visible and active',
+        default: true,
+    })
+    @Column({ type: 'boolean', default: true })
+    isActive: boolean;
+
+    @ApiPropertyOptional({ description: 'Image URL for category thumbnail' })
+    @Column({ length: 500, nullable: true })
+    image?: string;
+
+    // 🟢 NEW FIELD: SVG Icon
+    @ApiPropertyOptional({
+        description: 'SVG icon content or URL for the category',
+        maxLength: 5000, // Adjusted length for potentially storing raw SVG content
+    })
+    @Column({ type: 'text', nullable: true, name: 'svg_icon' })
+    svgIcon?: string;
+
+    // --- Relations ---
+
+    // Self-referencing: A category can be a parent to multiple subcategories
+    @Column({ type: 'uuid', nullable: true, name: 'parent_id' })
+    parentId: string | null;
+
+    @ManyToOne(() => BlogCategory, (category) => category.subcategories, {
+        nullable: true,
+        onDelete: 'SET NULL',
+    })
+    @JoinColumn({ name: 'parent_id' })
+    parent: BlogCategory;
+
+    @OneToMany(() => BlogCategory, (category) => category.parent)
+    subcategories: BlogCategory[];
+
+    // A category can have many blogs as main category
+    @OneToMany(() => Blog, (blog) => blog.category)
+    blogs: Blog[];
+
+    // A category can have many blogs as subcategory
+    @OneToMany(() => Blog, (blog) => blog.subCategory)
+    subCategoryBlogs: Blog[];
+
+    @ApiPropertyOptional({ description: 'A short, catchy headline for the category' })
+    @Column({ length: 500, nullable: true, name: 'category_headline' })
+    categoryHeadline?: string; // Corresponds to 'Category Headline'
+
+    @ApiPropertyOptional({ description: 'Detailed description with rich formatting' })
+    @Column({ type: 'text', nullable: true, name: 'rich_description' })
+    richDescription?: string; // Corresponds to 'Rich Description'
+
+    @ApiPropertyOptional({ description: 'Frequently Asked Questions (JSON array)' })
+    @Column({ type: 'jsonb', nullable: true })
+    faqs?: FaqItem[]; // Corresponds to 'Frequently Asked Questions'
+
+    @ApiPropertyOptional({ description: 'SEO Meta information (Title, Description, Keywords)' })
+    @Column({ type: 'jsonb', nullable: true, name: 'seo_meta' })
+    seoMeta?: SeoMeta;
+}

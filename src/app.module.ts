@@ -62,6 +62,9 @@ import { CourseVariable } from './course/course-variables/entities/course-variab
 import { Faq } from './admin/faq/entities/faq.entity';
 import { StudentSetting } from './admin/student-settings/entities/student-setting.entity';
 import { AcademySetting } from './academy/academy-settings/entities/academy-setting.entity';
+import { BlogModule } from './blog/blog.module';
+import { Blog } from './blog/entities/blog.entity';
+import { BlogCategory } from './blog/blog-category/entities/blog-category.entity';
 
 @Module({
   imports: [
@@ -116,7 +119,9 @@ import { AcademySetting } from './academy/academy-settings/entities/academy-sett
         CourseVariable,
         Faq,
         StudentSetting,
-        AcademySetting
+        AcademySetting,
+        Blog,
+        BlogCategory
       ],
       synchronize: true,
       extra: {
@@ -148,6 +153,7 @@ import { AcademySetting } from './academy/academy-settings/entities/academy-sett
     AssignmentModule,
     PaymentModule,
     AdminModule,
+    BlogModule,
   ],
   controllers: [AppController],
   providers: [AppService, DatabaseService],
