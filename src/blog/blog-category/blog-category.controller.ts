@@ -27,7 +27,7 @@ export class BlogCategoryController {
   constructor(private readonly blogCategoryService: BlogCategoryService) { }
 
   @Post()
-  //@RequirePermissions('blog-category:create')
+  //@RequirePermissions('blog_category:create')
   @ApiOperation({ summary: 'Create a new blog category' })
   @ApiResponse({
     status: 201,
@@ -46,7 +46,7 @@ export class BlogCategoryController {
   }
 
   @Get()
-  //@RequirePermissions('blog-category:list')
+  //@RequirePermissions('blog_category:list')
   @ApiOperation({ summary: 'Get all blog categories' })
   @ApiQuery({
     name: 'isActive',
@@ -83,7 +83,7 @@ export class BlogCategoryController {
   }
 
   @Get('hierarchy')
-  //@RequirePermissions('blog-category:hierarchy')
+  //@RequirePermissions('blog_category:hierarchy')
   @ApiOperation({ summary: 'Get blog categories with hierarchical structure' })
   @ApiResponse({
     status: 200,
@@ -114,7 +114,7 @@ export class BlogCategoryController {
   }
 
   @Get(':id')
-  //@RequirePermissions('blog-category:get_by_id')
+  //@RequirePermissions('blog_category:get_by_id')
   @ApiOperation({ summary: 'Get blog category by ID' })
   @ApiParam({
     name: 'id',
@@ -134,7 +134,7 @@ export class BlogCategoryController {
   }
 
   @Get(':id/blogs')
-  //@RequirePermissions('blog-category:get_blogs_for_category')
+  //@RequirePermissions('blog_category:get_blogs_for_category')
   @ApiOperation({ summary: 'Get all blogs for a specific category' })
   @ApiParam({
     name: 'id',
@@ -163,7 +163,7 @@ export class BlogCategoryController {
   }
 
   @Patch(':id')
-  //@RequirePermissions('blog-category:update')
+  //@RequirePermissions('blog_category:update')
   @ApiOperation({ summary: 'Update a blog category' })
   @ApiParam({
     name: 'id',
@@ -190,7 +190,7 @@ export class BlogCategoryController {
   }
 
   @Delete(':id')
-  //@RequirePermissions('blog-category:delete')
+  //@RequirePermissions('blog_category:delete')
   @ApiOperation({ summary: 'Delete a blog category' })
   @ApiParam({
     name: 'id',
@@ -215,7 +215,7 @@ export class BlogCategoryController {
   }
 
   @Get(':id/subcategories')
-  //@RequirePermissions('blog-category:get_subcategories_for_category')
+  //@RequirePermissions('blog_category:get_subcategories_for_category')
   @ApiOperation({ summary: 'Get subcategories of a blog category' })
   @ApiParam({
     name: 'id',
