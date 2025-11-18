@@ -28,7 +28,7 @@ export class BlogController {
   constructor(private readonly blogService: BlogService) { }
 
   @Post()
-  @RequirePermissions('blog:create')
+  //@RequirePermissions('blog:create')
   @ApiOperation({ summary: 'Create a new blog post' })
   @ApiResponse({
     status: 201,
@@ -43,7 +43,7 @@ export class BlogController {
   }
 
   @Get()
-  @RequirePermissions('blog:list')
+  //@RequirePermissions('blog:list')
   @ApiOperation({ summary: 'Get all blog posts' })
   @ApiQuery({
     name: 'isActive',
@@ -76,7 +76,7 @@ export class BlogController {
   }
 
   @Get('slug/:slug')
-  @RequirePermissions('blog:get_by_slug')
+  //@RequirePermissions('blog:get_by_slug')
   @ApiOperation({ summary: 'Get blog post by slug' })
   @ApiParam({
     name: 'slug',
@@ -96,7 +96,7 @@ export class BlogController {
   }
 
   @Get(':id')
-  @RequirePermissions('blog:get_by_id')
+  //@RequirePermissions('blog:get_by_id')
   @ApiOperation({ summary: 'Get blog post by ID' })
   @ApiParam({
     name: 'id',
@@ -116,7 +116,7 @@ export class BlogController {
   }
 
   @Patch(':id')
-  @RequirePermissions('blog:update')
+  //@RequirePermissions('blog:update')
   @ApiOperation({ summary: 'Update a blog post' })
   @ApiParam({
     name: 'id',
@@ -136,7 +136,7 @@ export class BlogController {
   }
 
   @Delete(':id')
-  @RequirePermissions('blog:delete')
+  //@RequirePermissions('blog:delete')
   @ApiOperation({ summary: 'Delete a blog post' })
   @ApiParam({
     name: 'id',
@@ -157,7 +157,7 @@ export class BlogController {
   }
 
   @Patch(':id/increment-views')
-  @RequirePermissions('blog:increment_views')
+  //@RequirePermissions('blog:increment_views')
   @ApiOperation({ summary: 'Increment blog post view count' })
   @ApiParam({
     name: 'id',
