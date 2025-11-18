@@ -4,6 +4,7 @@ import { Repository, In } from 'typeorm';
 import { BlogCategory } from './entities/blog-category.entity';
 import { Blog } from '../entities/blog.entity';
 import { CreateBlogCategoryDto } from './dto/create-blog-category.dto';
+import { UpdateBlogCategoryDto } from './dto/update-blog-category.dto';
 
 @Injectable()
 export class BlogCategoryService {
@@ -40,32 +41,67 @@ export class BlogCategoryService {
   }
 
   async findAll(filters?: {
-    isActive?: boolean;
-    includeBlogs?: boolean;
-    parentId?: string;
-  }): Promise<BlogCategory[]> {
-    const where: any = {};
-    const relations: string[] = [];
+  }): Promise<any[]> {
+    const where: any = { deleted_at: null };
 
-    if (filters?.isActive !== undefined) {
-      where.isActive = filters.isActive;
-    }
-    if (filters?.parentId !== undefined) {
-      where.parentId = filters.parentId;
-    } else {
-      // By default, return top-level categories (no parent)
-      where.parentId = null;
-    }
-
-    if (filters?.includeBlogs) {
-      relations.push('blogs');
-    }
-
-    return this.blogCategoryRepository.find({
+    // Get categories with their subcategories
+    const categories = await this.blogCategoryRepository.find({
       where,
-      relations,
+      relations: ['subcategories'],
       order: { name: 'ASC' },
     });
+
+    // Get all category IDs (both parent and subcategory)
+    const allCategoryIds = categories.flatMap(cat => [
+      cat.id,
+      ...(cat.subcategories?.map(sub => sub.id) || [])
+    ]);
+
+    if (allCategoryIds.length === 0) {
+      return categories.map(category => ({
+        ...category,
+        blogCount: 0,
+        subcategories: (category.subcategories || []).map(subcategory => ({
+          ...subcategory,
+          blogCount: 0
+        }))
+      }));
+    }
+
+    // Get blog counts in a single query
+    const blogCounts = await this.blogRepository
+      .createQueryBuilder('blog')
+      .select('blog.category_id', 'categoryId')
+      .addSelect('blog.sub_category_id', 'subcategoryId')
+      .addSelect('COUNT(*)', 'count')
+      .where('blog.deleted_at IS NULL')
+      .andWhere('blog.isActive = :isActive', { isActive: true })
+      .andWhere('blog.isDraft = :isDraft', { isDraft: false })
+      .andWhere('(blog.category_id IN (:...ids) OR blog.sub_category_id IN (:...ids))', { ids: allCategoryIds })
+      .groupBy('blog.category_id, blog.sub_category_id')
+      .getRawMany();
+
+    // Create a map for quick lookup
+    const countMap = new Map();
+
+    blogCounts.forEach(item => {
+      if (item.categoryId) {
+        countMap.set(item.categoryId, parseInt(item.count));
+      }
+      if (item.subcategoryId) {
+        countMap.set(item.subcategoryId, parseInt(item.count));
+      }
+    });
+
+    // Add counts to categories and subcategories
+    return categories.map(category => ({
+      ...category,
+      blogCount: countMap.get(category.id) || 0,
+      subcategories: (category.subcategories || []).map(subcategory => ({
+        ...subcategory,
+        blogCount: countMap.get(subcategory.id) || 0
+      }))
+    }));
   }
 
   async findOne(id: string): Promise<BlogCategory> {
@@ -94,7 +130,7 @@ export class BlogCategoryService {
     return category;
   }
 
-  async update(id: string, updateBlogCategoryDto: Partial<CreateBlogCategoryDto>): Promise<BlogCategory> {
+  async update(id: string, updateBlogCategoryDto: UpdateBlogCategoryDto): Promise<BlogCategory> {
     const category = await this.findOne(id);
 
     // Check if name or slug is being updated and if they already exist
