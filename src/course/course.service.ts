@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
-import { Course } from './entities/course.entity';
+import { Course, CourseApprovalStatus } from './entities/course.entity';
 import { CreateCourseDto } from './dto/create-course.dto';
 import {
   FilterOperator,
@@ -1471,5 +1471,21 @@ export class CourseService {
         academyInstructors: academyInstructorsMap.get(course.id) || [],
       };
     });
+  }
+
+  async changeCourseApprovalStatus(
+    id: string,
+    status: CourseApprovalStatus,
+  ): Promise<Course> {
+    const course = await this.courseRepository.findOne({
+      where: { id },
+    });
+
+    if (!course) {
+      throw new NotFoundException('Course not found');
+    }
+
+    course.approvalStatus = status;
+    return await this.courseRepository.save(course);
   }
 }

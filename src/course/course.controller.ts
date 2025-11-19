@@ -31,6 +31,7 @@ import { PermissionsGuard } from '../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 import { UpdateCourseDto } from './dto/update-course.dto';
 import { RateCourseDto } from './dto/rate-course.dto';
+import { ApproveCourseDto } from './dto/approve-course.dto';
 
 @ApiBearerAuth('access_token')
 @ApiTags('Courses')
@@ -439,6 +440,25 @@ export class CourseController {
       req.user.academyId,
       req.user.role,
     );
+  }
+
+  @Patch(':id/change-approval-status')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  //@RequirePermissions('course:change_approval_status')
+  @ApiOperation({ summary: 'Approve or reject a course (Admin only)' })
+  @ApiParam({ name: 'id', description: 'UUID of the course' })
+  @ApiBody({ type: ApproveCourseDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Course approval status updated successfully',
+    type: Course,
+  })
+  @ApiResponse({ status: 404, description: 'Course not found' })
+  async approveCourse(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() approveCourseDto: ApproveCourseDto,
+  ) {
+    return this.courseService.changeCourseApprovalStatus(id, approveCourseDto.status);
   }
 
   @Delete(':id')
