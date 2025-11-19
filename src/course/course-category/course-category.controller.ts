@@ -21,11 +21,11 @@ import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 @ApiBearerAuth('access_token')
 @ApiTags('Course Categories')
 @Controller('course-categories')
-@UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class CourseCategoryController {
   constructor(private readonly courseCategoryService: CourseCategoryService) { }
 
   @Post()
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('category:create')
   @ApiOperation({ summary: 'Create a new category or subcategory' })
   @ApiResponse({
@@ -37,7 +37,8 @@ export class CourseCategoryController {
   }
 
   @Get()
-  @RequirePermissions('category:list')
+  // @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  // @RequirePermissions('category:list')
   @ApiOperation({ summary: 'Get all categories with subcategories' })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -48,6 +49,7 @@ export class CourseCategoryController {
   }
 
   @Get(':id')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('category:get')
   @ApiOperation({ summary: 'Get category by ID with subcategories' })
   @ApiParam({ name: 'id', description: 'Category ID' })
@@ -64,6 +66,7 @@ export class CourseCategoryController {
   }
 
   @Patch(':id')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('category:update')
   @ApiOperation({ summary: 'Update a category' })
   @ApiParam({ name: 'id', description: 'Category ID' })
@@ -76,6 +79,7 @@ export class CourseCategoryController {
   }
 
   @Delete(':id')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('category:delete')
   @ApiOperation({ summary: 'Soft delete a category' })
   @ApiParam({ name: 'id', description: 'Category ID' })
