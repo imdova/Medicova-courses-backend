@@ -444,7 +444,7 @@ export class CourseController {
 
   @Patch(':id/change-approval-status')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('course:change_approval_status')
+  @RequirePermissions('course:change_approval_status')
   @ApiOperation({ summary: 'Approve or reject a course (Admin only)' })
   @ApiParam({ name: 'id', description: 'UUID of the course' })
   @ApiBody({ type: ApproveCourseDto })
