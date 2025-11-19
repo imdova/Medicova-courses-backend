@@ -564,10 +564,19 @@ export class CourseService {
     await this.courseRepository.save(course);
   }
 
-  async getAllTags(): Promise<string[]> {
-    const tags = await this.courseTagRepository.find({
-      order: { name: 'ASC' },
-    });
+  async getAllTags(search?: string): Promise<string[]> {
+    let query = this.courseTagRepository
+      .createQueryBuilder('tag')
+      .select(['tag.name'])
+      .orderBy('tag.name', 'ASC');
+
+    // Apply search filter if provided
+    if (search && search.trim()) {
+      const searchTerm = `%${search.trim().toLowerCase()}%`;
+      query = query.where('LOWER(tag.name) LIKE :searchTerm', { searchTerm });
+    }
+
+    const tags = await query.getMany();
     return tags.map((tag) => tag.name);
   }
 

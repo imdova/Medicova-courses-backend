@@ -234,14 +234,20 @@ export class CourseController {
   @Get('tags')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('course:tags')
-  @ApiOperation({ summary: 'Get all available course tags' })
+  @ApiOperation({ summary: 'Get all available course tags with optional search' })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Search term to filter tags by name'
+  })
   @ApiResponse({
     status: 200,
-    description: 'List of all course tags',
+    description: 'List of course tags',
     type: [String],
   })
-  getTags() {
-    return this.courseService.getAllTags();
+  getTags(@Query('search') search?: string) {
+    return this.courseService.getAllTags(search);
   }
 
   @Get(':id')
