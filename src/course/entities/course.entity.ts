@@ -61,6 +61,12 @@ export interface InstructorInfo {
   reviewsCount?: number;
 }
 
+export enum CourseApprovalStatus {
+  PENDING = 'pending',
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
+}
+
 @Entity('courses')
 export class Course extends BasicEntity {
   @ManyToOne(() => User, { eager: false })
@@ -309,4 +315,17 @@ export class Course extends BasicEntity {
   })
   @Column({ type: 'jsonb', nullable: true, name: 'original_creator' })
   originalCreator?: InstructorInfo;
+
+  @ApiProperty({
+    description: 'Admin approval status of the course',
+    enum: CourseApprovalStatus,
+    default: CourseApprovalStatus.PENDING,
+  })
+  @Column({
+    type: 'enum',
+    enum: CourseApprovalStatus,
+    default: CourseApprovalStatus.PENDING,
+    name: 'approval_status'
+  })
+  approvalStatus: CourseApprovalStatus;
 }

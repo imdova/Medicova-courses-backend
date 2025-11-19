@@ -31,6 +31,7 @@ import { PermissionsGuard } from '../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 import { UpdateCourseDto } from './dto/update-course.dto';
 import { RateCourseDto } from './dto/rate-course.dto';
+import { ApproveCourseDto } from './dto/approve-course.dto';
 
 @ApiBearerAuth('access_token')
 @ApiTags('Courses')
@@ -234,14 +235,20 @@ export class CourseController {
   @Get('tags')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('course:tags')
-  @ApiOperation({ summary: 'Get all available course tags' })
+  @ApiOperation({ summary: 'Get all available course tags with optional search' })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Search term to filter tags by name'
+  })
   @ApiResponse({
     status: 200,
-    description: 'List of all course tags',
+    description: 'List of course tags',
     type: [String],
   })
-  getTags() {
-    return this.courseService.getAllTags();
+  getTags(@Query('search') search?: string) {
+    return this.courseService.getAllTags(search);
   }
 
   @Get(':id')
@@ -433,6 +440,25 @@ export class CourseController {
       req.user.academyId,
       req.user.role,
     );
+  }
+
+  @Patch(':id/change-approval-status')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('course:change_approval_status')
+  @ApiOperation({ summary: 'Approve or reject a course (Admin only)' })
+  @ApiParam({ name: 'id', description: 'UUID of the course' })
+  @ApiBody({ type: ApproveCourseDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Course approval status updated successfully',
+    type: Course,
+  })
+  @ApiResponse({ status: 404, description: 'Course not found' })
+  async approveCourse(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() approveCourseDto: ApproveCourseDto,
+  ) {
+    return this.courseService.changeCourseApprovalStatus(id, approveCourseDto.status);
   }
 
   @Delete(':id')

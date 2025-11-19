@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, Repository } from 'typeorm';
-import { Course } from './entities/course.entity';
+import { Course, CourseApprovalStatus } from './entities/course.entity';
 import { CreateCourseDto } from './dto/create-course.dto';
 import {
   FilterOperator,
@@ -564,10 +564,19 @@ export class CourseService {
     await this.courseRepository.save(course);
   }
 
-  async getAllTags(): Promise<string[]> {
-    const tags = await this.courseTagRepository.find({
-      order: { name: 'ASC' },
-    });
+  async getAllTags(search?: string): Promise<string[]> {
+    let query = this.courseTagRepository
+      .createQueryBuilder('tag')
+      .select(['tag.name'])
+      .orderBy('tag.name', 'ASC');
+
+    // Apply search filter if provided
+    if (search && search.trim()) {
+      const searchTerm = `%${search.trim().toLowerCase()}%`;
+      query = query.where('LOWER(tag.name) LIKE :searchTerm', { searchTerm });
+    }
+
+    const tags = await query.getMany();
     return tags.map((tag) => tag.name);
   }
 
@@ -1462,5 +1471,21 @@ export class CourseService {
         academyInstructors: academyInstructorsMap.get(course.id) || [],
       };
     });
+  }
+
+  async changeCourseApprovalStatus(
+    id: string,
+    status: CourseApprovalStatus,
+  ): Promise<Course> {
+    const course = await this.courseRepository.findOne({
+      where: { id },
+    });
+
+    if (!course) {
+      throw new NotFoundException('Course not found');
+    }
+
+    course.approvalStatus = status;
+    return await this.courseRepository.save(course);
   }
 }
