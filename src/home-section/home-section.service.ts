@@ -400,6 +400,8 @@ export class HomeSectionService {
         averageRating: courseData.averageRating,
         ratingCount: courseData.ratingCount,
         totalLessons: courseData.totalLessons,
+        pricing: courseData.pricing,
+        isCourseFree: courseData.isCourseFree
       };
     }).filter(item => item !== null); // Remove courses that weren't found
 
@@ -412,6 +414,7 @@ export class HomeSectionService {
   private async getEnrichedCoursesByIds(courseIds: string[]): Promise<any[]> {
     if (courseIds.length === 0) return [];
 
+    // First, get the course data with all the existing fields
     const results = await this.courseRepository
       .createQueryBuilder('course')
       .innerJoin('course.instructor', 'instructor')
@@ -429,7 +432,8 @@ export class HomeSectionService {
         'course.slug',
         'course.level',
         'course.courseDuration',
-        'course.courseDurationUnit'
+        'course.courseDurationUnit',
+        'course.isCourseFree'
       ])
       .addSelect(
         `CONCAT(COALESCE(profile.firstName, ''), ' ', COALESCE(profile.lastName, ''))`,
@@ -451,10 +455,14 @@ export class HomeSectionService {
       .addGroupBy('course.level')
       .addGroupBy('course.courseDuration')
       .addGroupBy('course.courseDurationUnit')
+      .addGroupBy('course.isCourseFree')
       .addGroupBy('profile.firstName')
       .addGroupBy('profile.lastName')
       .addGroupBy('profile.photoUrl')
       .getRawMany();
+
+    // Get pricing data for all courses
+    const pricingData = await this.getCoursePricing(courseIds);
 
     return results.map(result => ({
       courseId: result.course_id,
@@ -469,7 +477,55 @@ export class HomeSectionService {
       averageRating: Math.round((result.course_average_rating || 0) * 10) / 10,
       ratingCount: parseInt(result.course_rating_count, 10) || 0,
       totalLessons: parseInt(result.totalLessons, 10) || 0,
+      isCourseFree: result.course_is_course_free,
+      pricing: pricingData.get(result.course_id) || [] // Add pricing array
     }));
+  }
+
+  private async getCoursePricing(courseIds: string[]): Promise<Map<string, any[]>> {
+    if (courseIds.length === 0) return new Map();
+
+    const pricingResults = await this.courseRepository
+      .createQueryBuilder('course')
+      .leftJoin('course.pricings', 'pricing')
+      .select([
+        'course.id AS course_id',
+        'pricing.id AS pricing_id',
+        'pricing.currencyCode',
+        'pricing.regularPrice',
+        'pricing.salePrice',
+        'pricing.isActive',
+        'pricing.created_at'
+      ])
+      .where('course.id IN (:...ids)', { ids: courseIds })
+      .andWhere('pricing.isActive = :isActive', { isActive: true })
+      .andWhere('pricing.deleted_at IS NULL')
+      .getRawMany();
+
+    // Group pricing by course ID
+    const pricingMap = new Map<string, any[]>();
+
+    pricingResults.forEach(pricing => {
+      if (!pricing.course_id) return;
+
+      const courseId = pricing.course_id;
+      if (!pricingMap.has(courseId)) {
+        pricingMap.set(courseId, []);
+      }
+
+      if (pricing.pricing_id) { // Only add if pricing exists
+        pricingMap.get(courseId)!.push({
+          id: pricing.pricing_id,
+          currencyCode: pricing.pricing_currencyCode,
+          regularPrice: parseFloat(pricing.pricing_regularPrice) || 0,
+          salePrice: parseFloat(pricing.pricing_salePrice) || 0,
+          isActive: pricing.pricing_isActive,
+          createdAt: pricing.pricing_created_at
+        });
+      }
+    });
+
+    return pricingMap;
   }
 
   async getPublicTrending() {
