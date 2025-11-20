@@ -1,24 +1,132 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, Not } from 'typeorm';
-import { HomeSection, HomeSectionType, ContentType } from './entities/home-section.entity';
+import { Repository } from 'typeorm';
+import {
+  HomeSection,
+  HomeSectionType,
+  HomeSectionConfig,
+  FeaturedCoursesConfig,
+  TrendingConfig,
+  CategoryShowcaseConfig,
+  CourseListConfig
+} from './entities/home-section.entity';
 import { CreateHomeSectionDto } from './dto/create-home-section.dto';
 import { UpdateHomeSectionDto } from './dto/update-home-section.dto';
-import { UpdateSectionOrderDto } from './dto/update-section-order.dto';
-import { BulkUpdateSectionsDto } from './dto/bulk-update-sections.dto';
-import { Course, CourseStatus } from '../course/entities/course.entity';
+import { Course } from '../course/entities/course.entity';
 import { CourseCategory } from '../course/course-category/entities/course-category.entity';
 
-// Section configuration with limits
-const SECTION_CONFIG = {
-  [HomeSectionType.FEATURED_COURSES]: { limit: 4, contentTypes: [ContentType.COURSE] },
-  [HomeSectionType.TRENDING]: {
-    limit: 5, // 2 promo cards + 3 courses
-    contentTypes: [ContentType.PROMO_CARD, ContentType.COURSE]
+// Type guards
+const isFeaturedCoursesConfig = (config: any): config is FeaturedCoursesConfig => {
+  return config && Array.isArray(config.courses);
+};
+
+const isTrendingConfig = (config: any): config is TrendingConfig => {
+  return config &&
+    Array.isArray(config.promoCards) &&
+    Array.isArray(config.categoryCourses);
+};
+
+const isCategoryShowcaseConfig = (config: any): config is CategoryShowcaseConfig => {
+  return config && Array.isArray(config.categories);
+};
+
+const isCourseListConfig = (config: any): config is CourseListConfig => {
+  return config && Array.isArray(config.courses);
+};
+
+// Validation rules for each section type
+const SECTION_RULES = {
+  [HomeSectionType.FEATURED_COURSES]: {
+    maxCourses: 4,
+    validate: (config: any) => {
+      if (!isFeaturedCoursesConfig(config)) {
+        throw new BadRequestException('Invalid featured courses configuration');
+      }
+      if (config.courses.length > 4) {
+        throw new BadRequestException('Featured courses cannot exceed 4 courses');
+      }
+
+      const courseIds = config.courses.map((c: any) => c.courseId);
+      const uniqueIds = new Set(courseIds);
+      if (uniqueIds.size !== courseIds.length) {
+        throw new BadRequestException('Duplicate course IDs are not allowed');
+      }
+    }
   },
-  [HomeSectionType.CATEGORY_SHOWCASE]: { limit: 10, contentTypes: [ContentType.CATEGORY] },
-  [HomeSectionType.BESTSELLER]: { limit: 3, contentTypes: [ContentType.COURSE] },
-  [HomeSectionType.TOP_RATED]: { limit: 3, contentTypes: [ContentType.COURSE] },
+  [HomeSectionType.TRENDING]: {
+    validate: (config: any) => {
+      if (!isTrendingConfig(config)) {
+        throw new BadRequestException('Invalid trending configuration');
+      }
+
+      // Validate promo cards
+      if (config.promoCards.length > 2) {
+        throw new BadRequestException('Trending section cannot have more than 2 promo cards');
+      }
+
+      // Validate categories
+      if (config.categoryCourses.length > 4) {
+        throw new BadRequestException('Trending section cannot have more than 4 categories');
+      }
+
+      // Validate each category has exactly 3 courses
+      config.categoryCourses.forEach((category: any, index: number) => {
+        if (!category.courses || !Array.isArray(category.courses)) {
+          throw new BadRequestException(`Category at position ${index} must have a courses array`);
+        }
+        if (category.courses.length !== 3) {
+          throw new BadRequestException(`Each category must have exactly 3 courses. Category ${index} has ${category.courses.length}`);
+        }
+
+        // Validate no duplicate course IDs within category
+        const courseIds = category.courses.map((c: any) => c.courseId);
+        const uniqueCourseIds = new Set(courseIds);
+        if (uniqueCourseIds.size !== courseIds.length) {
+          throw new BadRequestException(`Duplicate course IDs found in category ${index}`);
+        }
+      });
+
+      // Validate no duplicate category IDs
+      const categoryIds = config.categoryCourses.map((c: any) => c.categoryId);
+      const uniqueCategoryIds = new Set(categoryIds);
+      if (uniqueCategoryIds.size !== categoryIds.length) {
+        throw new BadRequestException('Duplicate category IDs are not allowed');
+      }
+    }
+  },
+  [HomeSectionType.CATEGORY_SHOWCASE]: {
+    maxCategories: 10,
+    validate: (config: any) => {
+      if (!isCategoryShowcaseConfig(config)) {
+        throw new BadRequestException('Invalid category showcase configuration');
+      }
+      if (config.categories.length > 10) {
+        throw new BadRequestException('Category showcase cannot exceed 10 categories');
+      }
+    }
+  },
+  [HomeSectionType.BESTSELLER]: {
+    maxCourses: 3,
+    validate: (config: any) => {
+      if (!isCourseListConfig(config)) {
+        throw new BadRequestException('Invalid bestseller configuration');
+      }
+      if (config.courses.length > 3) {
+        throw new BadRequestException('Bestseller section cannot exceed 3 courses');
+      }
+    }
+  },
+  [HomeSectionType.TOP_RATED]: {
+    maxCourses: 3,
+    validate: (config: any) => {
+      if (!isCourseListConfig(config)) {
+        throw new BadRequestException('Invalid top rated configuration');
+      }
+      if (config.courses.length > 3) {
+        throw new BadRequestException('Top rated section cannot exceed 3 courses');
+      }
+    }
+  }
 };
 
 @Injectable()
@@ -32,320 +140,215 @@ export class HomeSectionService {
     private readonly categoryRepository: Repository<CourseCategory>,
   ) { }
 
-  private validateSectionLimits(sectionType: HomeSectionType, position: number) {
-    const config = SECTION_CONFIG[sectionType];
-    if (!config) {
+  private async validateConfig(sectionType: HomeSectionType, config: any): Promise<void> {
+    const rules = SECTION_RULES[sectionType];
+    if (!rules) {
       throw new BadRequestException(`Invalid section type: ${sectionType}`);
     }
 
-    if (position < 1 || position > config.limit) {
-      throw new BadRequestException(
-        `Position ${position} is invalid for section ${sectionType}. Must be between 1 and ${config.limit}`
-      );
-    }
+    // Validate structure
+    rules.validate(config);
+
+    // Validate referenced entities exist
+    await this.validateReferences(sectionType, config);
   }
 
-  private async validateReferenceId(contentType: ContentType, referenceId: string): Promise<void> {
-    let exists = false;
+  private async validateReferences(sectionType: HomeSectionType, config: any): Promise<void> {
+    const courseIds = new Set<string>();
+    const categoryIds = new Set<string>();
 
-    switch (contentType) {
-      case ContentType.COURSE:
-        exists = await this.courseRepository.exists({
-          where: {
-            id: referenceId,
-            status: CourseStatus.PUBLISHED,
-          }
-        });
+    // Extract all referenced IDs based on section type
+    switch (sectionType) {
+      case HomeSectionType.FEATURED_COURSES:
+        if (isFeaturedCoursesConfig(config)) {
+          config.courses.forEach(c => courseIds.add(c.courseId));
+        }
         break;
-      case ContentType.CATEGORY:
-        exists = await this.categoryRepository.exists({
-          where: { id: referenceId }
-        });
+      case HomeSectionType.TRENDING:
+        if (isTrendingConfig(config)) {
+          // Extract course IDs
+          config.categoryCourses.forEach(category => {
+            category.courses.forEach(course => {
+              courseIds.add(course.courseId);
+            });
+          });
+
+          // Extract category IDs
+          config.categoryCourses.forEach(category => {
+            categoryIds.add(category.categoryId);
+          });
+        }
         break;
-      case ContentType.PROMO_CARD:
-        // For promo cards, we don't validate against external entities
-        exists = true;
+      case HomeSectionType.CATEGORY_SHOWCASE:
+        if (isCategoryShowcaseConfig(config)) {
+          config.categories.forEach(c => categoryIds.add(c.categoryId));
+        }
+        break;
+      case HomeSectionType.BESTSELLER:
+      case HomeSectionType.TOP_RATED:
+        if (isCourseListConfig(config)) {
+          config.courses.forEach(c => courseIds.add(c.courseId));
+        }
         break;
     }
 
-    if (!exists) {
-      throw new NotFoundException(`${contentType} with ID ${referenceId} not found or not available`);
+    // Validate courses exist and are published/approved
+    if (courseIds.size > 0) {
+      const existingCourses = await this.courseRepository
+        .createQueryBuilder('course')
+        .where('course.id IN (:...ids)', { ids: Array.from(courseIds) })
+        .andWhere('course.status = :status', { status: 'published' })
+        .andWhere('course.isActive = true')
+        .getMany();
+
+      if (existingCourses.length !== courseIds.size) {
+        throw new BadRequestException('Some courses not found or not available');
+      }
+    }
+
+    // Validate categories exist
+    if (categoryIds.size > 0) {
+      const existingCategories = await this.categoryRepository
+        .createQueryBuilder('category')
+        .where('category.id IN (:...ids)', { ids: Array.from(categoryIds) })
+        .andWhere('category.isActive = true')
+        .getMany();
+
+      if (existingCategories.length !== categoryIds.size) {
+        throw new BadRequestException('Some categories not found');
+      }
     }
   }
 
   async create(createHomeSectionDto: CreateHomeSectionDto): Promise<HomeSection> {
-    const { sectionType, contentType, referenceId, position = 1 } = createHomeSectionDto;
+    const { sectionType, config = {}, ...rest } = createHomeSectionDto;
 
-    // Validate section limits
-    this.validateSectionLimits(sectionType, position);
-
-    // Validate reference ID exists
-    await this.validateReferenceId(contentType, referenceId);
-
-    // Check if position is already taken in this section
-    const existingPosition = await this.homeSectionRepository.findOne({
-      where: { sectionType, position, isActive: true }
+    // Check if section type already exists
+    const existing = await this.homeSectionRepository.findOne({
+      where: { sectionType }
     });
 
-    if (existingPosition) {
-      throw new ConflictException(`Position ${position} is already occupied in ${sectionType} section`);
+    if (existing) {
+      throw new BadRequestException(`Home section ${sectionType} already exists`);
     }
 
-    // Check if reference is already used in this section
-    const existingReference = await this.homeSectionRepository.findOne({
-      where: { sectionType, referenceId, isActive: true }
+    // Validate config if provided
+    if (Object.keys(config).length > 0) {
+      await this.validateConfig(sectionType, config);
+    }
+
+    const homeSection = this.homeSectionRepository.create({
+      sectionType,
+      config,
+      ...rest
     });
 
-    if (existingReference) {
-      throw new ConflictException(`This ${contentType} is already featured in ${sectionType} section`);
-    }
-
-    const homeSection = this.homeSectionRepository.create(createHomeSectionDto);
     return await this.homeSectionRepository.save(homeSection);
   }
 
-  async findBySectionType(sectionType: HomeSectionType, includeInactive = false): Promise<HomeSection[]> {
-    const where: any = { sectionType };
-    if (!includeInactive) {
-      where.isActive = true;
-    }
-
+  async findAll(): Promise<HomeSection[]> {
     return await this.homeSectionRepository.find({
-      where,
-      order: { position: 'ASC', order: 'ASC' }
+      order: { sectionType: 'ASC' }
     });
   }
 
-  async findAllSections(): Promise<Record<HomeSectionType, HomeSection[]>> {
-    const sections = await this.homeSectionRepository.find({
-      where: { isActive: true },
-      order: { sectionType: 'ASC', position: 'ASC', order: 'ASC' }
-    });
-
-    const result: Record<HomeSectionType, HomeSection[]> = {
-      [HomeSectionType.FEATURED_COURSES]: [],
-      [HomeSectionType.TRENDING]: [],
-      [HomeSectionType.CATEGORY_SHOWCASE]: [],
-      [HomeSectionType.BESTSELLER]: [],
-      [HomeSectionType.TOP_RATED]: [],
-    };
-
-    sections.forEach(section => {
-      result[section.sectionType].push(section);
-    });
-
-    return result;
-  }
-
-  async findOne(id: string): Promise<HomeSection> {
+  async findByType(sectionType: HomeSectionType): Promise<HomeSection> {
     const homeSection = await this.homeSectionRepository.findOne({
-      where: { id }
+      where: { sectionType }
     });
 
     if (!homeSection) {
-      throw new NotFoundException('Home section item not found');
+      // Return default structure if not found
+      return this.getDefaultSection(sectionType);
     }
 
     return homeSection;
   }
 
-  async update(id: string, updateHomeSectionDto: UpdateHomeSectionDto): Promise<HomeSection> {
-    const homeSection = await this.findOne(id);
+  async update(sectionType: HomeSectionType, updateHomeSectionDto: UpdateHomeSectionDto): Promise<HomeSection> {
+    let homeSection = await this.homeSectionRepository.findOne({
+      where: { sectionType }
+    });
 
-    if (updateHomeSectionDto.sectionType) {
-      throw new BadRequestException('Cannot change section type of existing item');
+    if (!homeSection) {
+      // Create if doesn't exist
+      return this.create({
+        sectionType,
+        ...updateHomeSectionDto
+      });
     }
 
-    if (updateHomeSectionDto.position !== undefined) {
-      this.validateSectionLimits(homeSection.sectionType, updateHomeSectionDto.position);
-
-      // Check if new position is already taken (excluding current record)
-      const existing = await this.homeSectionRepository.findOne({
-        where: {
-          sectionType: homeSection.sectionType,
-          position: updateHomeSectionDto.position,
-          isActive: true,
-          id: Not(id)
-        }
-      });
-
-      if (existing) {
-        throw new ConflictException(`Position ${updateHomeSectionDto.position} is already occupied`);
-      }
-    }
-
-    if (updateHomeSectionDto.referenceId && updateHomeSectionDto.contentType) {
-      await this.validateReferenceId(updateHomeSectionDto.contentType, updateHomeSectionDto.referenceId);
-
-      // Check if new reference is already used in this section
-      const existingReference = await this.homeSectionRepository.findOne({
-        where: {
-          sectionType: homeSection.sectionType,
-          referenceId: updateHomeSectionDto.referenceId,
-          isActive: true,
-          id: Not(id)
-        }
-      });
-
-      if (existingReference) {
-        throw new ConflictException(`This ${updateHomeSectionDto.contentType} is already featured in ${homeSection.sectionType} section`);
-      }
+    // Validate config if provided
+    if (updateHomeSectionDto.config && Object.keys(updateHomeSectionDto.config).length > 0) {
+      await this.validateConfig(sectionType, updateHomeSectionDto.config);
     }
 
     Object.assign(homeSection, updateHomeSectionDto);
     return await this.homeSectionRepository.save(homeSection);
   }
 
-  async remove(id: string): Promise<void> {
-    const homeSection = await this.findOne(id);
-    await this.homeSectionRepository.remove(homeSection);
-  }
-
-  async updateSectionOrder(updateOrderDto: UpdateSectionOrderDto): Promise<HomeSection[]> {
-    const { sectionType, items } = updateOrderDto;
-
-    // Validate positions
-    const positions = items.map(item => item.position);
-    const uniquePositions = new Set(positions);
-    if (uniquePositions.size !== positions.length) {
-      throw new BadRequestException('Duplicate positions are not allowed');
-    }
-
-    const config = SECTION_CONFIG[sectionType];
-    const invalidPositions = positions.filter(p => p < 1 || p > config.limit);
-    if (invalidPositions.length > 0) {
-      throw new BadRequestException(`Positions must be between 1 and ${config.limit} for ${sectionType}`);
-    }
-
-    // Get all items to update
-    const itemIds = items.map(item => item.id);
-    const existingItems = await this.homeSectionRepository.find({
-      where: { id: In(itemIds), sectionType }
+  async remove(sectionType: HomeSectionType): Promise<void> {
+    const homeSection = await this.homeSectionRepository.findOne({
+      where: { sectionType }
     });
 
-    if (existingItems.length !== itemIds.length) {
-      throw new NotFoundException('Some home section items not found');
+    if (homeSection) {
+      await this.homeSectionRepository.remove(homeSection);
     }
-
-    // Update each item
-    const updatePromises = items.map(async (item) => {
-      const homeSection = existingItems.find(ei => ei.id === item.id);
-      if (homeSection) {
-        homeSection.position = item.position;
-        homeSection.order = item.order;
-        return await this.homeSectionRepository.save(homeSection);
-      }
-    });
-
-    const updated = await Promise.all(updatePromises);
-    return updated.filter(Boolean) as HomeSection[];
   }
 
-  async bulkUpdateSections(bulkUpdateDto: BulkUpdateSectionsDto): Promise<HomeSection[]> {
-    const { sectionType, items } = bulkUpdateDto;
-    const config = SECTION_CONFIG[sectionType];
+  private getDefaultSection(sectionType: HomeSectionType): HomeSection {
+    const baseSection = new HomeSection();
+    baseSection.sectionType = sectionType;
+    baseSection.isActive = false;
+    baseSection.config = this.getDefaultConfig(sectionType);
 
-    // Validate limits
-    if (items.length > config.limit) {
-      throw new BadRequestException(
-        `Cannot add more than ${config.limit} items to ${sectionType} section`
-      );
-    }
-
-    // Validate positions
-    const positions = items.map(item => item.position);
-    const uniquePositions = new Set(positions);
-    if (uniquePositions.size !== positions.length) {
-      throw new BadRequestException('Duplicate positions are not allowed');
-    }
-
-    const invalidPositions = positions.filter(p => p < 1 || p > config.limit);
-    if (invalidPositions.length > 0) {
-      throw new BadRequestException(`Positions must be between 1 and ${config.limit} for ${sectionType}`);
-    }
-
-    // Validate all reference IDs
-    for (const item of items) {
-      if (!config.contentTypes.includes(item.contentType)) {
-        throw new BadRequestException(
-          `Content type ${item.contentType} is not allowed in ${sectionType} section`
-        );
-      }
-      await this.validateReferenceId(item.contentType, item.referenceId);
-    }
-
-    // Remove existing items for this section
-    await this.homeSectionRepository.delete({ sectionType });
-
-    // Create new items
-    const newItems = items.map(item =>
-      this.homeSectionRepository.create({
-        ...item,
-        sectionType,
-        isActive: true
-      })
-    );
-
-    return await this.homeSectionRepository.save(newItems);
+    return baseSection;
   }
 
-  async getAvailableContent(
-    sectionType: HomeSectionType,
-    contentType: ContentType,
-    search?: string
-  ): Promise<any[]> {
-    const config = SECTION_CONFIG[sectionType];
-    if (!config.contentTypes.includes(contentType)) {
-      throw new BadRequestException(
-        `Content type ${contentType} is not allowed in ${sectionType} section`
-      );
-    }
-
-    switch (contentType) {
-      case ContentType.COURSE:
-        return await this.getAvailableCourses(search);
-      case ContentType.CATEGORY:
-        return await this.getAvailableCategories(search);
-      case ContentType.PROMO_CARD:
-        // For promo cards, return empty or predefined templates
-        return [];
+  private getDefaultConfig(sectionType: HomeSectionType): Record<string, any> {
+    switch (sectionType) {
+      case HomeSectionType.FEATURED_COURSES:
+        return { courses: [] };
+      case HomeSectionType.TRENDING:
+        return { promoCards: [], categoryCourses: {} };
+      case HomeSectionType.CATEGORY_SHOWCASE:
+        return { categories: [] };
+      case HomeSectionType.BESTSELLER:
+      case HomeSectionType.TOP_RATED:
+        return { courses: [] };
       default:
-        return [];
+        return {};
     }
   }
 
-  private async getAvailableCourses(search?: string): Promise<Course[]> {
+  // Helper to get available content for frontend admin
+  async getAvailableCourses(search?: string): Promise<Course[]> {
     const qb = this.courseRepository
       .createQueryBuilder('course')
       .leftJoinAndSelect('course.instructor', 'instructor')
       .leftJoinAndSelect('instructor.profile', 'profile')
-      .leftJoinAndSelect('course.pricings', 'pricing')
       .where('course.status = :status', { status: 'published' })
       .andWhere('course.approval_status = :approvalStatus', { approvalStatus: 'approved' })
-      .andWhere('course.isActive = true')
-      .andWhere('course.deleted_at IS NULL');
+      .andWhere('course.isActive = true');
 
     if (search) {
       qb.andWhere('course.name ILIKE :search', { search: `%${search}%` });
     }
 
-    return await qb
-      .orderBy('course.name', 'ASC')
-      .getMany();
+    return await qb.getMany();
   }
 
-  private async getAvailableCategories(search?: string): Promise<CourseCategory[]> {
+  async getAvailableCategories(search?: string): Promise<CourseCategory[]> {
     const qb = this.categoryRepository
       .createQueryBuilder('category')
-      .where('category.parentId IS NULL') // Only main categories
+      .where('category.parentId IS NULL')
       .andWhere('category.isActive = true');
 
     if (search) {
       qb.andWhere('category.name ILIKE :search', { search: `%${search}%` });
     }
 
-    return await qb
-      .orderBy('category.name', 'ASC')
-      .getMany();
+    return await qb.getMany();
   }
 }
