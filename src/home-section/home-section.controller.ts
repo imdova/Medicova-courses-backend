@@ -65,4 +65,14 @@ export class HomeSectionController {
   getAvailableCategories(@Query('search') search?: string) {
     return this.homeSectionsService.getAvailableCategories(search);
   }
+
+  @Get('public/featured-courses')
+  @ApiOperation({ summary: 'Get featured courses with enriched data (Public)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Featured courses with instructor and stats',
+  })
+  async getPublicFeaturedCourses() {
+    return this.homeSectionsService.getPublicFeaturedCourses();
+  }
 }

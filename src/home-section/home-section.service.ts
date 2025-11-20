@@ -351,4 +351,124 @@ export class HomeSectionService {
 
     return await qb.getMany();
   }
+
+  async getPublicFeaturedCourses() {
+    // Get the featured courses section from database
+    const section = await this.findByType(HomeSectionType.FEATURED_COURSES);
+
+    // Return empty array if section is not active
+    if (!section.isActive) {
+      return {
+        courses: []
+      };
+    }
+
+    const config = section.config as any;
+
+    // Return empty array if no courses configured
+    if (!config.courses || !Array.isArray(config.courses) || config.courses.length === 0) {
+      return {
+        courses: []
+      };
+    }
+
+    // Extract course IDs from the configuration
+    const courseIds = config.courses.map((c: any) => c.courseId);
+
+    // Get enriched course data
+    const enrichedCourses = await this.getEnrichedCoursesByIds(courseIds);
+
+    // Map back to the original order with enriched data
+    const courses = config.courses.map((item: any) => {
+      const courseData = enrichedCourses.find(c => c.courseId === item.courseId);
+
+      if (!courseData) {
+        return null; // Course not found or not available
+      }
+
+      return {
+        order: item.order,
+        courseId: item.courseId,
+        courseName: item.displayTitle || courseData.courseName,
+        courseImage: courseData.courseImage,
+        courseDuration: courseData.courseDuration,
+        courseDurationUnit: courseData.courseDurationUnit,
+        totalHours: courseData.totalHours,
+        instructorName: courseData.instructorName,
+        instructorPhotoUrl: courseData.instructorPhotoUrl,
+        enrolledStudents: courseData.enrolledStudents,
+        averageRating: courseData.averageRating,
+        ratingCount: courseData.ratingCount,
+        totalLessons: courseData.totalLessons,
+      };
+    }).filter(item => item !== null); // Remove courses that weren't found
+
+    return {
+      // isActive: section.isActive,
+      courses: courses.sort((a, b) => a.order - b.order) // Ensure proper ordering
+    };
+  }
+
+  private async getEnrichedCoursesByIds(courseIds: string[]): Promise<any[]> {
+    if (courseIds.length === 0) return [];
+
+    const results = await this.courseRepository
+      .createQueryBuilder('course')
+      .innerJoin('course.instructor', 'instructor')
+      .innerJoin('instructor.profile', 'profile')
+      .leftJoin('course.enrollments', 'enrollments')
+      .leftJoin('course.sections', 'sections')
+      .leftJoin('sections.items', 'items')
+      .select([
+        'course.id',
+        'course.name',
+        'course.averageRating',
+        'course.ratingCount',
+        'course.courseImage',
+        'course.slug',
+        'course.level',
+        'course.courseDuration',
+        'course.courseDurationUnit'
+      ])
+      .addSelect(
+        `CONCAT(COALESCE(profile.firstName, ''), ' ', COALESCE(profile.lastName, ''))`,
+        'instructorName',
+      )
+      .addSelect('profile.photoUrl', 'instructorPhotoUrl')
+      .addSelect('COUNT(DISTINCT enrollments.id)', 'enrolledStudents')
+      .addSelect('COUNT(DISTINCT items.id)', 'totalLessons')
+      .where('course.id IN (:...ids)', { ids: courseIds })
+      .andWhere('course.status = :status', { status: 'published' })
+      .andWhere('course.isActive = true')
+      .groupBy('course.id')
+      .addGroupBy('course.name')
+      .addGroupBy('course.averageRating')
+      .addGroupBy('course.ratingCount')
+      .addGroupBy('course.courseImage')
+      .addGroupBy('course.slug')
+      .addGroupBy('course.totalHours')
+      .addGroupBy('course.level')
+      .addGroupBy('course.courseDuration')
+      .addGroupBy('course.courseDurationUnit')
+      .addGroupBy('profile.firstName')
+      .addGroupBy('profile.lastName')
+      .addGroupBy('profile.photoUrl')
+      .getRawMany();
+
+    console.log(results)
+
+    return results.map(result => ({
+      courseId: result.course_id,
+      courseName: result.course_name,
+      courseImage: result.course_course_image,
+      courseDuration: result.course_course_duration,
+      courseDurationUnit: result.course_course_duration_unit,
+      instructorName: result.instructorName?.trim() || 'Unknown Instructor',
+      instructorPhotoUrl: result.instructorPhotoUrl,
+      enrolledStudents: parseInt(result.enrolledStudents, 10) || 0,
+      averageRating: Math.round((result.course_average_rating || 0) * 10) / 10,
+      ratingCount: parseInt(result.course_rating_count, 10) || 0,
+      totalLessons: parseInt(result.totalLessons, 10) || 0,
+    }));
+  }
 }
