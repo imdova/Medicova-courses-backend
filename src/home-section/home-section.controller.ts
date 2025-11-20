@@ -75,4 +75,14 @@ export class HomeSectionController {
   async getPublicFeaturedCourses() {
     return this.homeSectionsService.getPublicFeaturedCourses();
   }
+
+  @Get('public/trending')
+  @ApiOperation({ summary: 'Get trending section with enriched data (Public)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Trending section with promo cards and enriched courses',
+  })
+  async getPublicTrending() {
+    return this.homeSectionsService.getPublicTrending();
+  }
 }
