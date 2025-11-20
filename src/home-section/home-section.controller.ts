@@ -85,4 +85,14 @@ export class HomeSectionController {
   async getPublicTrending() {
     return this.homeSectionsService.getPublicTrending();
   }
+
+  @Get('public/category-showcase')
+  @ApiOperation({ summary: 'Get category showcase with enriched data (Public)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Category showcase with category details and course counts',
+  })
+  async getPublicCategoryShowcase() {
+    return this.homeSectionsService.getPublicCategoryShowcase();
+  }
 }

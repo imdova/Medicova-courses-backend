@@ -567,4 +567,99 @@ export class HomeSectionService {
 
     return results;
   }
+
+  async getPublicCategoryShowcase() {
+    // Get the category showcase section from database
+    const section = await this.findByType(HomeSectionType.CATEGORY_SHOWCASE);
+
+    // Return empty if section is not active
+    if (!section.isActive) {
+      return {
+        categories: []
+      };
+    }
+
+    const config = section.config as any;
+
+    // Return empty if no categories configured
+    if (!config.categories || !Array.isArray(config.categories) || config.categories.length === 0) {
+      return {
+        categories: []
+      };
+    }
+
+    // Process categories with enriched data
+    const categories = await this.processCategoriesWithCounts(config.categories);
+
+    return {
+      categories: categories.sort((a, b) => a.order - b.order)
+    };
+  }
+
+  private async processCategoriesWithCounts(categoryItems: any[]): Promise<any[]> {
+    if (categoryItems.length === 0) return [];
+
+    const categoryIds = categoryItems.map((item: any) => item.categoryId);
+
+    // First, get all categories (even if they have no courses)
+    const allCategories = await this.categoryRepository
+      .createQueryBuilder('category')
+      .select([
+        'category.id',
+        'category.name',
+        'category.image',
+      ])
+      .where('category.id IN (:...ids)', { ids: categoryIds })
+      .andWhere('category.isActive = true')
+      .getMany();
+
+    // Then get course counts for categories that have courses
+    const categoriesWithCounts = await this.categoryRepository
+      .createQueryBuilder('category')
+      .leftJoin('category.courses', 'courses', 'courses.status = :status AND courses.isActive = :isActive', {
+        status: 'published',
+        isActive: true
+      })
+      .select([
+        'category.id',
+      ])
+      .addSelect('COUNT(courses.id)', 'courseCount')
+      .where('category.id IN (:...ids)', { ids: categoryIds })
+      .andWhere('category.isActive = true')
+      .groupBy('category.id')
+      .getRawMany();
+
+    // Create a map for course counts
+    const courseCountMap = new Map();
+    categoriesWithCounts.forEach(cat => {
+      courseCountMap.set(cat.category_id, parseInt(cat.courseCount, 10) || 0);
+    });
+
+    // Create a map for category details
+    const categoryDetailsMap = new Map();
+    allCategories.forEach(cat => {
+      categoryDetailsMap.set(cat.id, {
+        id: cat.id,
+        name: cat.name,
+        imageUrl: cat.image,
+      });
+    });
+
+    // Map back to original order with enriched data
+    return categoryItems.map((item: any) => {
+      const categoryData = categoryDetailsMap.get(item.categoryId);
+
+      if (!categoryData) {
+        return null; // Category not found or not active
+      }
+
+      return {
+        order: item.order,
+        categoryId: item.categoryId,
+        categoryName: item.displayTitle || categoryData.name,
+        categoryImage: item.imageUrl || categoryData.imageUrl,
+        courseCount: courseCountMap.get(item.categoryId) || 0 // Default to 0 if no courses
+      };
+    }).filter(item => item !== null); // Remove categories that weren't found
+  }
 }
