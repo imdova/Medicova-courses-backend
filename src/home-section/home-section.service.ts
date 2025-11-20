@@ -613,26 +613,44 @@ export class HomeSectionService {
       .andWhere('category.isActive = true')
       .getMany();
 
-    // Then get course counts for categories that have courses
-    const categoriesWithCounts = await this.categoryRepository
-      .createQueryBuilder('category')
-      .leftJoin('category.courses', 'courses', 'courses.status = :status AND courses.isActive = :isActive', {
-        status: 'published',
-        isActive: true
-      })
-      .select([
-        'category.id',
-      ])
-      .addSelect('COUNT(courses.id)', 'courseCount')
-      .where('category.id IN (:...ids)', { ids: categoryIds })
-      .andWhere('category.isActive = true')
-      .groupBy('category.id')
+    // Get course counts for main categories (using correct column names)
+    const mainCategoryCounts = await this.courseRepository
+      .createQueryBuilder('course')
+      .select('course.category_id', 'category_id')
+      .addSelect('COUNT(course.id)', 'courseCount')
+      .where('course.category_id IN (:...ids)', { ids: categoryIds })
+      .andWhere('course.status = :status', { status: 'published' })
+      .andWhere('course.isActive = true')
+      .groupBy('course.category_id')
       .getRawMany();
 
-    // Create a map for course counts
+    // Get course counts for subcategories (using correct column names)
+    const subCategoryCounts = await this.courseRepository
+      .createQueryBuilder('course')
+      .select('course.subcategory_id', 'category_id')
+      .addSelect('COUNT(course.id)', 'courseCount')
+      .where('course.subcategory_id IN (:...ids)', { ids: categoryIds })
+      .andWhere('course.status = :status', { status: 'published' })
+      .andWhere('course.isActive = true')
+      .groupBy('course.subcategory_id')
+      .getRawMany();
+
+    // Combine both counts
     const courseCountMap = new Map();
-    categoriesWithCounts.forEach(cat => {
-      courseCountMap.set(cat.category_id, parseInt(cat.courseCount, 10) || 0);
+
+    // Add main category counts
+    mainCategoryCounts.forEach(cat => {
+      if (cat.category_id) {
+        courseCountMap.set(cat.category_id, parseInt(cat.courseCount, 10) || 0);
+      }
+    });
+
+    // Add subcategory counts (accumulate if category appears in both)
+    subCategoryCounts.forEach(cat => {
+      if (cat.category_id) {
+        const currentCount = courseCountMap.get(cat.category_id) || 0;
+        courseCountMap.set(cat.category_id, currentCount + (parseInt(cat.courseCount, 10) || 0));
+      }
     });
 
     // Create a map for category details
@@ -650,16 +668,18 @@ export class HomeSectionService {
       const categoryData = categoryDetailsMap.get(item.categoryId);
 
       if (!categoryData) {
-        return null; // Category not found or not active
+        return null;
       }
+
+      const courseCount = courseCountMap.get(item.categoryId) || 0;
 
       return {
         order: item.order,
         categoryId: item.categoryId,
         categoryName: item.displayTitle || categoryData.name,
         categoryImage: item.imageUrl || categoryData.imageUrl,
-        courseCount: courseCountMap.get(item.categoryId) || 0 // Default to 0 if no courses
+        courseCount: courseCount
       };
-    }).filter(item => item !== null); // Remove categories that weren't found
+    }).filter(item => item !== null);
   }
 }
