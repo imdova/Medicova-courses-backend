@@ -1,9 +1,9 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiHideProperty, ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsUUID, IsInt, Min, Max, IsOptional, IsString, IsObject, IsBoolean } from 'class-validator';
 import { HomeSectionType, HomeSectionConfig } from '../entities/home-section.entity';
 
 export class CreateHomeSectionDto {
-    @ApiProperty({ description: 'Type of home section', enum: HomeSectionType })
+    @ApiHideProperty()
     @IsEnum(HomeSectionType)
     sectionType: HomeSectionType;
 
