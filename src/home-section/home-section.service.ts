@@ -738,4 +738,120 @@ export class HomeSectionService {
       };
     }).filter(item => item !== null);
   }
+
+  async getPublicBestseller() {
+    // Get the bestseller section from database
+    const section = await this.findByType(HomeSectionType.BESTSELLER);
+
+    // Return empty array if section is not active
+    if (!section.isActive) {
+      return {
+        courses: []
+      };
+    }
+
+    const config = section.config as any;
+
+    // Return empty array if no courses configured
+    if (!config.courses || !Array.isArray(config.courses) || config.courses.length === 0) {
+      return {
+        courses: []
+      };
+    }
+
+    // Extract course IDs from the configuration
+    const courseIds = config.courses.map((c: any) => c.courseId);
+
+    // Get enriched course data
+    const enrichedCourses = await this.getEnrichedCoursesByIds(courseIds);
+
+    // Map back to the original order with enriched data
+    const courses = config.courses.map((item: any) => {
+      const courseData = enrichedCourses.find(c => c.courseId === item.courseId);
+
+      if (!courseData) {
+        return null; // Course not found or not available
+      }
+
+      return {
+        order: item.order,
+        courseId: item.courseId,
+        courseName: item.displayTitle || courseData.courseName,
+        courseImage: courseData.courseImage,
+        courseDuration: courseData.courseDuration,
+        courseDurationUnit: courseData.courseDurationUnit,
+        totalHours: courseData.totalHours,
+        instructorName: courseData.instructorName,
+        instructorPhotoUrl: courseData.instructorPhotoUrl,
+        enrolledStudents: courseData.enrolledStudents,
+        averageRating: courseData.averageRating,
+        ratingCount: courseData.ratingCount,
+        totalLessons: courseData.totalLessons,
+        pricing: courseData.pricing,
+        isCourseFree: courseData.isCourseFree
+      };
+    }).filter(item => item !== null); // Remove courses that weren't found
+
+    return {
+      courses: courses.sort((a, b) => a.order - b.order) // Ensure proper ordering
+    };
+  }
+
+  async getPublicTopRated() {
+    // Get the top rated section from database
+    const section = await this.findByType(HomeSectionType.TOP_RATED);
+
+    // Return empty array if section is not active
+    if (!section.isActive) {
+      return {
+        courses: []
+      };
+    }
+
+    const config = section.config as any;
+
+    // Return empty array if no courses configured
+    if (!config.courses || !Array.isArray(config.courses) || config.courses.length === 0) {
+      return {
+        courses: []
+      };
+    }
+
+    // Extract course IDs from the configuration
+    const courseIds = config.courses.map((c: any) => c.courseId);
+
+    // Get enriched course data
+    const enrichedCourses = await this.getEnrichedCoursesByIds(courseIds);
+
+    // Map back to the original order with enriched data
+    const courses = config.courses.map((item: any) => {
+      const courseData = enrichedCourses.find(c => c.courseId === item.courseId);
+
+      if (!courseData) {
+        return null; // Course not found or not available
+      }
+
+      return {
+        order: item.order,
+        courseId: item.courseId,
+        courseName: item.displayTitle || courseData.courseName,
+        courseImage: courseData.courseImage,
+        courseDuration: courseData.courseDuration,
+        courseDurationUnit: courseData.courseDurationUnit,
+        totalHours: courseData.totalHours,
+        instructorName: courseData.instructorName,
+        instructorPhotoUrl: courseData.instructorPhotoUrl,
+        enrolledStudents: courseData.enrolledStudents,
+        averageRating: courseData.averageRating,
+        ratingCount: courseData.ratingCount,
+        totalLessons: courseData.totalLessons,
+        pricing: courseData.pricing,
+        isCourseFree: courseData.isCourseFree
+      };
+    }).filter(item => item !== null); // Remove courses that weren't found
+
+    return {
+      courses: courses.sort((a, b) => a.order - b.order) // Ensure proper ordering
+    };
+  }
 }

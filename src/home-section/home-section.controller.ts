@@ -95,4 +95,24 @@ export class HomeSectionController {
   async getPublicCategoryShowcase() {
     return this.homeSectionsService.getPublicCategoryShowcase();
   }
+
+  @Get('public/bestseller')
+  @ApiOperation({ summary: 'Get bestseller courses with enriched data (Public)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Bestseller courses with instructor and stats',
+  })
+  async getPublicBestseller() {
+    return this.homeSectionsService.getPublicBestseller();
+  }
+
+  @Get('public/top-rated')
+  @ApiOperation({ summary: 'Get top rated courses with enriched data (Public)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Top rated courses with instructor and stats',
+  })
+  async getPublicTopRated() {
+    return this.homeSectionsService.getPublicTopRated();
+  }
 }
