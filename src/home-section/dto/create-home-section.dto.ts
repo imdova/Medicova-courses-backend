@@ -7,7 +7,7 @@ export class CreateHomeSectionDto {
     @IsEnum(HomeSectionType)
     sectionType: HomeSectionType;
 
-    @ApiProperty({ description: 'Whether section is active', default: true })
+    @ApiHideProperty()
     @IsOptional()
     @IsBoolean()
     isActive?: boolean;
