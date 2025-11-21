@@ -31,13 +31,15 @@ import { RequirePermissions } from '../auth/decorator/permission.decorator';
 export class HomeSectionController {
   constructor(private readonly homeSectionsService: HomeSectionService) { }
 
-  @Get()
-  @ApiOperation({ summary: 'Get all home sections' })
-  findAll() {
-    return this.homeSectionsService.findAll();
-  }
+  // @Get()
+  // @ApiOperation({ summary: 'Get all home sections' })
+  // findAll() {
+  //   return this.homeSectionsService.findAll();
+  // }
 
   @Get(':sectionType')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('home_sections:get_by_type')
   @ApiOperation({ summary: 'Get a specific home section' })
   findByType(@Param('sectionType') sectionType: HomeSectionType) {
     return this.homeSectionsService.findByType(sectionType);
@@ -45,7 +47,7 @@ export class HomeSectionController {
 
   @Put(':sectionType')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('home_sections:update')
+  @RequirePermissions('home_sections:put')
   @ApiOperation({ summary: 'Update a home section' })
   update(
     @Param('sectionType') sectionType: HomeSectionType,
