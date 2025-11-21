@@ -624,6 +624,7 @@ export class HomeSectionService {
 
     // Process promo cards
     const promoCards = (config.promoCards || []).map((card: any) => ({
+      imageUrl: card.imageUrl,
       linkUrl: card.linkUrl,
       order: card.order
     })).sort((a, b) => a.order - b.order);
@@ -1001,9 +1002,6 @@ export class HomeSectionService {
 
     // Process promo cards
     const promoCards = (config.promoCards || []).map((card: any) => ({
-      id: card.id,
-      title: card.title,
-      subtitle: card.subtitle,
       imageUrl: card.imageUrl,
       linkUrl: card.linkUrl,
       order: card.order
