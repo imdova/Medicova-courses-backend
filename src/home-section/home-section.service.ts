@@ -448,8 +448,6 @@ export class HomeSectionService {
         'course.ratingCount',
         'course.courseImage',
         'course.totalHours',
-        'course.slug',
-        'course.level',
         'course.courseDuration',
         'course.courseDurationUnit',
         'course.isCourseFree'
@@ -460,7 +458,7 @@ export class HomeSectionService {
       )
       .addSelect('profile.photoUrl', 'instructorPhotoUrl')
       .addSelect('COUNT(DISTINCT enrollments.id)', 'enrolledStudents')
-      .addSelect('COUNT(DISTINCT items.id)', 'totalLessons')
+      .addSelect(`COUNT(DISTINCT CASE WHEN items.curriculumType = 'lecture' THEN items.id END)`, 'totalLessons')
       .where('course.id IN (:...ids)', { ids: courseIds })
       .andWhere('course.status = :status', { status: 'published' })
       .andWhere('course.isActive = true')

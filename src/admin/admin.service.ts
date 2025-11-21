@@ -2141,6 +2141,10 @@ export class AdminService {
       averageRating: number;
       ratingCount: number;
       ranking: number;
+      totalHours: number;
+      courseDuration: number;
+      courseDurationUnit: string;
+      totalLessons: number;
     }[]
   > {
     // Get top courses by enrollment count
@@ -2153,7 +2157,10 @@ export class AdminService {
         'course.id',
         'course.name',
         'course.averageRating',
-        'course.ratingCount'
+        'course.ratingCount',
+        'course.totalHours',
+        'course.courseDuration',
+        'course.courseDurationUnit'
       ])
       .addSelect(
         `CONCAT(COALESCE(profile.firstName, ''), ' ', COALESCE(profile.lastName, ''))`,
@@ -2161,12 +2168,22 @@ export class AdminService {
       )
       .addSelect('profile.photoUrl', 'instructorPhotoUrl')
       .addSelect('COUNT(DISTINCT enrollments.id)', 'enrolledStudents')
-      .where('course.status = :status', { status: CourseStatus.PUBLISHED })
+      .addSelect(`(
+      SELECT COUNT(DISTINCT si.id) 
+      FROM course_sections cs 
+      LEFT JOIN course_section_items si ON cs.id = si.section_id 
+      WHERE cs.course_id = course.id 
+      AND si."curriculumType" = 'lecture'
+    )`, 'totalLessons')
+      .where('course.status = :status', { status: 'published' })
       .andWhere('course.isActive = :isActive', { isActive: true })
       .groupBy('course.id')
       .addGroupBy('course.name')
       .addGroupBy('course.averageRating')
       .addGroupBy('course.ratingCount')
+      .addGroupBy('course.totalHours')
+      .addGroupBy('course.courseDuration')
+      .addGroupBy('course.courseDurationUnit')
       .addGroupBy('profile.firstName')
       .addGroupBy('profile.lastName')
       .addGroupBy('profile.photoUrl')
@@ -2184,6 +2201,10 @@ export class AdminService {
       enrolledStudents: parseInt(result.enrolledStudents, 10) || 0,
       averageRating: Math.round((result.course_average_rating || 0) * 10) / 10,
       ratingCount: parseInt(result.course_rating_count, 10) || 0,
+      totalHours: parseFloat(result.course_total_hours) || 0,
+      courseDuration: result.course_course_duration,
+      courseDurationUnit: result.course_course_duration_unit,
+      totalLessons: parseInt(result.totalLessons, 10) || 0,
       ranking: index + 1,
     }));
   }
