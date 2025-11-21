@@ -458,6 +458,8 @@ export class HomeSectionService {
         courseId: item.courseId,
         courseName: item.displayTitle || courseData.courseName,
         courseImage: courseData.courseImage,
+        courseSlug: courseData.courseSlug,
+        coursePreviewVideo: courseData.coursePreviewVideo,
         courseDuration: courseData.courseDuration,
         courseDurationUnit: courseData.courseDurationUnit,
         totalHours: courseData.totalHours,
@@ -498,7 +500,9 @@ export class HomeSectionService {
         'course.totalHours',
         'course.courseDuration',
         'course.courseDurationUnit',
-        'course.isCourseFree'
+        'course.isCourseFree',
+        'course.slug',
+        'course.previewVideo'
       ])
       .addSelect(
         `CONCAT(COALESCE(profile.firstName, ''), ' ', COALESCE(profile.lastName, ''))`,
@@ -533,6 +537,8 @@ export class HomeSectionService {
       courseId: result.course_id,
       courseName: result.course_name,
       courseImage: result.course_course_image,
+      courseSlug: result.course_slug,
+      coursePreviewVideo: result.course_preview_video,
       totalHours: parseFloat(result.course_total_hours) || 0,
       courseDuration: result.course_course_duration,
       courseDurationUnit: result.course_course_duration_unit,
@@ -955,6 +961,8 @@ export class HomeSectionService {
         courseId: item.courseId,
         courseName: item.displayTitle || courseData.courseName,
         courseImage: courseData.courseImage,
+        courseSlug: courseData.courseSlug,
+        coursePreviewVideo: courseData.coursePreviewVideo,
         courseDuration: courseData.courseDuration,
         courseDurationUnit: courseData.courseDurationUnit,
         totalHours: courseData.totalHours,
