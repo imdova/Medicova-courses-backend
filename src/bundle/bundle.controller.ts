@@ -19,6 +19,7 @@ import {
   ApiParam,
   ApiBody,
   ApiQuery,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 import { BundleService } from './bundle.service';
 import { CreateBundleDto } from './dto/create-bundle.dto';
@@ -29,6 +30,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { PermissionsGuard } from '../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
+@ApiBearerAuth('access_token')
 @ApiTags('Bundles')
 @Controller('bundles')
 export class BundleController {

@@ -117,4 +117,14 @@ export class HomeSectionController {
   async getPublicTopRated() {
     return this.homeSectionsService.getPublicTopRated();
   }
+
+  @Get('public/top-bundles')
+  @ApiOperation({ summary: 'Get top bundles with enriched data (Public)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Top bundles with bundle details and stats',
+  })
+  async getPublicTopBundles() {
+    return this.homeSectionsService.getPublicTopBundles();
+  }
 }
