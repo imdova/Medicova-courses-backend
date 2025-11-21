@@ -1135,8 +1135,6 @@ export class HomeSectionService {
         numberOfPurchases: bundleData.numberOfPurchases,
         revenue: bundleData.revenue,
         isFree: bundleData.isFree,
-        displayTitle: item.displayTitle,
-        displaySubtitle: item.displaySubtitle || `${bundleData.totalCourses} courses • ${bundleData.totalStudents} students`,
         pricing: bundleData.pricing
       };
     }).filter(item => item !== null).sort((a, b) => a.order - b.order);
@@ -1199,6 +1197,12 @@ export class HomeSectionService {
         averageRating: bundleData.averageRating,
         ratingCount: bundleData.ratingCount,
         isFree: bundleData.isFree,
+        instructorName: bundleData.instructorName,
+        instructorPhotoUrl: bundleData.instructorPhotoUrl,
+        individualCoursesTotal: bundleData.individualCoursesTotal,
+        savingsAmount: bundleData.savingsAmount,
+        savingsPercentage: bundleData.savingsPercentage,
+        courses: bundleData.courses, // Include course details
         pricing: bundleData.pricing
       };
     }).filter(item => item !== null); // Remove bundles that weren't found
@@ -1212,12 +1216,14 @@ export class HomeSectionService {
     if (bundleIds.length === 0) return [];
 
     try {
-      // Get bundle basic data with course count and student count
+      // Get bundle basic data with course count, student count, and instructor info
       const bundleResults = await this.bundleRepository
         .createQueryBuilder('bundle')
         .leftJoin('bundle.courseBundles', 'courseBundles')
         .leftJoin('courseBundles.course', 'course')
         .leftJoin('course.enrollments', 'enrollments')
+        .leftJoin('bundle.instructor', 'instructor')
+        .leftJoin('instructor.profile', 'profile')
         .select([
           'bundle.id',
           'bundle.title',
@@ -1226,31 +1232,56 @@ export class HomeSectionService {
           'bundle.thumbnail_url',
           'bundle.is_free',
           'bundle.number_of_purchases',
-          'bundle.revenue'
+          'bundle.revenue',
         ])
+        .addSelect(
+          `CONCAT(COALESCE(profile.firstName, ''), ' ', COALESCE(profile.lastName, ''))`,
+          'instructorName',
+        )
+        .addSelect('profile.photoUrl', 'instructorPhotoUrl')
         .addSelect('COUNT(DISTINCT courseBundles.course_id)', 'totalCourses')
-        .addSelect('COUNT(DISTINCT enrollments.id)', 'totalStudents')
+        //.addSelect('COUNT(DISTINCT enrollments.id)', 'totalStudents')
         .where('bundle.id IN (:...ids)', { ids: bundleIds })
         .andWhere('bundle.status = :status', { status: 'published' })
         .andWhere('bundle.active = :active', { active: true })
         .groupBy('bundle.id')
+        .addGroupBy('profile.firstName')
+        .addGroupBy('profile.lastName')
+        .addGroupBy('profile.photoUrl')
         .getRawMany();
 
       // Get pricing data for all bundles
       const pricingData = await this.getBundlePricing(bundleIds);
 
+      // Get course details and individual pricing for each bundle
+      const bundleCoursesData = await this.getBundleCoursesWithPricing(bundleIds);
+
       return bundleResults.map(result => {
         const bundleId = result.bundle_id;
         const pricing = pricingData.get(bundleId) || [];
+        const bundleCourses = bundleCoursesData.get(bundleId) || [];
 
         // Find the primary pricing (USD or first available)
-        const primaryPricing = pricing.find(p => p.currencyCode === 'USD') || pricing[0] || {};
+        // const primaryPricing = pricing.find(p => p.currencyCode === 'USD') || pricing[0] || {};
 
-        const originalPrice = primaryPricing.regularPrice || 0;
-        const salePrice = primaryPricing.salePrice || originalPrice;
-        const discountPercentage = originalPrice > 0 && salePrice < originalPrice
-          ? Math.round((1 - salePrice / originalPrice) * 100)
-          : 0;
+        // const originalPrice = primaryPricing.regularPrice || 0;
+        // const salePrice = primaryPricing.salePrice || originalPrice;
+
+        // Calculate individual course prices total
+        // const individualCoursesTotal = bundleCourses.reduce((total, course) => {
+        //   const coursePrice = course.finalPrice || 0;
+        //   return total + coursePrice;
+        // }, 0);
+
+        // // Calculate savings
+        // const savingsAmount = individualCoursesTotal - salePrice;
+        // const savingsPercentage = individualCoursesTotal > 0
+        //   ? Math.round((savingsAmount / individualCoursesTotal) * 100)
+        //   : 0;
+
+        // const discountPercentage = originalPrice > 0 && salePrice < originalPrice
+        //   ? Math.round((1 - salePrice / originalPrice) * 100)
+        //   : 0;
 
         return {
           bundleId: bundleId,
@@ -1258,16 +1289,22 @@ export class HomeSectionService {
           bundleImage: result.bundle_thumbnail_url,
           slug: result.bundle_slug,
           description: result.bundle_description,
-          originalPrice: originalPrice,
-          salePrice: salePrice,
-          discountPercentage: discountPercentage,
+          //originalPrice: originalPrice,
+          //salePrice: salePrice,
+          //discountPercentage: discountPercentage,
           totalCourses: parseInt(result.totalCourses, 10) || 0,
           totalStudents: parseInt(result.totalStudents, 10) || 0,
+          averageRating: parseFloat(result.bundle_average_rating) || 0,
+          ratingCount: parseInt(result.bundle_rating_count, 10) || 0,
           numberOfPurchases: parseInt(result.bundle_number_of_purchases, 10) || 0,
           revenue: parseFloat(result.bundle_revenue) || 0,
           isFree: result.bundle_is_free,
-          averageRating: 0, // You might want to calculate this from course ratings
-          ratingCount: 0,   // You might want to calculate this from course ratings
+          instructorName: result.instructorName?.trim() || 'Unknown Instructor',
+          instructorPhotoUrl: result.instructorPhotoUrl,
+          //individualCoursesTotal: individualCoursesTotal,
+          //savingsAmount: savingsAmount > 0 ? savingsAmount : 0,
+          //savingsPercentage: savingsPercentage > 0 ? savingsPercentage : 0,
+          courses: bundleCourses, // This now contains course details with pricing
           pricing: pricing
         };
       });
@@ -1275,6 +1312,100 @@ export class HomeSectionService {
       console.error('Error fetching enriched bundles:', error);
       return [];
     }
+  }
+
+  private async getBundleCoursesWithPricing(bundleIds: string[]): Promise<Map<string, any[]>> {
+    if (bundleIds.length === 0) return new Map();
+
+    const courseResults = await this.courseBundleRepository
+      .createQueryBuilder('courseBundle')
+      .innerJoin('courseBundle.bundle', 'bundle')
+      .innerJoin('courseBundle.course', 'course')
+      .leftJoin('course.instructor', 'instructor')
+      .leftJoin('instructor.profile', 'profile')
+      .leftJoin('course.pricings', 'pricing', 'pricing.isActive = :pricingActive AND pricing.deleted_at IS NULL', {
+        pricingActive: true
+      })
+      .select([
+        'bundle.id AS bundle_id',
+        'course.id AS course_id',
+        'course.name AS course_name',
+        'course.slug AS course_slug',
+        'course.courseImage AS course_image',
+        'course.totalHours AS course_total_hours',
+        'course.level AS course_level'
+      ])
+      .addSelect(
+        `CONCAT(COALESCE(profile.firstName, ''), ' ', COALESCE(profile.lastName, ''))`,
+        'instructorName',
+      )
+      .addSelect('pricing.currencyCode AS pricing_currency_code')
+      .addSelect('pricing.regularPrice AS pricing_regular_price')
+      .addSelect('pricing.salePrice AS pricing_sale_price')
+      .where('bundle.id IN (:...ids)', { ids: bundleIds })
+      .andWhere('course.status = :status', { status: 'published' })
+      .andWhere('course.isActive = true')
+      .orderBy('courseBundle.created_at', 'ASC')
+      .getRawMany();
+
+    // Group courses by bundle ID and get the best pricing for each course
+    const bundleCoursesMap = new Map<string, any[]>();
+
+    courseResults.forEach(row => {
+      const bundleId = row.bundle_id;
+      const courseId = row.course_id;
+
+      if (!bundleCoursesMap.has(bundleId)) {
+        bundleCoursesMap.set(bundleId, []);
+      }
+
+      const existingCourses = bundleCoursesMap.get(bundleId)!;
+      const existingCourse = existingCourses.find(c => c.courseId === courseId);
+
+      if (existingCourse) {
+        // If course already exists, add pricing option
+        if (row.pricing_currency_code) {
+          existingCourse.pricing.push({
+            currencyCode: row.pricing_currency_code,
+            regularPrice: parseFloat(row.pricing_regular_price) || 0,
+            salePrice: parseFloat(row.pricing_sale_price) || null
+          });
+        }
+      } else {
+        // Create new course entry
+        const coursePricing = [];
+
+        // Define a type for pricing objects
+        type PricingType = {
+          currencyCode: string;
+          regularPrice: number;
+          salePrice: number | null;
+        };
+
+        // Find best pricing with proper type handling
+        // const bestPricing: Partial<PricingType> = coursePricing.find((p: PricingType) => p.currencyCode === 'USD') || coursePricing[0] || {};
+
+        // const regularPrice = (bestPricing as PricingType).regularPrice || 0;
+        // const salePrice = (bestPricing as PricingType).salePrice || null;
+        // const coursePrice = salePrice || regularPrice;
+
+        existingCourses.push({
+          courseId: courseId,
+          courseName: row.course_name,
+          courseSlug: row.course_slug,
+          courseImage: row.course_image,
+          totalHours: parseFloat(row.course_total_hours) || 0,
+          level: row.course_level,
+          instructorName: row.instructorName?.trim() || 'Unknown Instructor',
+          // regularPrice: regularPrice,
+          // salePrice: salePrice,
+          // finalPrice: coursePrice,
+          pricing: coursePricing
+        });
+      }
+    });
+
+    return bundleCoursesMap;
   }
 
   private async getBundlePricing(bundleIds: string[]): Promise<Map<string, any[]>> {
