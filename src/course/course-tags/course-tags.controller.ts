@@ -21,6 +21,7 @@ import { ImportResult } from './dto/import-course-tags.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 
 @ApiTags('Course Tags') // Tags the controller for grouping in Swagger UI
+@ApiBearerAuth('access_token')
 @UseGuards(AuthGuard('jwt'), PermissionsGuard)
 @Controller('course-tags')
 export class CourseTagsController {

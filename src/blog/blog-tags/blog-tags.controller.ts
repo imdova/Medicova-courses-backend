@@ -21,6 +21,7 @@ import { ImportResult } from './dto/import-blog-tags.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 
 @ApiTags('Blog Tags') // Tags the controller for grouping in Swagger UI
+@ApiBearerAuth('access_token')
 @UseGuards(AuthGuard('jwt'), PermissionsGuard)
 @Controller('blog-tags')
 export class BlogTagsController {
