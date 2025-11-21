@@ -24,6 +24,7 @@ export interface TrendingConfig {
     type: 'trending';
     promoCards: Array<{
         linkUrl?: string;
+        imageUrl: string;
         order: number;
     }>;
     categoryCourses: Array<{
