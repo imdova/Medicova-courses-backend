@@ -74,8 +74,8 @@ const SECTION_RULES = {
         if (!category.courses || !Array.isArray(category.courses)) {
           throw new BadRequestException(`Category at position ${index} must have a courses array`);
         }
-        if (category.courses.length !== 3) {
-          throw new BadRequestException(`Each category must have exactly 3 courses. Category ${index} has ${category.courses.length}`);
+        if (category.courses.length > 3) {
+          throw new BadRequestException(`Each category must have 3 courses only. Category ${index} has ${category.courses.length}`);
         }
 
         // Validate no duplicate course IDs within category
@@ -106,24 +106,24 @@ const SECTION_RULES = {
     }
   },
   [HomeSectionType.BESTSELLER]: {
-    maxCourses: 3,
+    maxCourses: 6,
     validate: (config: any) => {
       if (!isCourseListConfig(config)) {
         throw new BadRequestException('Invalid bestseller configuration');
       }
       if (config.courses.length > 3) {
-        throw new BadRequestException('Bestseller section cannot exceed 3 courses');
+        throw new BadRequestException('Bestseller section cannot exceed 6 courses');
       }
     }
   },
   [HomeSectionType.TOP_RATED]: {
-    maxCourses: 3,
+    maxCourses: 6,
     validate: (config: any) => {
       if (!isCourseListConfig(config)) {
         throw new BadRequestException('Invalid top rated configuration');
       }
       if (config.courses.length > 3) {
-        throw new BadRequestException('Top rated section cannot exceed 3 courses');
+        throw new BadRequestException('Top rated section cannot exceed 6 courses');
       }
     }
   }
