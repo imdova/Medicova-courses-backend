@@ -67,6 +67,7 @@ import { Blog } from './blog/entities/blog.entity';
 import { BlogCategory } from './blog/blog-category/entities/blog-category.entity';
 import { HomeSectionModule } from './home-section/home-section.module';
 import { HomeSection } from './home-section/entities/home-section.entity';
+import { BlogTag } from './blog/blog-tags/entities/blog-tag.entity';
 
 @Module({
   imports: [
@@ -124,7 +125,8 @@ import { HomeSection } from './home-section/entities/home-section.entity';
         AcademySetting,
         Blog,
         BlogCategory,
-        HomeSection
+        HomeSection,
+        BlogTag
       ],
       synchronize: true,
       extra: {
