@@ -252,7 +252,7 @@ export class HomeSectionService {
     });
   }
 
-  async findByType(sectionType: HomeSectionType): Promise<HomeSection> {
+  async findByType(sectionType: HomeSectionType): Promise<any> {
     const homeSection = await this.homeSectionRepository.findOne({
       where: { sectionType }
     });
@@ -262,7 +262,26 @@ export class HomeSectionService {
       return this.getDefaultSection(sectionType);
     }
 
-    return homeSection;
+    // Enrich data based on section type
+    switch (sectionType) {
+      case HomeSectionType.FEATURED_COURSES:
+        return await this.enrichFeaturedCourses(homeSection);
+
+      case HomeSectionType.TRENDING:
+        return await this.enrichTrending(homeSection);
+
+      case HomeSectionType.CATEGORY_SHOWCASE:
+        return await this.enrichCategoryShowcase(homeSection);
+
+      case HomeSectionType.BESTSELLER:
+        return await this.enrichCourseList(homeSection, 'bestseller');
+
+      case HomeSectionType.TOP_RATED:
+        return await this.enrichCourseList(homeSection, 'top_rated');
+
+      default:
+        return homeSection; // Return as-is for unknown types
+    }
   }
 
   async update(sectionType: HomeSectionType, updateHomeSectionDto: UpdateHomeSectionDto): Promise<HomeSection> {
@@ -323,34 +342,34 @@ export class HomeSectionService {
   }
 
   // Helper to get available content for frontend admin
-  async getAvailableCourses(search?: string): Promise<Course[]> {
-    const qb = this.courseRepository
-      .createQueryBuilder('course')
-      .leftJoinAndSelect('course.instructor', 'instructor')
-      .leftJoinAndSelect('instructor.profile', 'profile')
-      .where('course.status = :status', { status: 'published' })
-      .andWhere('course.approval_status = :approvalStatus', { approvalStatus: 'approved' })
-      .andWhere('course.isActive = true');
+  // async getAvailableCourses(search?: string): Promise<Course[]> {
+  //   const qb = this.courseRepository
+  //     .createQueryBuilder('course')
+  //     .leftJoinAndSelect('course.instructor', 'instructor')
+  //     .leftJoinAndSelect('instructor.profile', 'profile')
+  //     .where('course.status = :status', { status: 'published' })
+  //     .andWhere('course.approval_status = :approvalStatus', { approvalStatus: 'approved' })
+  //     .andWhere('course.isActive = true');
 
-    if (search) {
-      qb.andWhere('course.name ILIKE :search', { search: `%${search}%` });
-    }
+  //   if (search) {
+  //     qb.andWhere('course.name ILIKE :search', { search: `%${search}%` });
+  //   }
 
-    return await qb.getMany();
-  }
+  //   return await qb.getMany();
+  // }
 
-  async getAvailableCategories(search?: string): Promise<CourseCategory[]> {
-    const qb = this.categoryRepository
-      .createQueryBuilder('category')
-      .where('category.parentId IS NULL')
-      .andWhere('category.isActive = true');
+  // async getAvailableCategories(search?: string): Promise<CourseCategory[]> {
+  //   const qb = this.categoryRepository
+  //     .createQueryBuilder('category')
+  //     .where('category.parentId IS NULL')
+  //     .andWhere('category.isActive = true');
 
-    if (search) {
-      qb.andWhere('category.name ILIKE :search', { search: `%${search}%` });
-    }
+  //   if (search) {
+  //     qb.andWhere('category.name ILIKE :search', { search: `%${search}%` });
+  //   }
 
-    return await qb.getMany();
-  }
+  //   return await qb.getMany();
+  // }
 
   async getPublicFeaturedCourses() {
     // Get the featured courses section from database
@@ -663,6 +682,7 @@ export class HomeSectionService {
       .select([
         'category.id',
         'category.name',
+        'category.description',
         'category.image',
       ])
       .where('category.id IN (:...ids)', { ids: categoryIds })
@@ -716,6 +736,7 @@ export class HomeSectionService {
         id: cat.id,
         name: cat.name,
         imageUrl: cat.image,
+        description: cat.description
       });
     });
 
@@ -733,6 +754,7 @@ export class HomeSectionService {
         order: item.order,
         categoryId: item.categoryId,
         categoryName: item.displayTitle || categoryData.name,
+        categoryDescription: categoryData.description,
         categoryImage: item.imageUrl || categoryData.imageUrl,
         courseCount: courseCount
       };
@@ -852,6 +874,176 @@ export class HomeSectionService {
 
     return {
       courses: courses.sort((a, b) => a.order - b.order) // Ensure proper ordering
+    };
+  }
+
+  private async enrichFeaturedCourses(section: HomeSection): Promise<any> {
+    const config = section.config as any;
+
+    if (!section.isActive || !config.courses || !Array.isArray(config.courses) || config.courses.length === 0) {
+      return {
+        ...section,
+        config: {
+          ...config,
+          courses: []
+        }
+      };
+    }
+
+    // Extract course IDs from the configuration
+    const courseIds = config.courses.map((c: any) => c.courseId);
+
+    // Get enriched course data
+    const enrichedCourses = await this.getEnrichedCoursesByIds(courseIds);
+
+    // Map back to the original order with enriched data
+    const courses = config.courses.map((item: any) => {
+      const courseData = enrichedCourses.find(c => c.courseId === item.courseId);
+
+      if (!courseData) {
+        return null; // Course not found or not available
+      }
+
+      return {
+        order: item.order,
+        courseId: item.courseId,
+        courseName: item.displayTitle || courseData.courseName,
+        courseImage: courseData.courseImage,
+        courseDuration: courseData.courseDuration,
+        courseDurationUnit: courseData.courseDurationUnit,
+        totalHours: courseData.totalHours,
+        instructorName: courseData.instructorName,
+        instructorPhotoUrl: courseData.instructorPhotoUrl,
+        enrolledStudents: courseData.enrolledStudents,
+        averageRating: courseData.averageRating,
+        ratingCount: courseData.ratingCount,
+        totalLessons: courseData.totalLessons,
+        pricing: courseData.pricing,
+        isCourseFree: courseData.isCourseFree
+      };
+    }).filter(item => item !== null).sort((a, b) => a.order - b.order);
+
+    return {
+      ...section,
+      config: {
+        ...config,
+        courses
+      }
+    };
+  }
+
+  private async enrichTrending(section: HomeSection): Promise<any> {
+    const config = section.config as any;
+
+    if (!section.isActive) {
+      return {
+        ...section,
+        config: {
+          promoCards: [],
+          categoryCourses: []
+        }
+      };
+    }
+
+    // Process promo cards
+    const promoCards = (config.promoCards || []).map((card: any) => ({
+      id: card.id,
+      title: card.title,
+      subtitle: card.subtitle,
+      imageUrl: card.imageUrl,
+      linkUrl: card.linkUrl,
+      order: card.order
+    })).sort((a, b) => a.order - b.order);
+
+    // Process category courses
+    const categoryCourses = await this.processCategoryCourses(config.categoryCourses || []);
+
+    return {
+      ...section,
+      config: {
+        promoCards,
+        categoryCourses: categoryCourses.sort((a, b) => a.order - b.order)
+      }
+    };
+  }
+
+  private async enrichCategoryShowcase(section: HomeSection): Promise<any> {
+    const config = section.config as any;
+
+    if (!section.isActive || !config.categories || !Array.isArray(config.categories) || config.categories.length === 0) {
+      return {
+        ...section,
+        config: {
+          ...config,
+          categories: []
+        }
+      };
+    }
+
+    // Process categories with enriched data
+    const categories = await this.processCategoriesWithCounts(config.categories);
+
+    return {
+      ...section,
+      config: {
+        ...config,
+        categories: categories.sort((a, b) => a.order - b.order)
+      }
+    };
+  }
+
+  private async enrichCourseList(section: HomeSection, type: string): Promise<any> {
+    const config = section.config as any;
+
+    if (!section.isActive || !config.courses || !Array.isArray(config.courses) || config.courses.length === 0) {
+      return {
+        ...section,
+        config: {
+          ...config,
+          courses: []
+        }
+      };
+    }
+
+    // Extract course IDs from the configuration
+    const courseIds = config.courses.map((c: any) => c.courseId);
+
+    // Get enriched course data
+    const enrichedCourses = await this.getEnrichedCoursesByIds(courseIds);
+
+    // Map back to the original order with enriched data
+    const courses = config.courses.map((item: any) => {
+      const courseData = enrichedCourses.find(c => c.courseId === item.courseId);
+
+      if (!courseData) {
+        return null; // Course not found or not available
+      }
+
+      return {
+        order: item.order,
+        courseId: item.courseId,
+        courseName: item.displayTitle || courseData.courseName,
+        courseImage: courseData.courseImage,
+        courseDuration: courseData.courseDuration,
+        courseDurationUnit: courseData.courseDurationUnit,
+        totalHours: courseData.totalHours,
+        instructorName: courseData.instructorName,
+        instructorPhotoUrl: courseData.instructorPhotoUrl,
+        enrolledStudents: courseData.enrolledStudents,
+        averageRating: courseData.averageRating,
+        ratingCount: courseData.ratingCount,
+        totalLessons: courseData.totalLessons,
+        pricing: courseData.pricing,
+        isCourseFree: courseData.isCourseFree
+      };
+    }).filter(item => item !== null).sort((a, b) => a.order - b.order);
+
+    return {
+      ...section,
+      config: {
+        ...config,
+        courses
+      }
     };
   }
 }

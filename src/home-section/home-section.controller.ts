@@ -54,17 +54,17 @@ export class HomeSectionController {
     return this.homeSectionsService.update(sectionType, updateHomeSectionDto);
   }
 
-  @Get('content/available-courses')
-  @ApiOperation({ summary: 'Get available courses for sections' })
-  getAvailableCourses(@Query('search') search?: string) {
-    return this.homeSectionsService.getAvailableCourses(search);
-  }
+  // @Get('content/available-courses')
+  // @ApiOperation({ summary: 'Get available courses for sections' })
+  // getAvailableCourses(@Query('search') search?: string) {
+  //   return this.homeSectionsService.getAvailableCourses(search);
+  // }
 
-  @Get('content/available-categories')
-  @ApiOperation({ summary: 'Get available categories for sections' })
-  getAvailableCategories(@Query('search') search?: string) {
-    return this.homeSectionsService.getAvailableCategories(search);
-  }
+  // @Get('content/available-categories')
+  // @ApiOperation({ summary: 'Get available categories for sections' })
+  // getAvailableCategories(@Query('search') search?: string) {
+  //   return this.homeSectionsService.getAvailableCategories(search);
+  // }
 
   @Get('public/featured-courses')
   @ApiOperation({ summary: 'Get featured courses with enriched data (Public)' })
