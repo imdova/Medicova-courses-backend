@@ -132,9 +132,9 @@ import { BlogTag } from './blog/blog-tags/entities/blog-tag.entity';
       extra: {
         max: 5
       },
-      ssl: {
-        rejectUnauthorized: false, // ✅ Allow self-signed certs from Cloud SQL
-      },
+      // ssl: {
+      //   rejectUnauthorized: false, // ✅ Allow self-signed certs from Cloud SQL
+      // },
     }),
     MailerModule.forRoot({
       transport: process.env.SMTP_TRANSPORT,
