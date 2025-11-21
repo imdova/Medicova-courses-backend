@@ -112,7 +112,6 @@ export class BlogTagsService {
           // CRITICAL: Check if the blog's tags array contains the current tag's name
           .where('blog.tags @> ARRAY[tag.name]::text[]')
           // Only count published and active blogs
-          .andWhere('blog.status = :status', { status: 'published' })
           .andWhere('blog.isActive = :isActive', { isActive: true })
           .andWhere('blog.deleted_at IS NULL');
       }, 'blogsCount')

@@ -131,6 +131,14 @@ export class Blog extends BasicEntity {
     content: Record<string, any>;
 
     @ApiPropertyOptional({
+        description: 'Tags for the blog',
+        type: [String],
+        example: ['JavaScript', 'Backend', 'NestJS'],
+    })
+    @Column({ type: 'text', array: true, default: [] })
+    tags: string[];
+
+    @ApiPropertyOptional({
         description: 'UUID of the primary blog category.',
         type: String,
         format: 'uuid',
