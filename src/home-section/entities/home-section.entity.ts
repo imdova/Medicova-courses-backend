@@ -1,0 +1,85 @@
+import { BasicEntity } from '../../common/entities/basic.entity';
+import { Entity, Column } from 'typeorm';
+import { ApiProperty } from '@nestjs/swagger';
+
+export enum HomeSectionType {
+    FEATURED_COURSES = 'featured_courses',
+    TRENDING = 'trending',
+    CATEGORY_SHOWCASE = 'category_showcase',
+    BESTSELLER = 'bestseller',
+    TOP_RATED = 'top_rated',
+}
+
+// JSON Config Interfaces
+export interface FeaturedCoursesConfig {
+    type: 'featured_courses';
+    courses: Array<{
+        courseId: string;
+        order: number;
+    }>;
+}
+
+export interface TrendingConfig {
+    type: 'trending';
+    promoCards: Array<{
+        linkUrl?: string;
+        order: number;
+    }>;
+    categoryCourses: Array<{
+        categoryId: string;
+        order: number;
+        courses: Array<{
+            courseId: string;
+            order: number;
+        }>;
+    }>;
+}
+
+export interface CategoryShowcaseConfig {
+    type: 'category_showcase';
+    categories: Array<{
+        categoryId: string;
+        order: number;
+    }>;
+}
+
+export interface CourseListConfig {
+    type: 'bestseller' | 'top_rated';
+    courses: Array<{
+        courseId: string;
+        order: number;
+    }>;
+}
+
+export type HomeSectionConfig =
+    | FeaturedCoursesConfig
+    | TrendingConfig
+    | CategoryShowcaseConfig
+    | CourseListConfig;
+
+@Entity('home_sections')
+export class HomeSection extends BasicEntity {
+    @ApiProperty({
+        description: 'Type of home section',
+        enum: HomeSectionType,
+    })
+    @Column({
+        type: 'enum',
+        enum: HomeSectionType,
+        unique: true
+    })
+    sectionType: HomeSectionType;
+
+    @ApiProperty({
+        description: 'Whether this section is active',
+        default: true,
+    })
+    @Column({ default: true })
+    isActive: boolean;
+
+    @ApiProperty({
+        description: 'Section configuration and content as JSON',
+    })
+    @Column({ type: 'jsonb', default: {} })
+    config: Record<string, any>; // Use any for flexibility, we'll validate in service
+}
