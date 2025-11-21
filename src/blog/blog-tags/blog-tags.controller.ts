@@ -1,10 +1,10 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, BadRequestException, UploadedFile, UseInterceptors } from '@nestjs/common';
-import { CourseTagsService } from './course-tags.service';
-import { CreateCourseTagDto } from './dto/create-course-tag.dto';
-import { UpdateCourseTagDto } from './dto/update-course-tag.dto';
+import { BlogTagsService } from './blog-tags.service';
+import { CreateBlogTagDto } from './dto/create-blog-tag.dto';
+import { UpdateBlogTagDto } from './dto/update-blog-tag.dto';
 import { PermissionsGuard } from '../../auth/permission.guard';
 import { AuthGuard } from '@nestjs/passport';
-import { CourseTag } from './entities/course-tags.entity';
+import { BlogTag } from './entities/blog-tag.entity';
 import {
   ApiTags,
   ApiOperation,
@@ -17,35 +17,35 @@ import {
 } from '@nestjs/swagger';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
-import { ImportResult } from './dto/import-course-tags.dto';
+import { ImportResult } from './dto/import-blog-tags.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 
-@ApiTags('Course Tags') // Tags the controller for grouping in Swagger UI
+@ApiTags('Blog Tags') // Tags the controller for grouping in Swagger UI
 @ApiBearerAuth('access_token')
 @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-@Controller('course-tags')
-export class CourseTagsController {
-  constructor(private readonly courseTagsService: CourseTagsService) { }
+@Controller('blog-tags')
+export class BlogTagsController {
+  constructor(private readonly blogTagsService: BlogTagsService) { }
 
-  // --- POST /course-tags ---
+  // --- POST /blog-tags ---
   @Post()
-  @RequirePermissions('course-tags:create')
-  @ApiOperation({ summary: 'Create a new course tag (Admin only)' })
-  @ApiResponse({ status: 201, description: 'The tag has been successfully created.', type: CourseTag })
+  @RequirePermissions('blog-tags:create')
+  @ApiOperation({ summary: 'Create a new blog tag (Admin only)' })
+  @ApiResponse({ status: 201, description: 'The tag has been successfully created.', type: BlogTag })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 409, description: 'Tag name or slug already exists.' })
-  @ApiBody({ type: CreateCourseTagDto, description: 'Data for creating a new tag' })
-  create(@Body() createCourseTagDto: CreateCourseTagDto): Promise<CourseTag> {
-    return this.courseTagsService.create(createCourseTagDto);
+  @ApiBody({ type: CreateBlogTagDto, description: 'Data for creating a new tag' })
+  create(@Body() createblogTagDto: CreateBlogTagDto): Promise<BlogTag> {
+    return this.blogTagsService.create(createblogTagDto);
   }
 
-  // --- POST /course-tags/import ---
+  // --- POST /blog-tags/import ---
   @Post('import')
-  @RequirePermissions('course-tags:create_using_file')
+  @RequirePermissions('blog-tags:create_using_file')
   @UseInterceptors(FileInterceptor('file'))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
-    summary: 'Bulk import course tags from XLSX/CSV file (Admin only)',
+    summary: 'Bulk import blog tags from XLSX/CSV file (Admin only)',
     description: 'Upload a file with columns: name, slug, description, color, isActive'
   })
   @ApiBody({
@@ -102,53 +102,53 @@ export class CourseTagsController {
       );
     }
 
-    return this.courseTagsService.importFromFile(file);
+    return this.blogTagsService.importFromFile(file);
   }
 
-  // --- GET /course-tags ---
+  // --- GET /blog-tags ---
   @Get()
-  @RequirePermissions('course-tags:list')
-  @ApiOperation({ summary: 'List all course tags with associated course count' })
+  @RequirePermissions('blog-tags:list')
+  @ApiOperation({ summary: 'List all blog tags with associated blog count' })
   @ApiQuery({ name: 'page', required: false, example: 1, description: 'Page number' })
   @ApiQuery({ name: 'limit', required: false, example: 10, description: 'Items per page' })
-  @ApiResponse({ status: 200, description: 'Paginated list of course tags.', type: Paginated<any> })
+  @ApiResponse({ status: 200, description: 'Paginated list of blog tags.', type: Paginated<any> })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   findAll(@Paginate() query: PaginateQuery): Promise<Paginated<any>> {
-    return this.courseTagsService.findAll(query);
+    return this.blogTagsService.findAll(query);
   }
 
-  // --- GET /course-tags/:id ---
+  // --- GET /blog-tags/:id ---
   @Get(':id')
-  @RequirePermissions('course-tags:get_by_id')
-  @ApiOperation({ summary: 'Get a single course tag by ID' })
-  @ApiParam({ name: 'id', description: 'The UUID of the course tag', type: 'string' })
-  @ApiResponse({ status: 200, description: 'The requested course tag.', type: CourseTag })
+  @RequirePermissions('blog-tags:get_by_id')
+  @ApiOperation({ summary: 'Get a single blog tag by ID' })
+  @ApiParam({ name: 'id', description: 'The UUID of the blog tag', type: 'string' })
+  @ApiResponse({ status: 200, description: 'The requested blog tag.', type: BlogTag })
   @ApiResponse({ status: 404, description: 'Tag not found.' })
-  findOne(@Param('id') id: string): Promise<CourseTag> {
-    return this.courseTagsService.findOne(id);
+  findOne(@Param('id') id: string): Promise<BlogTag> {
+    return this.blogTagsService.findOne(id);
   }
 
-  // --- PATCH /course-tags/:id ---
+  // --- PATCH /blog-tags/:id ---
   @Patch(':id')
-  @RequirePermissions('course-tags:update')
-  @ApiOperation({ summary: 'Update an existing course tag (Admin only)' })
-  @ApiParam({ name: 'id', description: 'The UUID of the course tag to update', type: 'string' })
-  @ApiBody({ type: CreateCourseTagDto, description: 'Partial data to update the tag' })
-  @ApiResponse({ status: 200, description: 'The tag has been successfully updated.', type: CourseTag })
+  @RequirePermissions('blog-tags:update')
+  @ApiOperation({ summary: 'Update an existing blog tag (Admin only)' })
+  @ApiParam({ name: 'id', description: 'The UUID of the blog tag to update', type: 'string' })
+  @ApiBody({ type: CreateBlogTagDto, description: 'Partial data to update the tag' })
+  @ApiResponse({ status: 200, description: 'The tag has been successfully updated.', type: BlogTag })
   @ApiResponse({ status: 404, description: 'Tag not found.' })
   @ApiResponse({ status: 409, description: 'Updated name or slug already exists.' })
-  update(@Param('id') id: string, @Body() updateCourseTagDto: UpdateCourseTagDto): Promise<CourseTag> {
-    return this.courseTagsService.update(id, updateCourseTagDto);
+  update(@Param('id') id: string, @Body() updateblogTagDto: UpdateBlogTagDto): Promise<BlogTag> {
+    return this.blogTagsService.update(id, updateblogTagDto);
   }
 
-  // --- DELETE /course-tags/:id ---
+  // --- DELETE /blog-tags/:id ---
   @Delete(':id')
-  @RequirePermissions('course-tags:delete')
-  @ApiOperation({ summary: 'Delete a course tag by ID (Admin only)' })
-  @ApiParam({ name: 'id', description: 'The UUID of the course tag to delete', type: 'string' })
+  @RequirePermissions('blog-tags:delete')
+  @ApiOperation({ summary: 'Delete a blog tag by ID (Admin only)' })
+  @ApiParam({ name: 'id', description: 'The UUID of the blog tag to delete', type: 'string' })
   @ApiResponse({ status: 200, description: 'Tag successfully deleted.' })
   @ApiResponse({ status: 404, description: 'Tag not found.' })
   remove(@Param('id') id: string): Promise<{ message: string }> {
-    return this.courseTagsService.remove(id);
+    return this.blogTagsService.remove(id);
   }
 }
