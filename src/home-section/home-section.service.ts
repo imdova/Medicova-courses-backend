@@ -8,12 +8,16 @@ import {
   FeaturedCoursesConfig,
   TrendingConfig,
   CategoryShowcaseConfig,
-  CourseListConfig
+  CourseListConfig,
+  TopBundleConfig
 } from './entities/home-section.entity';
 import { CreateHomeSectionDto } from './dto/create-home-section.dto';
 import { UpdateHomeSectionDto } from './dto/update-home-section.dto';
 import { Course } from '../course/entities/course.entity';
 import { CourseCategory } from '../course/course-category/entities/course-category.entity';
+import { Bundle } from 'src/bundle/entities/bundle.entity';
+import { BundlePricing } from 'src/bundle/entities/bundle-pricing.entity';
+import { CourseBundle } from 'src/bundle/entities/course-bundle.entity';
 
 // Type guards
 const isFeaturedCoursesConfig = (config: any): config is FeaturedCoursesConfig => {
@@ -32,6 +36,10 @@ const isCategoryShowcaseConfig = (config: any): config is CategoryShowcaseConfig
 
 const isCourseListConfig = (config: any): config is CourseListConfig => {
   return config && Array.isArray(config.courses);
+};
+
+const isTopBundlesConfig = (config: any): config is TopBundleConfig => {
+  return config && Array.isArray(config.bundles);
 };
 
 // Validation rules for each section type
@@ -126,6 +134,17 @@ const SECTION_RULES = {
         throw new BadRequestException('Top rated section cannot exceed 6 courses');
       }
     }
+  },
+  [HomeSectionType.TOP_BUNDLES]: {
+    maxCategories: 6,
+    validate: (config: any) => {
+      if (!isTopBundlesConfig(config)) {
+        throw new BadRequestException('Invalid top bundles configuration');
+      }
+      if (config.bundles.length > 6) {
+        throw new BadRequestException('Top bundles cannot exceed 6 bundles');
+      }
+    }
   }
 };
 
@@ -138,6 +157,12 @@ export class HomeSectionService {
     private readonly courseRepository: Repository<Course>,
     @InjectRepository(CourseCategory)
     private readonly categoryRepository: Repository<CourseCategory>,
+    @InjectRepository(Bundle)
+    private readonly bundleRepository: Repository<Bundle>,
+    @InjectRepository(BundlePricing)
+    private readonly bundlePricingRepository: Repository<BundlePricing>,
+    @InjectRepository(CourseBundle)
+    private readonly courseBundleRepository: Repository<CourseBundle>,
   ) { }
 
   private async validateConfig(sectionType: HomeSectionType, config: any): Promise<void> {
@@ -156,6 +181,7 @@ export class HomeSectionService {
   private async validateReferences(sectionType: HomeSectionType, config: any): Promise<void> {
     const courseIds = new Set<string>();
     const categoryIds = new Set<string>();
+    const bundleIds = new Set<string>();
 
     // Extract all referenced IDs based on section type
     switch (sectionType) {
@@ -190,6 +216,11 @@ export class HomeSectionService {
           config.courses.forEach(c => courseIds.add(c.courseId));
         }
         break;
+      case HomeSectionType.TOP_BUNDLES:
+        if (isTopBundlesConfig(config)) { // Fixed: should be isTopBundlesConfig
+          config.bundles.forEach(b => bundleIds.add(b.bundleId)); // Fixed: add to bundleIds, not courseIds
+        }
+        break;
     }
 
     // Validate courses exist and are published/approved
@@ -216,6 +247,20 @@ export class HomeSectionService {
 
       if (existingCategories.length !== categoryIds.size) {
         throw new BadRequestException('Some categories not found');
+      }
+    }
+
+    // Validate bundles exist and are published/active - FIXED THIS SECTION
+    if (bundleIds.size > 0) {
+      const existingBundles = await this.bundleRepository
+        .createQueryBuilder('bundle')
+        .where('bundle.id IN (:...ids)', { ids: Array.from(bundleIds) })
+        .andWhere('bundle.status = :status', { status: 'published' })
+        .andWhere('bundle.active = :active', { active: true }) // Fixed: use 'active' not 'isActive'
+        .getMany();
+
+      if (existingBundles.length !== bundleIds.size) { // Fixed: check against bundleIds.size
+        throw new BadRequestException('Some bundles not found or not available');
       }
     }
   }
@@ -278,6 +323,9 @@ export class HomeSectionService {
 
       case HomeSectionType.TOP_RATED:
         return await this.enrichCourseList(homeSection, 'top_rated');
+
+      case HomeSectionType.TOP_BUNDLES:
+        return await this.enrichTopBundles(homeSection);
 
       default:
         return homeSection; // Return as-is for unknown types
@@ -1043,5 +1091,368 @@ export class HomeSectionService {
         courses
       }
     };
+  }
+
+  private async enrichTopBundles(section: HomeSection): Promise<any> {
+    const config = section.config as any;
+
+    if (!section.isActive || !config.bundles || !Array.isArray(config.bundles) || config.bundles.length === 0) {
+      return {
+        ...section,
+        config: {
+          ...config,
+          bundles: []
+        }
+      };
+    }
+
+    // Extract bundle IDs from the configuration
+    const bundleIds = config.bundles.map((b: any) => b.bundleId);
+
+    // Get enriched bundle data
+    const enrichedBundles = await this.getEnrichedBundlesByIds(bundleIds);
+
+    // Map back to the original order with enriched data
+    const bundles = config.bundles.map((item: any) => {
+      const bundleData = enrichedBundles.find(b => b.bundleId === item.bundleId);
+
+      if (!bundleData) {
+        return null; // Bundle not found or not available
+      }
+
+      return {
+        order: item.order,
+        bundleId: item.bundleId,
+        bundleName: item.displayTitle || bundleData.bundleName,
+        bundleImage: bundleData.bundleImage,
+        slug: bundleData.slug,
+        description: bundleData.description,
+        originalPrice: bundleData.originalPrice,
+        salePrice: bundleData.salePrice,
+        discountPercentage: bundleData.discountPercentage,
+        totalCourses: bundleData.totalCourses,
+        totalStudents: bundleData.totalStudents,
+        numberOfPurchases: bundleData.numberOfPurchases,
+        revenue: bundleData.revenue,
+        isFree: bundleData.isFree,
+        pricing: bundleData.pricing
+      };
+    }).filter(item => item !== null).sort((a, b) => a.order - b.order);
+
+    return {
+      ...section,
+      config: {
+        ...config,
+        bundles
+      }
+    };
+  }
+
+  async getPublicTopBundles() {
+    // Get the top bundles section from database
+    const section = await this.findByType(HomeSectionType.TOP_BUNDLES);
+
+    // Return empty array if section is not active
+    if (!section.isActive) {
+      return {
+        bundles: []
+      };
+    }
+
+    const config = section.config as any;
+
+    // Return empty array if no bundles configured
+    if (!config.bundles || !Array.isArray(config.bundles) || config.bundles.length === 0) {
+      return {
+        bundles: []
+      };
+    }
+
+    // Extract bundle IDs from the configuration
+    const bundleIds = config.bundles.map((b: any) => b.bundleId);
+
+    // Get enriched bundle data
+    const enrichedBundles = await this.getEnrichedBundlesByIds(bundleIds);
+
+    // Map back to the original order with enriched data
+    const bundles = config.bundles.map((item: any) => {
+      const bundleData = enrichedBundles.find(b => b.bundleId === item.bundleId);
+
+      if (!bundleData) {
+        return null; // Bundle not found or not available
+      }
+
+      return {
+        order: item.order,
+        bundleId: item.bundleId,
+        bundleName: item.displayTitle || bundleData.bundleName,
+        bundleImage: bundleData.bundleImage,
+        slug: bundleData.slug,
+        description: bundleData.description,
+        originalPrice: bundleData.originalPrice,
+        salePrice: bundleData.salePrice,
+        discountPercentage: bundleData.discountPercentage,
+        totalCourses: bundleData.totalCourses,
+        totalStudents: bundleData.totalStudents,
+        averageRating: bundleData.averageRating,
+        ratingCount: bundleData.ratingCount,
+        isFree: bundleData.isFree,
+        instructorName: bundleData.instructorName,
+        instructorPhotoUrl: bundleData.instructorPhotoUrl,
+        individualCoursesTotal: bundleData.individualCoursesTotal,
+        savingsAmount: bundleData.savingsAmount,
+        savingsPercentage: bundleData.savingsPercentage,
+        courses: bundleData.courses, // Include course details
+        pricing: bundleData.pricing
+      };
+    }).filter(item => item !== null); // Remove bundles that weren't found
+
+    return {
+      bundles: bundles.sort((a, b) => a.order - b.order) // Ensure proper ordering
+    };
+  }
+
+  private async getEnrichedBundlesByIds(bundleIds: string[]): Promise<any[]> {
+    if (bundleIds.length === 0) return [];
+
+    try {
+      // Get bundle basic data with course count, student count, and instructor info
+      const bundleResults = await this.bundleRepository
+        .createQueryBuilder('bundle')
+        .leftJoin('bundle.courseBundles', 'courseBundles')
+        .leftJoin('courseBundles.course', 'course')
+        .leftJoin('course.enrollments', 'enrollments')
+        .leftJoin('bundle.instructor', 'instructor')
+        .leftJoin('instructor.profile', 'profile')
+        .select([
+          'bundle.id',
+          'bundle.title',
+          'bundle.slug',
+          'bundle.description',
+          'bundle.thumbnail_url',
+          'bundle.is_free',
+          'bundle.number_of_purchases',
+          'bundle.revenue',
+        ])
+        .addSelect(
+          `CONCAT(COALESCE(profile.firstName, ''), ' ', COALESCE(profile.lastName, ''))`,
+          'instructorName',
+        )
+        .addSelect('profile.photoUrl', 'instructorPhotoUrl')
+        .addSelect('COUNT(DISTINCT courseBundles.course_id)', 'totalCourses')
+        //.addSelect('COUNT(DISTINCT enrollments.id)', 'totalStudents')
+        .where('bundle.id IN (:...ids)', { ids: bundleIds })
+        .andWhere('bundle.status = :status', { status: 'published' })
+        .andWhere('bundle.active = :active', { active: true })
+        .groupBy('bundle.id')
+        .addGroupBy('profile.firstName')
+        .addGroupBy('profile.lastName')
+        .addGroupBy('profile.photoUrl')
+        .getRawMany();
+
+      // Get pricing data for all bundles
+      const pricingData = await this.getBundlePricing(bundleIds);
+
+      // Get course details and individual pricing for each bundle
+      const bundleCoursesData = await this.getBundleCoursesWithPricing(bundleIds);
+
+      return bundleResults.map(result => {
+        const bundleId = result.bundle_id;
+        const pricing = pricingData.get(bundleId) || [];
+        const bundleCourses = bundleCoursesData.get(bundleId) || [];
+
+        // Find the primary pricing (USD or first available)
+        // const primaryPricing = pricing.find(p => p.currencyCode === 'USD') || pricing[0] || {};
+
+        // const originalPrice = primaryPricing.regularPrice || 0;
+        // const salePrice = primaryPricing.salePrice || originalPrice;
+
+        // Calculate individual course prices total
+        // const individualCoursesTotal = bundleCourses.reduce((total, course) => {
+        //   const coursePrice = course.finalPrice || 0;
+        //   return total + coursePrice;
+        // }, 0);
+
+        // // Calculate savings
+        // const savingsAmount = individualCoursesTotal - salePrice;
+        // const savingsPercentage = individualCoursesTotal > 0
+        //   ? Math.round((savingsAmount / individualCoursesTotal) * 100)
+        //   : 0;
+
+        // const discountPercentage = originalPrice > 0 && salePrice < originalPrice
+        //   ? Math.round((1 - salePrice / originalPrice) * 100)
+        //   : 0;
+
+        return {
+          bundleId: bundleId,
+          bundleName: result.bundle_title,
+          bundleImage: result.bundle_thumbnail_url,
+          slug: result.bundle_slug,
+          description: result.bundle_description,
+          //originalPrice: originalPrice,
+          //salePrice: salePrice,
+          //discountPercentage: discountPercentage,
+          totalCourses: parseInt(result.totalCourses, 10) || 0,
+          totalStudents: parseInt(result.totalStudents, 10) || 0,
+          averageRating: parseFloat(result.bundle_average_rating) || 0,
+          ratingCount: parseInt(result.bundle_rating_count, 10) || 0,
+          numberOfPurchases: parseInt(result.bundle_number_of_purchases, 10) || 0,
+          revenue: parseFloat(result.bundle_revenue) || 0,
+          isFree: result.bundle_is_free,
+          instructorName: result.instructorName?.trim() || 'Unknown Instructor',
+          instructorPhotoUrl: result.instructorPhotoUrl,
+          //individualCoursesTotal: individualCoursesTotal,
+          //savingsAmount: savingsAmount > 0 ? savingsAmount : 0,
+          //savingsPercentage: savingsPercentage > 0 ? savingsPercentage : 0,
+          courses: bundleCourses, // This now contains course details with pricing
+          pricing: pricing
+        };
+      });
+    } catch (error) {
+      console.error('Error fetching enriched bundles:', error);
+      return [];
+    }
+  }
+
+  private async getBundleCoursesWithPricing(bundleIds: string[]): Promise<Map<string, any[]>> {
+    if (bundleIds.length === 0) return new Map();
+
+    const courseResults = await this.courseBundleRepository
+      .createQueryBuilder('courseBundle')
+      .innerJoin('courseBundle.bundle', 'bundle')
+      .innerJoin('courseBundle.course', 'course')
+      .leftJoin('course.instructor', 'instructor')
+      .leftJoin('instructor.profile', 'profile')
+      .leftJoin('course.pricings', 'pricing', 'pricing.isActive = :pricingActive AND pricing.deleted_at IS NULL', {
+        pricingActive: true
+      })
+      .select([
+        'bundle.id AS bundle_id',
+        'course.id AS course_id',
+        'course.name AS course_name',
+        'course.slug AS course_slug',
+        'course.courseImage AS course_image',
+        'course.totalHours AS course_total_hours',
+        'course.level AS course_level'
+      ])
+      .addSelect(
+        `CONCAT(COALESCE(profile.firstName, ''), ' ', COALESCE(profile.lastName, ''))`,
+        'instructorName',
+      )
+      .addSelect('pricing.currencyCode AS pricing_currency_code')
+      .addSelect('pricing.regularPrice AS pricing_regular_price')
+      .addSelect('pricing.salePrice AS pricing_sale_price')
+      .where('bundle.id IN (:...ids)', { ids: bundleIds })
+      .andWhere('course.status = :status', { status: 'published' })
+      .andWhere('course.isActive = true')
+      .orderBy('courseBundle.created_at', 'ASC')
+      .getRawMany();
+
+    // Group courses by bundle ID and get the best pricing for each course
+    const bundleCoursesMap = new Map<string, any[]>();
+
+    courseResults.forEach(row => {
+      const bundleId = row.bundle_id;
+      const courseId = row.course_id;
+
+      if (!bundleCoursesMap.has(bundleId)) {
+        bundleCoursesMap.set(bundleId, []);
+      }
+
+      const existingCourses = bundleCoursesMap.get(bundleId)!;
+      const existingCourse = existingCourses.find(c => c.courseId === courseId);
+
+      if (existingCourse) {
+        // If course already exists, add pricing option
+        if (row.pricing_currency_code) {
+          existingCourse.pricing.push({
+            currencyCode: row.pricing_currency_code,
+            regularPrice: parseFloat(row.pricing_regular_price) || 0,
+            salePrice: parseFloat(row.pricing_sale_price) || null
+          });
+        }
+      } else {
+        // Create new course entry
+        const coursePricing = [];
+
+        // Define a type for pricing objects
+        type PricingType = {
+          currencyCode: string;
+          regularPrice: number;
+          salePrice: number | null;
+        };
+
+        // Find best pricing with proper type handling
+        // const bestPricing: Partial<PricingType> = coursePricing.find((p: PricingType) => p.currencyCode === 'USD') || coursePricing[0] || {};
+
+        // const regularPrice = (bestPricing as PricingType).regularPrice || 0;
+        // const salePrice = (bestPricing as PricingType).salePrice || null;
+        // const coursePrice = salePrice || regularPrice;
+
+        existingCourses.push({
+          courseId: courseId,
+          courseName: row.course_name,
+          courseSlug: row.course_slug,
+          courseImage: row.course_image,
+          totalHours: parseFloat(row.course_total_hours) || 0,
+          level: row.course_level,
+          instructorName: row.instructorName?.trim() || 'Unknown Instructor',
+          // regularPrice: regularPrice,
+          // salePrice: salePrice,
+          // finalPrice: coursePrice,
+          pricing: coursePricing
+        });
+      }
+    });
+
+    return bundleCoursesMap;
+  }
+
+  private async getBundlePricing(bundleIds: string[]): Promise<Map<string, any[]>> {
+    if (bundleIds.length === 0) return new Map();
+
+    const pricingResults = await this.bundlePricingRepository
+      .createQueryBuilder('pricing')
+      .innerJoin('pricing.bundle', 'bundle')
+      .select([
+        'bundle.id AS bundle_id',
+        'pricing.id AS pricing_id',
+        'pricing.currency_code',
+        'pricing.regular_price',
+        'pricing.sale_price',
+        'pricing.discount_amount',
+        'pricing.discount_enabled',
+        'pricing.is_active'
+      ])
+      .where('bundle.id IN (:...ids)', { ids: bundleIds })
+      .andWhere('pricing.is_active = :isActive', { isActive: true })
+      .andWhere('pricing.deleted_at IS NULL')
+      .getRawMany();
+
+    // Group pricing by bundle ID
+    const pricingMap = new Map<string, any[]>();
+
+    pricingResults.forEach(pricing => {
+      if (!pricing.bundle_id) return;
+
+      const bundleId = pricing.bundle_id;
+      if (!pricingMap.has(bundleId)) {
+        pricingMap.set(bundleId, []);
+      }
+
+      if (pricing.pricing_id) {
+        pricingMap.get(bundleId)!.push({
+          id: pricing.pricing_id,
+          currencyCode: pricing.pricing_currency_code,
+          regularPrice: parseFloat(pricing.pricing_regular_price) || 0,
+          salePrice: parseFloat(pricing.pricing_sale_price) || null,
+          discountAmount: parseFloat(pricing.pricing_discount_amount) || null,
+          discountEnabled: pricing.pricing_discount_enabled,
+          isActive: pricing.pricing_is_active
+        });
+      }
+    });
+
+    return pricingMap;
   }
 }

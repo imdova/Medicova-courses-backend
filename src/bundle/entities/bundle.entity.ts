@@ -4,6 +4,7 @@ import { BundlePricing } from './bundle-pricing.entity';
 import { BasicEntity } from '../../common/entities/basic.entity';
 import { Academy } from 'src/academy/entities/academy.entity';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { User } from 'src/user/entities/user.entity';
 
 export enum BundleStatus {
   DRAFT = 'draft',
@@ -31,6 +32,10 @@ export class Bundle extends BasicEntity {
 
   @Column({ type: 'uuid' })
   created_by: string;
+
+  @ManyToOne(() => User, { eager: false })
+  @JoinColumn({ name: 'created_by' })
+  instructor: User;
 
   @Column({ type: 'enum', enum: BundleStatus, default: BundleStatus.DRAFT })
   status: BundleStatus;
