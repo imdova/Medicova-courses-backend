@@ -29,7 +29,7 @@ export class BlogTagsController {
 
   // --- POST /blog-tags ---
   @Post()
-  //@RequirePermissions('blog-tags:create')
+  @RequirePermissions('blog-tags:create')
   @ApiOperation({ summary: 'Create a new blog tag (Admin only)' })
   @ApiResponse({ status: 201, description: 'The tag has been successfully created.', type: BlogTag })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
@@ -41,7 +41,7 @@ export class BlogTagsController {
 
   // --- POST /blog-tags/import ---
   @Post('import')
-  //@RequirePermissions('blog-tags:create_using_file')
+  @RequirePermissions('blog-tags:create_using_file')
   @UseInterceptors(FileInterceptor('file'))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
@@ -107,7 +107,7 @@ export class BlogTagsController {
 
   // --- GET /blog-tags ---
   @Get()
-  //@RequirePermissions('blog-tags:list')
+  @RequirePermissions('blog-tags:list')
   @ApiOperation({ summary: 'List all blog tags with associated blog count' })
   @ApiQuery({ name: 'page', required: false, example: 1, description: 'Page number' })
   @ApiQuery({ name: 'limit', required: false, example: 10, description: 'Items per page' })
@@ -119,7 +119,7 @@ export class BlogTagsController {
 
   // --- GET /blog-tags/:id ---
   @Get(':id')
-  //@RequirePermissions('blog-tags:get_by_id')
+  @RequirePermissions('blog-tags:get_by_id')
   @ApiOperation({ summary: 'Get a single blog tag by ID' })
   @ApiParam({ name: 'id', description: 'The UUID of the blog tag', type: 'string' })
   @ApiResponse({ status: 200, description: 'The requested blog tag.', type: BlogTag })
@@ -130,7 +130,7 @@ export class BlogTagsController {
 
   // --- PATCH /blog-tags/:id ---
   @Patch(':id')
-  //@RequirePermissions('blog-tags:update')
+  @RequirePermissions('blog-tags:update')
   @ApiOperation({ summary: 'Update an existing blog tag (Admin only)' })
   @ApiParam({ name: 'id', description: 'The UUID of the blog tag to update', type: 'string' })
   @ApiBody({ type: CreateBlogTagDto, description: 'Partial data to update the tag' })
@@ -143,7 +143,7 @@ export class BlogTagsController {
 
   // --- DELETE /blog-tags/:id ---
   @Delete(':id')
-  //@RequirePermissions('blog-tags:delete')
+  @RequirePermissions('blog-tags:delete')
   @ApiOperation({ summary: 'Delete a blog tag by ID (Admin only)' })
   @ApiParam({ name: 'id', description: 'The UUID of the blog tag to delete', type: 'string' })
   @ApiResponse({ status: 200, description: 'Tag successfully deleted.' })
