@@ -737,6 +737,7 @@ export class HomeSectionService {
         'category.name',
         'category.description',
         'category.image',
+        'category.svgIcon'
       ])
       .where('category.id IN (:...ids)', { ids: categoryIds })
       .andWhere('category.isActive = true')
@@ -789,7 +790,8 @@ export class HomeSectionService {
         id: cat.id,
         name: cat.name,
         imageUrl: cat.image,
-        description: cat.description
+        description: cat.description,
+        svgIcon: cat.svgIcon
       });
     });
 
@@ -809,6 +811,7 @@ export class HomeSectionService {
         categoryName: item.displayTitle || categoryData.name,
         categoryDescription: categoryData.description,
         categoryImage: item.imageUrl || categoryData.imageUrl,
+        categorySvgIcon: categoryData.svgIcon,
         courseCount: courseCount
       };
     }).filter(item => item !== null);
