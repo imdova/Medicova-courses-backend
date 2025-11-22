@@ -10,7 +10,8 @@ import {
   CategoryShowcaseConfig,
   CourseListConfig,
   TopBundleConfig,
-  TopAcademiesConfig
+  TopAcademiesConfig,
+  TopInstructorsConfig
 } from './entities/home-section.entity';
 import { CreateHomeSectionDto } from './dto/create-home-section.dto';
 import { UpdateHomeSectionDto } from './dto/update-home-section.dto';
@@ -20,6 +21,7 @@ import { Bundle } from 'src/bundle/entities/bundle.entity';
 import { BundlePricing } from 'src/bundle/entities/bundle-pricing.entity';
 import { CourseBundle } from 'src/bundle/entities/course-bundle.entity';
 import { Academy } from 'src/academy/entities/academy.entity';
+import { User } from 'src/user/entities/user.entity';
 
 // Type guards
 const isFeaturedCoursesConfig = (config: any): config is FeaturedCoursesConfig => {
@@ -46,6 +48,10 @@ const isTopBundlesConfig = (config: any): config is TopBundleConfig => {
 
 const isTopAcademiesConfig = (config: any): config is TopAcademiesConfig => {
   return config && Array.isArray(config.academies);
+};
+
+const isTopInstructorsConfig = (config: any): config is TopInstructorsConfig => {
+  return config && Array.isArray(config.instructors);
 };
 
 // Validation rules for each section type
@@ -159,7 +165,18 @@ const SECTION_RULES = {
         throw new BadRequestException('Invalid top academies configuration');
       }
       if (config.academies.length > 6) {
-        throw new BadRequestException('Top academies cannot exceed 6 bundles');
+        throw new BadRequestException('Top academies cannot exceed 6 academies');
+      }
+    }
+  },
+  [HomeSectionType.TOP_INSTRUCTORS]: {
+    maxCategories: 6,
+    validate: (config: any) => {
+      if (!isTopInstructorsConfig(config)) {
+        throw new BadRequestException('Invalid top instrctors configuration');
+      }
+      if (config.instructors.length > 6) {
+        throw new BadRequestException('Top instrctors cannot exceed 6 instructors');
       }
     }
   }
@@ -182,6 +199,8 @@ export class HomeSectionService {
     private readonly courseBundleRepository: Repository<CourseBundle>,
     @InjectRepository(Academy)
     private readonly academyRepository: Repository<Academy>,
+    @InjectRepository(User) // 🆕 Add this
+    private readonly userRepository: Repository<User>,
   ) { }
 
   private async validateConfig(sectionType: HomeSectionType, config: any): Promise<void> {
@@ -202,6 +221,7 @@ export class HomeSectionService {
     const categoryIds = new Set<string>();
     const bundleIds = new Set<string>();
     const academyIds = new Set<string>();
+    const instructorIds = new Set<string>();
 
     // Extract all referenced IDs based on section type
     switch (sectionType) {
@@ -243,7 +263,12 @@ export class HomeSectionService {
         break;
       case HomeSectionType.TOP_ACADEMIES:
         if (isTopAcademiesConfig(config)) { // Fixed: should be isTopBundlesConfig
-          config.academies.forEach(b => academyIds.add(b.academyId)); // Fixed: add to bundleIds, not courseIds
+          config.academies.forEach(a => academyIds.add(a.academyId));
+        }
+        break;
+      case HomeSectionType.TOP_INSTRUCTORS:
+        if (isTopInstructorsConfig(config)) { // Fixed: should be isTopBundlesConfig
+          config.instructors.forEach(i => instructorIds.add(i.instructorId));
         }
         break;
     }
@@ -286,6 +311,20 @@ export class HomeSectionService {
 
       if (existingBundles.length !== bundleIds.size) { // Fixed: check against bundleIds.size
         throw new BadRequestException('Some bundles not found or not available');
+      }
+    }
+
+    // 🆕 Validate academies exist and are verified
+    if (academyIds.size > 0) {
+      const existingAcademies = await this.academyRepository
+        .createQueryBuilder('academy')
+        .where('academy.id IN (:...ids)', { ids: Array.from(academyIds) })
+        //.andWhere('academy.isVerified = :isVerified', { isVerified: true })
+        //.andWhere('academy.isActive = true')
+        .getMany();
+
+      if (existingAcademies.length !== academyIds.size) {
+        throw new BadRequestException('Some academies not found or not verified');
       }
     }
   }
@@ -354,6 +393,9 @@ export class HomeSectionService {
 
       case HomeSectionType.TOP_ACADEMIES:
         return await this.enrichTopAcademies(homeSection);
+
+      case HomeSectionType.TOP_INSTRUCTORS:
+        return await this.enrichTopInstructors(homeSection);
 
       default:
         return homeSection; // Return as-is for unknown types
@@ -884,6 +926,8 @@ export class HomeSectionService {
         courseId: item.courseId,
         courseName: item.displayTitle || courseData.courseName,
         courseImage: courseData.courseImage,
+        courseSlug: courseData.courseSlug,
+        coursePreviewVideo: courseData.coursePreviewVideo,
         courseDuration: courseData.courseDuration,
         courseDurationUnit: courseData.courseDurationUnit,
         totalHours: courseData.totalHours,
@@ -942,6 +986,8 @@ export class HomeSectionService {
         courseId: item.courseId,
         courseName: item.displayTitle || courseData.courseName,
         courseImage: courseData.courseImage,
+        courseSlug: courseData.courseSlug,
+        coursePreviewVideo: courseData.coursePreviewVideo,
         courseDuration: courseData.courseDuration,
         courseDurationUnit: courseData.courseDurationUnit,
         totalHours: courseData.totalHours,
@@ -1107,6 +1153,8 @@ export class HomeSectionService {
         courseId: item.courseId,
         courseName: item.displayTitle || courseData.courseName,
         courseImage: courseData.courseImage,
+        courseSlug: courseData.courseSlug,
+        coursePreviewVideo: courseData.coursePreviewVideo,
         courseDuration: courseData.courseDuration,
         courseDurationUnit: courseData.courseDurationUnit,
         totalHours: courseData.totalHours,
@@ -1756,6 +1804,177 @@ export class HomeSectionService {
       });
     } catch (error) {
       console.error('Error fetching enriched academies:', error);
+      return [];
+    }
+  }
+
+  async getPublicTopInstructors() {
+    // Get the top instructors section from database
+    const section = await this.findByType(HomeSectionType.TOP_INSTRUCTORS);
+
+    // Return empty array if section is not active
+    if (!section.isActive) {
+      return {
+        instructors: []
+      };
+    }
+
+    const config = section.config as any;
+
+    // Return empty array if no instructors configured
+    if (!config.instructors || !Array.isArray(config.instructors) || config.instructors.length === 0) {
+      return {
+        instructors: []
+      };
+    }
+
+    // Extract instructor IDs from the configuration
+    const instructorIds = config.instructors.map((i: any) => i.instructorId);
+
+    // Get enriched instructor data
+    const enrichedInstructors = await this.getEnrichedInstructorsByIds(instructorIds);
+
+    // Map back to the original order with enriched data
+    const instructors = config.instructors.map((item: any) => {
+      const instructorData = enrichedInstructors.find(i => i.instructorId === item.instructorId);
+
+      if (!instructorData) {
+        return null; // Instructor not found or no published courses
+      }
+
+      return {
+        order: item.order,
+        instructorId: item.instructorId,
+        instructorName: item.displayTitle || instructorData.instructorName,
+        photoUrl: instructorData.photoUrl,
+        metadata: instructorData.metadata,
+        totalCourses: instructorData.totalCourses,
+        totalStudents: instructorData.totalStudents,
+        averageRating: instructorData.averageRating,
+        socialLinks: instructorData.socialLinks
+      };
+    }).filter(item => item !== null); // Remove instructors that weren't found
+
+    return {
+      instructors: instructors.sort((a, b) => a.order - b.order) // Ensure proper ordering
+    };
+  }
+
+  private async enrichTopInstructors(section: HomeSection): Promise<any> {
+    const config = section.config as any;
+
+    if (!section.isActive || !config.instructors || !Array.isArray(config.instructors) || config.instructors.length === 0) {
+      return {
+        ...section,
+        config: {
+          ...config,
+          instructors: []
+        }
+      };
+    }
+
+    // Extract instructor IDs from the configuration
+    const instructorIds = config.instructors.map((i: any) => i.instructorId);
+
+    // Get enriched instructor data
+    const enrichedInstructors = await this.getEnrichedInstructorsByIds(instructorIds);
+
+    // Map back to the original order with enriched data
+    const instructors = config.instructors.map((item: any) => {
+      const instructorData = enrichedInstructors.find(i => i.instructorId === item.instructorId);
+
+      if (!instructorData) {
+        return null; // Instructor not found or no published courses
+      }
+
+      return {
+        order: item.order,
+        instructorId: item.instructorId,
+        instructorName: item.displayTitle || instructorData.instructorName,
+        photoUrl: instructorData.photoUrl,
+        metadata: instructorData.metadata,
+        totalCourses: instructorData.totalCourses,
+        totalStudents: instructorData.totalStudents,
+        averageRating: instructorData.averageRating,
+        socialLinks: instructorData.socialLinks
+      };
+    }).filter(item => item !== null).sort((a, b) => a.order - b.order);
+
+    return {
+      ...section,
+      config: {
+        ...config,
+        instructors
+      }
+    };
+  }
+
+  private async getEnrichedInstructorsByIds(instructorIds: string[]): Promise<any[]> {
+    if (instructorIds.length === 0) return [];
+
+    try {
+      // First, get all instructor profiles (even if they have no courses)
+      const allInstructors = await this.userRepository
+        .createQueryBuilder('user')
+        .innerJoinAndSelect('user.profile', 'profile')
+        .select([
+          'user.id AS instructor_id',
+          'profile.firstName AS first_name',
+          'profile.lastName AS last_name',
+          'profile.photoUrl AS photo_url',
+          'profile.metadata AS metadata',
+          'profile.averageRating AS average_rating',
+          'profile.userName AS user_name'
+        ])
+        .where('user.id IN (:...ids)', { ids: instructorIds })
+        .getRawMany();
+
+      // Then get course counts for those who have courses
+      const courseStats = await this.courseRepository
+        .createQueryBuilder('course')
+        .innerJoin('course.instructor', 'instructor')
+        .leftJoin('course.enrollments', 'enrollments')
+        .leftJoin('enrollments.student', 'student')
+        .select([
+          'instructor.id AS instructor_id',
+          'COUNT(DISTINCT course.id) AS total_courses',
+          'COUNT(DISTINCT student.id) AS total_students'
+        ])
+        .where('instructor.id IN (:...ids)', { ids: instructorIds })
+        .andWhere('course.status = :status', { status: 'published' })
+        .andWhere('course.isActive = true')
+        .groupBy('instructor.id')
+        .getRawMany();
+
+      // Create a map for course stats
+      const courseStatsMap = new Map();
+      courseStats.forEach(stat => {
+        courseStatsMap.set(stat.instructor_id, {
+          totalCourses: parseInt(stat.total_courses, 10) || 0,
+          totalStudents: parseInt(stat.total_students, 10) || 0
+        });
+      });
+
+      // Combine the data
+      return allInstructors.map(instructor => {
+        const stats = courseStatsMap.get(instructor.instructor_id) || {
+          totalCourses: 0,
+          totalStudents: 0
+        };
+
+        return {
+          instructorId: instructor.instructor_id,
+          instructorName: `${instructor.first_name || ''} ${instructor.last_name || ''}`.trim(),
+          userName: instructor.user_name,
+          photoUrl: instructor.photo_url,
+          metadata: instructor.metadata,
+          totalCourses: stats.totalCourses,
+          totalStudents: stats.totalStudents,
+          averageRating: Math.round((parseFloat(instructor.average_rating) || 0) * 10) / 10,
+        };
+      });
+    } catch (error) {
+      console.error('Error fetching enriched instructors:', error);
       return [];
     }
   }
