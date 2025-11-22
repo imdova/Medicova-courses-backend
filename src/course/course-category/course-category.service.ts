@@ -32,17 +32,19 @@ export class CourseCategoryService {
       }
     }
 
+    // 🆕 ALWAYS calculate the next priority - ignore dto.priority
+    const priority = await this.getNextPriority(dto.parentId ?? null);
+
     const category = this.courseCategoryRepository.create({
       ...dto,
+      priority, // Always use auto-assigned priority
       createdBy: userId,
       parent,
     });
 
     try {
-      // 💡 Attempt to save the new category
       return await this.courseCategoryRepository.save(category);
     } catch (err: any) {
-      // ⚠️ Handle PostgreSQL unique constraint error (code '23505')
       if (err?.code === '23505') {
         const detail = err?.detail ?? '';
 
@@ -56,11 +58,8 @@ export class CourseCategoryService {
             `A category with the slug "${dto.slug}" already exists.`,
           );
         }
-        // Fallback for other unique constraint errors
         throw new BadRequestException('A duplicate entry was detected. Please check your unique fields.');
       }
-
-      // Re-throw if it's not the unique constraint error
       throw err;
     }
   }
@@ -144,6 +143,11 @@ export class CourseCategoryService {
   ): Promise<CourseCategory> {
     const category = await this.findOne(id);
 
+    // 🆕 Handle priority change
+    if (dto.priority !== undefined && dto.priority !== category.priority) {
+      await this.handlePriorityUpdate(category, dto.priority);
+    }
+
     if (dto.parentId) {
       const parent = await this.courseCategoryRepository.findOne({
         where: { id: dto.parentId },
@@ -155,15 +159,13 @@ export class CourseCategoryService {
     }
 
     Object.assign(category, dto);
+
     try {
-      // 💡 Attempt to save the updated category
       return await this.courseCategoryRepository.save(category);
     } catch (err: any) {
-      // ⚠️ Handle PostgreSQL unique constraint error (code '23505')
       if (err?.code === '23505') {
         const detail = err?.detail ?? '';
 
-        // Check if the duplicate error is for name or slug
         if (detail.includes('(name)')) {
           throw new BadRequestException(
             `A category with the name "${dto.name}" already exists.`,
@@ -174,12 +176,58 @@ export class CourseCategoryService {
             `A category with the slug "${dto.slug}" already exists.`,
           );
         }
-        // Fallback for other unique constraint errors
         throw new BadRequestException('A duplicate entry was detected. Please check your unique fields.');
       }
-
-      // Re-throw if it's not the unique constraint error
       throw err;
+    }
+  }
+
+  private async handlePriorityUpdate(category: CourseCategory, newPriority: number): Promise<void> {
+    const parentId = category.parent?.id || null;
+
+    // If moving to a higher priority (lower number), shift categories down
+    if (newPriority < category.priority) {
+      const queryBuilder = this.courseCategoryRepository
+        .createQueryBuilder()
+        .update(CourseCategory)
+        .set({
+          priority: () => 'priority + 1'
+        });
+
+      if (parentId === null) {
+        queryBuilder.where('parent_id IS NULL');
+      } else {
+        queryBuilder.where('parent_id = :parentId', { parentId });
+      }
+
+      await queryBuilder
+        .andWhere('priority >= :newPriority', { newPriority })
+        .andWhere('priority < :oldPriority', { oldPriority: category.priority })
+        .andWhere('id != :categoryId', { categoryId: category.id })
+        .andWhere('deleted_at IS NULL')
+        .execute();
+    }
+    // If moving to a lower priority (higher number), shift categories up
+    else if (newPriority > category.priority) {
+      const queryBuilder = this.courseCategoryRepository
+        .createQueryBuilder()
+        .update(CourseCategory)
+        .set({
+          priority: () => 'priority - 1'
+        });
+
+      if (parentId === null) {
+        queryBuilder.where('parent_id IS NULL');
+      } else {
+        queryBuilder.where('parent_id = :parentId', { parentId });
+      }
+
+      await queryBuilder
+        .andWhere('priority <= :newPriority', { newPriority })
+        .andWhere('priority > :oldPriority', { oldPriority: category.priority })
+        .andWhere('id != :categoryId', { categoryId: category.id })
+        .andWhere('deleted_at IS NULL')
+        .execute();
     }
   }
 
@@ -187,5 +235,51 @@ export class CourseCategoryService {
     const category = await this.findOne(id);
 
     return await this.courseCategoryRepository.remove(category);
+  }
+
+  private async getNextPriority(parentId: string | null): Promise<number> {
+    const queryBuilder = this.courseCategoryRepository
+      .createQueryBuilder('category')
+      .select('MAX(category.priority)', 'maxPriority')
+      .where('category.deleted_at IS NULL');
+
+    // Use column name instead of relation for proper querying
+    if (parentId === null) {
+      queryBuilder.andWhere('category.parent_id IS NULL');
+    } else {
+      queryBuilder.andWhere('category.parent_id = :parentId', { parentId });
+    }
+
+    const result = await queryBuilder.getRawOne();
+    console.log('Max priority result for parentId', parentId, ':', result);
+
+    // If no categories exist (maxPriority is null), start at 1
+    // Otherwise, increment the max priority by 1
+    return (result?.maxPriority ?? 0) + 1;
+  }
+
+  private async validateAndShiftPriorities(parentId: string | null, newPriority: number): Promise<void> {
+    // Check if priority already exists for this parent
+    const existing = await this.courseCategoryRepository.findOne({
+      where: {
+        parent: { id: parentId },
+        priority: newPriority,
+        deleted_at: null
+      }
+    });
+
+    if (existing) {
+      // Shift all categories with priority >= newPriority by +1
+      await this.courseCategoryRepository
+        .createQueryBuilder()
+        .update(CourseCategory)
+        .set({
+          priority: () => 'priority + 1'
+        })
+        .where('parent_id = :parentId', { parentId })
+        .andWhere('priority >= :newPriority', { newPriority })
+        .andWhere('deleted_at IS NULL')
+        .execute();
+    }
   }
 }
