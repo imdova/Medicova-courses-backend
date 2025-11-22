@@ -21,6 +21,7 @@ import { Bundle } from 'src/bundle/entities/bundle.entity';
 import { BundlePricing } from 'src/bundle/entities/bundle-pricing.entity';
 import { CourseBundle } from 'src/bundle/entities/course-bundle.entity';
 import { Academy } from 'src/academy/entities/academy.entity';
+import { User } from 'src/user/entities/user.entity';
 
 // Type guards
 const isFeaturedCoursesConfig = (config: any): config is FeaturedCoursesConfig => {
@@ -198,6 +199,8 @@ export class HomeSectionService {
     private readonly courseBundleRepository: Repository<CourseBundle>,
     @InjectRepository(Academy)
     private readonly academyRepository: Repository<Academy>,
+    @InjectRepository(User) // 🆕 Add this
+    private readonly userRepository: Repository<User>,
   ) { }
 
   private async validateConfig(sectionType: HomeSectionType, config: any): Promise<void> {
@@ -1842,7 +1845,6 @@ export class HomeSectionService {
         totalCourses: instructorData.totalCourses,
         totalStudents: instructorData.totalStudents,
         averageRating: instructorData.averageRating,
-        courses: instructorData.courses,
         socialLinks: instructorData.socialLinks
       };
     }).filter(item => item !== null); // Remove instructors that weren't found
@@ -1888,7 +1890,6 @@ export class HomeSectionService {
         totalCourses: instructorData.totalCourses,
         totalStudents: instructorData.totalStudents,
         averageRating: instructorData.averageRating,
-        courses: instructorData.courses,
         socialLinks: instructorData.socialLinks
       };
     }).filter(item => item !== null).sort((a, b) => a.order - b.order);
@@ -1906,49 +1907,64 @@ export class HomeSectionService {
     if (instructorIds.length === 0) return [];
 
     try {
-      // Get instructor data with profile info and course counts
-      const instructorResults = await this.courseRepository
-        .createQueryBuilder('course')
-        .innerJoin('course.instructor', 'instructor')
-        .innerJoin('instructor.profile', 'profile')
-        .leftJoin('course.enrollments', 'enrollments')
-        .leftJoin('enrollments.student', 'student')
+      // First, get all instructor profiles (even if they have no courses)
+      const allInstructors = await this.userRepository
+        .createQueryBuilder('user')
+        .innerJoinAndSelect('user.profile', 'profile')
         .select([
-          'instructor.id AS instructor_id',
+          'user.id AS instructor_id',
           'profile.firstName AS first_name',
           'profile.lastName AS last_name',
           'profile.photoUrl AS photo_url',
           'profile.metadata AS metadata',
           'profile.averageRating AS average_rating',
-          'profile.userName AS user_name',
-          'profile.metadata AS metadata'
+          'profile.userName AS user_name'
         ])
-        .addSelect('COUNT(DISTINCT course.id)', 'total_courses')
-        .addSelect('COUNT(DISTINCT student.id)', 'total_students')
+        .where('user.id IN (:...ids)', { ids: instructorIds })
+        .getRawMany();
+
+      // Then get course counts for those who have courses
+      const courseStats = await this.courseRepository
+        .createQueryBuilder('course')
+        .innerJoin('course.instructor', 'instructor')
+        .leftJoin('course.enrollments', 'enrollments')
+        .leftJoin('enrollments.student', 'student')
+        .select([
+          'instructor.id AS instructor_id',
+          'COUNT(DISTINCT course.id) AS total_courses',
+          'COUNT(DISTINCT student.id) AS total_students'
+        ])
         .where('instructor.id IN (:...ids)', { ids: instructorIds })
         .andWhere('course.status = :status', { status: 'published' })
         .andWhere('course.isActive = true')
         .groupBy('instructor.id')
-        .addGroupBy('profile.firstName')
-        .addGroupBy('profile.lastName')
-        .addGroupBy('profile.photoUrl')
-        .addGroupBy('profile.metadata')
-        .addGroupBy('profile.averageRating')
-        .addGroupBy('profile.userName')
-        .addGroupBy('profile.metadata')
         .getRawMany();
 
-      return instructorResults.map(result => {
+      // Create a map for course stats
+      const courseStatsMap = new Map();
+      courseStats.forEach(stat => {
+        courseStatsMap.set(stat.instructor_id, {
+          totalCourses: parseInt(stat.total_courses, 10) || 0,
+          totalStudents: parseInt(stat.total_students, 10) || 0
+        });
+      });
+
+      // Combine the data
+      return allInstructors.map(instructor => {
+        const stats = courseStatsMap.get(instructor.instructor_id) || {
+          totalCourses: 0,
+          totalStudents: 0
+        };
+
         return {
-          instructorId: result.instructor_id,
-          instructorName: `${result.first_name || ''} ${result.last_name || ''}`.trim(),
-          userName: result.user_name,
-          photoUrl: result.photo_url,
-          metadata: result.metadata,
-          totalCourses: parseInt(result.total_courses, 10) || 0,
-          totalStudents: parseInt(result.total_students, 10) || 0,
-          averageRating: Math.round((parseFloat(result.average_rating) || 0) * 10) / 10,
-          courses: [] // Not needed since you only want course count
+          instructorId: instructor.instructor_id,
+          instructorName: `${instructor.first_name || ''} ${instructor.last_name || ''}`.trim(),
+          userName: instructor.user_name,
+          photoUrl: instructor.photo_url,
+          metadata: instructor.metadata,
+          totalCourses: stats.totalCourses,
+          totalStudents: stats.totalStudents,
+          averageRating: Math.round((parseFloat(instructor.average_rating) || 0) * 10) / 10,
         };
       });
     } catch (error) {
