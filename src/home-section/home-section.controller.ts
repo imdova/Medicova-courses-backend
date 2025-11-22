@@ -137,4 +137,15 @@ export class HomeSectionController {
   async getPublicTopAcademies() {
     return this.homeSectionsService.getPublicTopAcademies();
   }
+
+  // In home-section.controller.ts
+  @Get('public/top-instructors')
+  @ApiOperation({ summary: 'Get top instructors with enriched data (Public)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Top instructors with profile details, courses, and stats',
+  })
+  async getPublicTopInstructors() {
+    return this.homeSectionsService.getPublicTopInstructors();
+  }
 }
