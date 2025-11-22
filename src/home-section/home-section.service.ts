@@ -9,7 +9,8 @@ import {
   TrendingConfig,
   CategoryShowcaseConfig,
   CourseListConfig,
-  TopBundleConfig
+  TopBundleConfig,
+  TopAcademiesConfig
 } from './entities/home-section.entity';
 import { CreateHomeSectionDto } from './dto/create-home-section.dto';
 import { UpdateHomeSectionDto } from './dto/update-home-section.dto';
@@ -18,6 +19,7 @@ import { CourseCategory } from '../course/course-category/entities/course-catego
 import { Bundle } from 'src/bundle/entities/bundle.entity';
 import { BundlePricing } from 'src/bundle/entities/bundle-pricing.entity';
 import { CourseBundle } from 'src/bundle/entities/course-bundle.entity';
+import { Academy } from 'src/academy/entities/academy.entity';
 
 // Type guards
 const isFeaturedCoursesConfig = (config: any): config is FeaturedCoursesConfig => {
@@ -40,6 +42,10 @@ const isCourseListConfig = (config: any): config is CourseListConfig => {
 
 const isTopBundlesConfig = (config: any): config is TopBundleConfig => {
   return config && Array.isArray(config.bundles);
+};
+
+const isTopAcademiesConfig = (config: any): config is TopAcademiesConfig => {
+  return config && Array.isArray(config.academies);
 };
 
 // Validation rules for each section type
@@ -145,6 +151,17 @@ const SECTION_RULES = {
         throw new BadRequestException('Top bundles cannot exceed 6 bundles');
       }
     }
+  },
+  [HomeSectionType.TOP_ACADEMIES]: {
+    maxCategories: 6,
+    validate: (config: any) => {
+      if (!isTopAcademiesConfig(config)) {
+        throw new BadRequestException('Invalid top academies configuration');
+      }
+      if (config.academies.length > 6) {
+        throw new BadRequestException('Top academies cannot exceed 6 bundles');
+      }
+    }
   }
 };
 
@@ -163,6 +180,8 @@ export class HomeSectionService {
     private readonly bundlePricingRepository: Repository<BundlePricing>,
     @InjectRepository(CourseBundle)
     private readonly courseBundleRepository: Repository<CourseBundle>,
+    @InjectRepository(Academy)
+    private readonly academyRepository: Repository<Academy>,
   ) { }
 
   private async validateConfig(sectionType: HomeSectionType, config: any): Promise<void> {
@@ -182,6 +201,7 @@ export class HomeSectionService {
     const courseIds = new Set<string>();
     const categoryIds = new Set<string>();
     const bundleIds = new Set<string>();
+    const academyIds = new Set<string>();
 
     // Extract all referenced IDs based on section type
     switch (sectionType) {
@@ -219,6 +239,11 @@ export class HomeSectionService {
       case HomeSectionType.TOP_BUNDLES:
         if (isTopBundlesConfig(config)) { // Fixed: should be isTopBundlesConfig
           config.bundles.forEach(b => bundleIds.add(b.bundleId)); // Fixed: add to bundleIds, not courseIds
+        }
+        break;
+      case HomeSectionType.TOP_ACADEMIES:
+        if (isTopAcademiesConfig(config)) { // Fixed: should be isTopBundlesConfig
+          config.academies.forEach(b => academyIds.add(b.academyId)); // Fixed: add to bundleIds, not courseIds
         }
         break;
     }
@@ -326,6 +351,9 @@ export class HomeSectionService {
 
       case HomeSectionType.TOP_BUNDLES:
         return await this.enrichTopBundles(homeSection);
+
+      case HomeSectionType.TOP_ACADEMIES:
+        return await this.enrichTopAcademies(homeSection);
 
       default:
         return homeSection; // Return as-is for unknown types
@@ -1463,5 +1491,256 @@ export class HomeSectionService {
     });
 
     return pricingMap;
+  }
+
+  async getPublicTopAcademies() {
+    // Get the top academies section from database
+    const section = await this.findByType(HomeSectionType.TOP_ACADEMIES);
+
+    // Return empty array if section is not active
+    if (!section.isActive) {
+      return {
+        academies: []
+      };
+    }
+
+    const config = section.config as any;
+
+    // Return empty array if no academies configured
+    if (!config.academies || !Array.isArray(config.academies) || config.academies.length === 0) {
+      return {
+        academies: []
+      };
+    }
+
+    // Extract academy IDs from the configuration
+    const academyIds = config.academies.map((a: any) => a.academyId);
+
+    // Get enriched academy data
+    const enrichedAcademies = await this.getEnrichedAcademiesByIds(academyIds);
+
+    // Map back to the original order with enriched data
+    const academies = config.academies.map((item: any) => {
+      const academyData = enrichedAcademies.find(a => a.academyId === item.academyId);
+
+      if (!academyData) {
+        return null; // Academy not found or not available
+      }
+
+      return {
+        order: item.order,
+        academyId: item.academyId,
+        academyName: item.displayTitle || academyData.academyName,
+        slug: academyData.slug,
+        image: academyData.image,
+        cover: academyData.cover,
+        description: academyData.description,
+        type: academyData.type,
+        foundedYear: academyData.foundedYear,
+        address: academyData.address,
+        city: academyData.city,
+        country: academyData.country,
+        email: academyData.email,
+        phone: academyData.phone,
+        fakeStudentsCount: academyData.fakeStudentsCount,
+        realStudentsCount: academyData.uniqueStudentsCount,
+        totalCourses: academyData.totalCourses,
+        averageRating: academyData.averageRating,
+        ratingCount: academyData.ratingCount,
+        completionPercentage: academyData.completionPercentage,
+        isVerified: academyData.isVerified,
+        socialLinks: academyData.socialLinks,
+        contactPerson: academyData.contactPerson
+      };
+    }).filter(item => item !== null); // Remove academies that weren't found
+
+    return {
+      academies: academies.sort((a, b) => a.order - b.order) // Ensure proper ordering
+    };
+  }
+
+  private async enrichTopAcademies(section: HomeSection): Promise<any> {
+    const config = section.config as any;
+
+    if (!section.isActive || !config.academies || !Array.isArray(config.academies) || config.academies.length === 0) {
+      return {
+        ...section,
+        config: {
+          ...config,
+          academies: []
+        }
+      };
+    }
+
+    // Extract academy IDs from the configuration
+    const academyIds = config.academies.map((a: any) => a.academyId);
+
+    // Get enriched academy data
+    const enrichedAcademies = await this.getEnrichedAcademiesByIds(academyIds);
+
+    // Map back to the original order with enriched data
+    const academies = config.academies.map((item: any) => {
+      const academyData = enrichedAcademies.find(a => a.academyId === item.academyId);
+
+      if (!academyData) {
+        return null; // Academy not found or not available
+      }
+
+      return {
+        order: item.order,
+        academyId: item.academyId,
+        academyName: item.displayTitle || academyData.academyName,
+        slug: academyData.slug,
+        image: academyData.image,
+        cover: academyData.cover,
+        description: academyData.description,
+        type: academyData.type,
+        studentsCount: academyData.studentsCount,
+        totalCourses: academyData.totalCourses,
+        averageRating: academyData.averageRating || 0,
+        ratingCount: academyData.ratingCount || 0,
+        isVerified: academyData.isVerified,
+        socialLinks: academyData.socialLinks,
+        contactPerson: academyData.contactPerson
+      };
+    }).filter(item => item !== null).sort((a, b) => a.order - b.order);
+
+    return {
+      ...section,
+      config: {
+        ...config,
+        academies
+      }
+    };
+  }
+
+  private async getEnrichedAcademiesByIds(academyIds: string[]): Promise<any[]> {
+    if (academyIds.length === 0) return [];
+
+    try {
+      // Get academy basic data
+      const academyResults = await this.academyRepository
+        .createQueryBuilder('academy')
+        .select([
+          'academy.id',
+          'academy.name',
+          'academy.slug',
+          'academy.image',
+          'academy.cover',
+          'academy.description',
+          'academy.type',
+          'academy.studentsCount',
+          'academy.fakeStudentsCount',
+          'academy.isVerified',
+          'academy.socialLinks',
+          'academy.contactPerson',
+          'academy.foundedYear',
+          'academy.address',
+          'academy.city',
+          'academy.country',
+          'academy.email',
+          'academy.phone'
+        ])
+        .where('academy.id IN (:...ids)', { ids: academyIds })
+        .andWhere('academy.isVerified = :isVerified', { isVerified: true })
+        .getMany();
+
+      // Get course counts for each academy
+      const courseCounts = await this.courseRepository
+        .createQueryBuilder('course')
+        .select('course.academy_id', 'academyId')
+        .addSelect('COUNT(course.id)', 'totalCourses')
+        .where('course.academy_id IN (:...ids)', { ids: academyIds })
+        .andWhere('course.status = :status', { status: 'published' })
+        .andWhere('course.isActive = true')
+        .groupBy('course.academy_id')
+        .getRawMany();
+
+      // Get unique student counts for each academy (students enrolled in academy courses)
+      const studentCounts = await this.courseRepository
+        .createQueryBuilder('course')
+        .leftJoin('course.enrollments', 'enrollments')
+        .leftJoin('enrollments.student', 'student')
+        .select('course.academy_id', 'academyId')
+        .addSelect('COUNT(DISTINCT student.id)', 'uniqueStudents')
+        .where('course.academy_id IN (:...ids)', { ids: academyIds })
+        .andWhere('course.status = :status', { status: 'published' })
+        .andWhere('course.isActive = true')
+        .groupBy('course.academy_id')
+        .getRawMany();
+
+      // Get average ratings for academy courses
+      // const ratingStats = await this.courseRepository
+      //   .createQueryBuilder('course')
+      //   .leftJoin('course.reviews', 'reviews')
+      //   .select('course.academy_id', 'academyId')
+      //   .addSelect('AVG(reviews.rating)', 'averageRating')
+      //   .addSelect('COUNT(DISTINCT reviews.id)', 'ratingCount')
+      //   .where('course.academy_id IN (:...ids)', { ids: academyIds })
+      //   .andWhere('course.status = :status', { status: 'published' })
+      //   .andWhere('course.isActive = true')
+      //   .andWhere('reviews.rating IS NOT NULL')
+      //   .groupBy('course.academy_id')
+      //   .getRawMany();
+
+      // Create maps for easy lookup
+      const courseCountMap = new Map();
+      const studentCountMap = new Map();
+      // const ratingMap = new Map();
+
+      courseCounts.forEach(item => {
+        courseCountMap.set(item.academyId, parseInt(item.totalCourses, 10) || 0);
+      });
+
+      studentCounts.forEach(item => {
+        studentCountMap.set(item.academyId, parseInt(item.uniqueStudents, 10) || 0);
+      });
+
+      // ratingStats.forEach(item => {
+      //   ratingMap.set(item.academyId, {
+      //     averageRating: Math.round((parseFloat(item.averageRating) || 0) * 10) / 10,
+      //     ratingCount: parseInt(item.ratingCount, 10) || 0
+      //   });
+      // });
+
+      return academyResults.map(academy => {
+        const courseCount = courseCountMap.get(academy.id) || 0;
+        const uniqueStudents = studentCountMap.get(academy.id) || 0;
+        // const ratingData = ratingMap.get(academy.id) || { averageRating: 0, ratingCount: 0 };
+
+        // Calculate student count (real or fake based on display preference)
+        // const displayRealStudents = academy.displayRealStudentsCount !== false;
+        // const studentCount = displayRealStudents
+        //   ? (academy.studentsCount || uniqueStudents || 0)
+        //   : (academy.fakeStudentsCount || academy.studentsCount || uniqueStudents || 0);
+
+        return {
+          academyId: academy.id,
+          academyName: academy.name,
+          slug: academy.slug,
+          image: academy.image,
+          cover: academy.cover,
+          description: academy.description,
+          type: academy.type,
+          foundedYear: academy.foundedYear,
+          address: academy.address,
+          city: academy.city,
+          country: academy.country,
+          email: academy.email,
+          phone: academy.phone,
+          fakeStudentsCount: academy.fakeStudentsCount || 0,
+          uniqueStudentsCount: uniqueStudents, // Actual unique students from enrollments
+          totalCourses: courseCount,
+          averageRating: 0, //ratingData.averageRating,
+          ratingCount: 0, //ratingData.ratingCount,
+          isVerified: academy.isVerified,
+          socialLinks: academy.socialLinks,
+          contactPerson: academy.contactPerson
+        };
+      });
+    } catch (error) {
+      console.error('Error fetching enriched academies:', error);
+      return [];
+    }
   }
 }
