@@ -69,7 +69,7 @@ export class CourseCategoryService {
     const categories = await this.courseCategoryRepository.find({
       where: { deleted_at: null },
       relations: ['parent', 'subcategories'],
-      order: { name: 'ASC' },
+      order: { priority: 'ASC' },
     });
 
     // Get all category IDs (both parent and subcategory)
@@ -78,26 +78,41 @@ export class CourseCategoryService {
       ...(cat.subcategories?.map(sub => sub.id) || [])
     ]);
 
-    // Get course counts in a single query
-    const courseCounts = await this.courseRepository
+    // Get course counts for main categories
+    const mainCategoryCounts = await this.courseRepository
       .createQueryBuilder('course')
       .select('course.category_id', 'categoryId')
-      .addSelect('course.subcategory_id', 'subcategoryId')
-      .addSelect('COUNT(*)', 'count')
+      .addSelect('COUNT(course.id)', 'count')
       .where('course.deleted_at IS NULL')
-      .andWhere('(course.category_id IN (:...ids) OR course.subcategory_id IN (:...ids))', { ids: allCategoryIds })
-      .groupBy('course.category_id, course.subcategory_id')
+      .andWhere('course.category_id IN (:...ids)', { ids: allCategoryIds })
+      .groupBy('course.category_id')
       .getRawMany();
 
-    // Create a map for quick lookup
+    // Get course counts for subcategories
+    const subCategoryCounts = await this.courseRepository
+      .createQueryBuilder('course')
+      .select('course.subcategory_id', 'categoryId')
+      .addSelect('COUNT(course.id)', 'count')
+      .where('course.deleted_at IS NULL')
+      .andWhere('course.subcategory_id IN (:...ids)', { ids: allCategoryIds })
+      .groupBy('course.subcategory_id')
+      .getRawMany();
+
+    // Combine both counts (accumulate like in processCategoriesWithCounts)
     const countMap = new Map();
 
-    courseCounts.forEach(item => {
+    // Add main category counts
+    mainCategoryCounts.forEach(item => {
       if (item.categoryId) {
-        countMap.set(item.categoryId, parseInt(item.count));
+        countMap.set(item.categoryId, parseInt(item.count, 10) || 0);
       }
-      if (item.subcategoryId) {
-        countMap.set(item.subcategoryId, parseInt(item.count));
+    });
+
+    // Add subcategory counts (accumulate if category appears in both)
+    subCategoryCounts.forEach(item => {
+      if (item.categoryId) {
+        const currentCount = countMap.get(item.categoryId) || 0;
+        countMap.set(item.categoryId, currentCount + (parseInt(item.count, 10) || 0));
       }
     });
 
