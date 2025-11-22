@@ -233,8 +233,8 @@ export class CourseController {
   }
 
   @Get('tags')
-  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  @RequirePermissions('course:tags')
+  // @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  // @RequirePermissions('course:tags')
   @ApiOperation({ summary: 'Get all available course tags with optional search' })
   @ApiQuery({
     name: 'search',
