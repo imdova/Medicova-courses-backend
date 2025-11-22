@@ -10,7 +10,8 @@ import {
   CategoryShowcaseConfig,
   CourseListConfig,
   TopBundleConfig,
-  TopAcademiesConfig
+  TopAcademiesConfig,
+  TopInstructorsConfig
 } from './entities/home-section.entity';
 import { CreateHomeSectionDto } from './dto/create-home-section.dto';
 import { UpdateHomeSectionDto } from './dto/update-home-section.dto';
@@ -46,6 +47,10 @@ const isTopBundlesConfig = (config: any): config is TopBundleConfig => {
 
 const isTopAcademiesConfig = (config: any): config is TopAcademiesConfig => {
   return config && Array.isArray(config.academies);
+};
+
+const isTopInstructorsConfig = (config: any): config is TopInstructorsConfig => {
+  return config && Array.isArray(config.instructors);
 };
 
 // Validation rules for each section type
@@ -159,7 +164,18 @@ const SECTION_RULES = {
         throw new BadRequestException('Invalid top academies configuration');
       }
       if (config.academies.length > 6) {
-        throw new BadRequestException('Top academies cannot exceed 6 bundles');
+        throw new BadRequestException('Top academies cannot exceed 6 academies');
+      }
+    }
+  },
+  [HomeSectionType.TOP_INSTRUCTORS]: {
+    maxCategories: 6,
+    validate: (config: any) => {
+      if (!isTopInstructorsConfig(config)) {
+        throw new BadRequestException('Invalid top instrctors configuration');
+      }
+      if (config.instructors.length > 6) {
+        throw new BadRequestException('Top instrctors cannot exceed 6 instructors');
       }
     }
   }
@@ -202,6 +218,7 @@ export class HomeSectionService {
     const categoryIds = new Set<string>();
     const bundleIds = new Set<string>();
     const academyIds = new Set<string>();
+    const instructorIds = new Set<string>();
 
     // Extract all referenced IDs based on section type
     switch (sectionType) {
@@ -243,7 +260,12 @@ export class HomeSectionService {
         break;
       case HomeSectionType.TOP_ACADEMIES:
         if (isTopAcademiesConfig(config)) { // Fixed: should be isTopBundlesConfig
-          config.academies.forEach(b => academyIds.add(b.academyId)); // Fixed: add to bundleIds, not courseIds
+          config.academies.forEach(a => academyIds.add(a.academyId));
+        }
+        break;
+      case HomeSectionType.TOP_INSTRUCTORS:
+        if (isTopInstructorsConfig(config)) { // Fixed: should be isTopBundlesConfig
+          config.instructors.forEach(i => instructorIds.add(i.instructorId));
         }
         break;
     }
@@ -286,6 +308,20 @@ export class HomeSectionService {
 
       if (existingBundles.length !== bundleIds.size) { // Fixed: check against bundleIds.size
         throw new BadRequestException('Some bundles not found or not available');
+      }
+    }
+
+    // 🆕 Validate academies exist and are verified
+    if (academyIds.size > 0) {
+      const existingAcademies = await this.academyRepository
+        .createQueryBuilder('academy')
+        .where('academy.id IN (:...ids)', { ids: Array.from(academyIds) })
+        //.andWhere('academy.isVerified = :isVerified', { isVerified: true })
+        //.andWhere('academy.isActive = true')
+        .getMany();
+
+      if (existingAcademies.length !== academyIds.size) {
+        throw new BadRequestException('Some academies not found or not verified');
       }
     }
   }
@@ -354,6 +390,9 @@ export class HomeSectionService {
 
       case HomeSectionType.TOP_ACADEMIES:
         return await this.enrichTopAcademies(homeSection);
+
+      case HomeSectionType.TOP_INSTRUCTORS:
+        return await this.enrichTopInstructors(homeSection);
 
       default:
         return homeSection; // Return as-is for unknown types
@@ -1756,6 +1795,164 @@ export class HomeSectionService {
       });
     } catch (error) {
       console.error('Error fetching enriched academies:', error);
+      return [];
+    }
+  }
+
+  async getPublicTopInstructors() {
+    // Get the top instructors section from database
+    const section = await this.findByType(HomeSectionType.TOP_INSTRUCTORS);
+
+    // Return empty array if section is not active
+    if (!section.isActive) {
+      return {
+        instructors: []
+      };
+    }
+
+    const config = section.config as any;
+
+    // Return empty array if no instructors configured
+    if (!config.instructors || !Array.isArray(config.instructors) || config.instructors.length === 0) {
+      return {
+        instructors: []
+      };
+    }
+
+    // Extract instructor IDs from the configuration
+    const instructorIds = config.instructors.map((i: any) => i.instructorId);
+
+    // Get enriched instructor data
+    const enrichedInstructors = await this.getEnrichedInstructorsByIds(instructorIds);
+
+    // Map back to the original order with enriched data
+    const instructors = config.instructors.map((item: any) => {
+      const instructorData = enrichedInstructors.find(i => i.instructorId === item.instructorId);
+
+      if (!instructorData) {
+        return null; // Instructor not found or no published courses
+      }
+
+      return {
+        order: item.order,
+        instructorId: item.instructorId,
+        instructorName: item.displayTitle || instructorData.instructorName,
+        photoUrl: instructorData.photoUrl,
+        metadata: instructorData.metadata,
+        totalCourses: instructorData.totalCourses,
+        totalStudents: instructorData.totalStudents,
+        averageRating: instructorData.averageRating,
+        courses: instructorData.courses,
+        socialLinks: instructorData.socialLinks
+      };
+    }).filter(item => item !== null); // Remove instructors that weren't found
+
+    return {
+      instructors: instructors.sort((a, b) => a.order - b.order) // Ensure proper ordering
+    };
+  }
+
+  private async enrichTopInstructors(section: HomeSection): Promise<any> {
+    const config = section.config as any;
+
+    if (!section.isActive || !config.instructors || !Array.isArray(config.instructors) || config.instructors.length === 0) {
+      return {
+        ...section,
+        config: {
+          ...config,
+          instructors: []
+        }
+      };
+    }
+
+    // Extract instructor IDs from the configuration
+    const instructorIds = config.instructors.map((i: any) => i.instructorId);
+
+    // Get enriched instructor data
+    const enrichedInstructors = await this.getEnrichedInstructorsByIds(instructorIds);
+
+    // Map back to the original order with enriched data
+    const instructors = config.instructors.map((item: any) => {
+      const instructorData = enrichedInstructors.find(i => i.instructorId === item.instructorId);
+
+      if (!instructorData) {
+        return null; // Instructor not found or no published courses
+      }
+
+      return {
+        order: item.order,
+        instructorId: item.instructorId,
+        instructorName: item.displayTitle || instructorData.instructorName,
+        photoUrl: instructorData.photoUrl,
+        metadata: instructorData.metadata,
+        totalCourses: instructorData.totalCourses,
+        totalStudents: instructorData.totalStudents,
+        averageRating: instructorData.averageRating,
+        courses: instructorData.courses,
+        socialLinks: instructorData.socialLinks
+      };
+    }).filter(item => item !== null).sort((a, b) => a.order - b.order);
+
+    return {
+      ...section,
+      config: {
+        ...config,
+        instructors
+      }
+    };
+  }
+
+  private async getEnrichedInstructorsByIds(instructorIds: string[]): Promise<any[]> {
+    if (instructorIds.length === 0) return [];
+
+    try {
+      // Get instructor data with profile info and course counts
+      const instructorResults = await this.courseRepository
+        .createQueryBuilder('course')
+        .innerJoin('course.instructor', 'instructor')
+        .innerJoin('instructor.profile', 'profile')
+        .leftJoin('course.enrollments', 'enrollments')
+        .leftJoin('enrollments.student', 'student')
+        .select([
+          'instructor.id AS instructor_id',
+          'profile.firstName AS first_name',
+          'profile.lastName AS last_name',
+          'profile.photoUrl AS photo_url',
+          'profile.metadata AS metadata',
+          'profile.averageRating AS average_rating',
+          'profile.userName AS user_name',
+          'profile.metadata AS metadata'
+        ])
+        .addSelect('COUNT(DISTINCT course.id)', 'total_courses')
+        .addSelect('COUNT(DISTINCT student.id)', 'total_students')
+        .where('instructor.id IN (:...ids)', { ids: instructorIds })
+        .andWhere('course.status = :status', { status: 'published' })
+        .andWhere('course.isActive = true')
+        .groupBy('instructor.id')
+        .addGroupBy('profile.firstName')
+        .addGroupBy('profile.lastName')
+        .addGroupBy('profile.photoUrl')
+        .addGroupBy('profile.metadata')
+        .addGroupBy('profile.averageRating')
+        .addGroupBy('profile.userName')
+        .addGroupBy('profile.metadata')
+        .getRawMany();
+
+      return instructorResults.map(result => {
+        return {
+          instructorId: result.instructor_id,
+          instructorName: `${result.first_name || ''} ${result.last_name || ''}`.trim(),
+          userName: result.user_name,
+          photoUrl: result.photo_url,
+          metadata: result.metadata,
+          totalCourses: parseInt(result.total_courses, 10) || 0,
+          totalStudents: parseInt(result.total_students, 10) || 0,
+          averageRating: Math.round((parseFloat(result.average_rating) || 0) * 10) / 10,
+          courses: [] // Not needed since you only want course count
+        };
+      });
+    } catch (error) {
+      console.error('Error fetching enriched instructors:', error);
       return [];
     }
   }

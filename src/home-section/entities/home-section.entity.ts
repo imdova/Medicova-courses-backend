@@ -10,6 +10,7 @@ export enum HomeSectionType {
     TOP_RATED = 'top_rated',
     TOP_BUNDLES = 'top_bundles',
     TOP_ACADEMIES = 'top_academies',
+    TOP_INSTRUCTORS = 'top_instructors',
 }
 
 // JSON Config Interfaces
@@ -70,13 +71,22 @@ export interface TopAcademiesConfig {
     }>;
 }
 
+export interface TopInstructorsConfig {
+    type: 'top_instructors';
+    instructors: Array<{
+        instructorId: string;
+        order: number;
+    }>;
+}
+
 export type HomeSectionConfig =
     | FeaturedCoursesConfig
     | TrendingConfig
     | CategoryShowcaseConfig
     | CourseListConfig
     | TopBundleConfig
-    | TopAcademiesConfig;
+    | TopAcademiesConfig
+    | TopInstructorsConfig;
 
 @Entity('home_sections')
 export class HomeSection extends BasicEntity {
