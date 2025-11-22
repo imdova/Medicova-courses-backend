@@ -1543,6 +1543,7 @@ export class HomeSectionService {
         email: academyData.email,
         phone: academyData.phone,
         fakeStudentsCount: academyData.fakeStudentsCount,
+        displayRealStudentCount: academyData.displayRealStudentsCount,
         realStudentsCount: academyData.uniqueStudentsCount,
         totalCourses: academyData.totalCourses,
         averageRating: academyData.averageRating,
@@ -1595,10 +1596,19 @@ export class HomeSectionService {
         cover: academyData.cover,
         description: academyData.description,
         type: academyData.type,
-        studentsCount: academyData.studentsCount,
+        foundedYear: academyData.foundedYear,
+        address: academyData.address,
+        city: academyData.city,
+        country: academyData.country,
+        email: academyData.email,
+        phone: academyData.phone,
+        fakeStudentsCount: academyData.fakeStudentsCount,
+        displayRealStudentCount: academyData.displayRealStudentsCount,
+        realStudentsCount: academyData.uniqueStudentsCount,
         totalCourses: academyData.totalCourses,
-        averageRating: academyData.averageRating || 0,
-        ratingCount: academyData.ratingCount || 0,
+        averageRating: academyData.averageRating,
+        ratingCount: academyData.ratingCount,
+        completionPercentage: academyData.completionPercentage,
         isVerified: academyData.isVerified,
         socialLinks: academyData.socialLinks,
         contactPerson: academyData.contactPerson
@@ -1634,6 +1644,7 @@ export class HomeSectionService {
           'academy.isVerified',
           'academy.socialLinks',
           'academy.contactPerson',
+          'academy.displayRealStudentsCount',
           'academy.foundedYear',
           'academy.address',
           'academy.city',
@@ -1642,7 +1653,7 @@ export class HomeSectionService {
           'academy.phone'
         ])
         .where('academy.id IN (:...ids)', { ids: academyIds })
-        .andWhere('academy.isVerified = :isVerified', { isVerified: true })
+        //.andWhere('academy.isVerified = :isVerified', { isVerified: true })
         .getMany();
 
       // Get course counts for each academy
@@ -1729,6 +1740,7 @@ export class HomeSectionService {
           email: academy.email,
           phone: academy.phone,
           fakeStudentsCount: academy.fakeStudentsCount || 0,
+          displayRealStudentsCount: academy.displayRealStudentsCount,
           uniqueStudentsCount: uniqueStudents, // Actual unique students from enrollments
           totalCourses: courseCount,
           averageRating: 0, //ratingData.averageRating,
