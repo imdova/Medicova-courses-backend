@@ -8,9 +8,10 @@ import { CourseCategory } from 'src/course/course-category/entities/course-categ
 import { Bundle } from 'src/bundle/entities/bundle.entity';
 import { BundlePricing } from 'src/bundle/entities/bundle-pricing.entity';
 import { CourseBundle } from 'src/bundle/entities/course-bundle.entity';
+import { Academy } from 'src/academy/entities/academy.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([HomeSection, Course, CourseCategory, Bundle, BundlePricing, CourseBundle])],
+  imports: [TypeOrmModule.forFeature([HomeSection, Course, CourseCategory, Bundle, BundlePricing, CourseBundle, Academy])],
   controllers: [HomeSectionController],
   providers: [HomeSectionService],
 })
