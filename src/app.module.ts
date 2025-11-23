@@ -68,6 +68,8 @@ import { BlogCategory } from './blog/blog-category/entities/blog-category.entity
 import { HomeSectionModule } from './home-section/home-section.module';
 import { HomeSection } from './home-section/entities/home-section.entity';
 import { BlogTag } from './blog/blog-tags/entities/blog-tag.entity';
+import { FileUploadModule } from './file-upload/file-upload.module';
+import { FileUpload } from './file-upload/entities/file-upload.entity';
 
 @Module({
   imports: [
@@ -126,15 +128,16 @@ import { BlogTag } from './blog/blog-tags/entities/blog-tag.entity';
         Blog,
         BlogCategory,
         HomeSection,
-        BlogTag
+        BlogTag,
+        FileUpload
       ],
       synchronize: true,
       extra: {
         max: 5
       },
-      ssl: {
-        rejectUnauthorized: false, // ✅ Allow self-signed certs from Cloud SQL
-      },
+      // ssl: {
+      //   rejectUnauthorized: false, // ✅ Allow self-signed certs from Cloud SQL
+      // },
     }),
     MailerModule.forRoot({
       transport: process.env.SMTP_TRANSPORT,
@@ -160,6 +163,7 @@ import { BlogTag } from './blog/blog-tags/entities/blog-tag.entity';
     AdminModule,
     BlogModule,
     HomeSectionModule,
+    FileUploadModule,
   ],
   controllers: [AppController],
   providers: [AppService, DatabaseService],
