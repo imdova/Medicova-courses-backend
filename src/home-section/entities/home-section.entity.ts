@@ -11,6 +11,7 @@ export enum HomeSectionType {
     TOP_BUNDLES = 'top_bundles',
     TOP_ACADEMIES = 'top_academies',
     TOP_INSTRUCTORS = 'top_instructors',
+    PROMO_CARDS = 'promo_cards',
 }
 
 // JSON Config Interfaces
@@ -24,11 +25,6 @@ export interface FeaturedCoursesConfig {
 
 export interface TrendingConfig {
     type: 'trending';
-    promoCards: Array<{
-        linkUrl?: string;
-        imageUrl: string;
-        order: number;
-    }>;
     categoryCourses: Array<{
         categoryId: string;
         order: number;
@@ -36,6 +32,15 @@ export interface TrendingConfig {
             courseId: string;
             order: number;
         }>;
+    }>;
+}
+
+export interface PromoCardsConfig {
+    type: 'promo_cards';
+    promoCards: Array<{
+        linkUrl?: string;
+        imageUrl: string;
+        order: number;
     }>;
 }
 
@@ -86,7 +91,8 @@ export type HomeSectionConfig =
     | CourseListConfig
     | TopBundleConfig
     | TopAcademiesConfig
-    | TopInstructorsConfig;
+    | TopInstructorsConfig
+    | PromoCardsConfig;
 
 @Entity('home_sections')
 export class HomeSection extends BasicEntity {

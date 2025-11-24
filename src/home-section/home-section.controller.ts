@@ -88,6 +88,16 @@ export class HomeSectionController {
     return this.homeSectionsService.getPublicTrending();
   }
 
+  @Get('public/promo-cards')
+  @ApiOperation({ summary: 'Get promo cards with enriched data (Public)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Promo cards with card details',
+  })
+  async getPublicPromoCards() {
+    return this.homeSectionsService.getPublicPromoCards();
+  }
+
   @Get('public/category-showcase')
   @ApiOperation({ summary: 'Get category showcase with enriched data (Public)' })
   @ApiResponse({
