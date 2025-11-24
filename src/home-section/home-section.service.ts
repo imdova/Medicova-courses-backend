@@ -11,7 +11,8 @@ import {
   CourseListConfig,
   TopBundleConfig,
   TopAcademiesConfig,
-  TopInstructorsConfig
+  TopInstructorsConfig,
+  PromoCardsConfig
 } from './entities/home-section.entity';
 import { CreateHomeSectionDto } from './dto/create-home-section.dto';
 import { UpdateHomeSectionDto } from './dto/update-home-section.dto';
@@ -54,6 +55,10 @@ const isTopInstructorsConfig = (config: any): config is TopInstructorsConfig => 
   return config && Array.isArray(config.instructors);
 };
 
+const isPromoCardsConfig = (config: any): config is PromoCardsConfig => {
+  return config && Array.isArray(config.promoCards);
+};
+
 // Validation rules for each section type
 const SECTION_RULES = {
   [HomeSectionType.FEATURED_COURSES]: {
@@ -77,11 +82,6 @@ const SECTION_RULES = {
     validate: (config: any) => {
       if (!isTrendingConfig(config)) {
         throw new BadRequestException('Invalid trending configuration');
-      }
-
-      // Validate promo cards
-      if (config.promoCards.length > 2) {
-        throw new BadRequestException('Trending section cannot have more than 2 promo cards');
       }
 
       // Validate categories
@@ -148,7 +148,7 @@ const SECTION_RULES = {
     }
   },
   [HomeSectionType.TOP_BUNDLES]: {
-    maxCategories: 6,
+    maxBundles: 6,
     validate: (config: any) => {
       if (!isTopBundlesConfig(config)) {
         throw new BadRequestException('Invalid top bundles configuration');
@@ -159,7 +159,7 @@ const SECTION_RULES = {
     }
   },
   [HomeSectionType.TOP_ACADEMIES]: {
-    maxCategories: 6,
+    maxAcademies: 6,
     validate: (config: any) => {
       if (!isTopAcademiesConfig(config)) {
         throw new BadRequestException('Invalid top academies configuration');
@@ -170,13 +170,39 @@ const SECTION_RULES = {
     }
   },
   [HomeSectionType.TOP_INSTRUCTORS]: {
-    maxCategories: 6,
+    maxInstructors: 6,
     validate: (config: any) => {
       if (!isTopInstructorsConfig(config)) {
         throw new BadRequestException('Invalid top instrctors configuration');
       }
       if (config.instructors.length > 6) {
         throw new BadRequestException('Top instrctors cannot exceed 6 instructors');
+      }
+    }
+  },
+  [HomeSectionType.PROMO_CARDS]: {
+    maxPromoCards: 2,
+    validate: (config: any) => {
+      if (!isPromoCardsConfig(config)) {
+        throw new BadRequestException('Invalid promo codes configuration');
+      }
+      if (config.promoCards.length > 6) {
+        throw new BadRequestException('promo codes cannot exceed 6 instructors');
+      }
+      // Validate each promo card has required fields
+      config.promoCards.forEach((card: any, index: number) => {
+        if (!card.imageUrl) {
+          throw new BadRequestException(`Promo card at position ${index} must have an imageUrl`);
+        }
+        if (!card.linkUrl) {
+          throw new BadRequestException(`Promo card at position ${index} must have a linkUrl`);
+        }
+      });
+      // Validate no duplicate orders
+      const orders = config.promoCards.map((c: any) => c.order);
+      const uniqueOrders = new Set(orders);
+      if (uniqueOrders.size !== orders.length) {
+        throw new BadRequestException('Duplicate orders are not allowed in promo cards');
       }
     }
   }
@@ -270,6 +296,9 @@ export class HomeSectionService {
         if (isTopInstructorsConfig(config)) { // Fixed: should be isTopBundlesConfig
           config.instructors.forEach(i => instructorIds.add(i.instructorId));
         }
+        break;
+      case HomeSectionType.PROMO_CARDS:
+        // No entity validation needed for promo cards - they're just URLs and images
         break;
     }
 
@@ -397,6 +426,9 @@ export class HomeSectionService {
       case HomeSectionType.TOP_INSTRUCTORS:
         return await this.enrichTopInstructors(homeSection);
 
+      case HomeSectionType.PROMO_CARDS:
+        return await this.enrichPromoCards(homeSection);
+
       default:
         return homeSection; // Return as-is for unknown types
     }
@@ -448,7 +480,9 @@ export class HomeSectionService {
       case HomeSectionType.FEATURED_COURSES:
         return { courses: [] };
       case HomeSectionType.TRENDING:
-        return { promoCards: [], categoryCourses: {} };
+        return { categoryCourses: {} };
+      case HomeSectionType.PROMO_CARDS:
+        return { promoCards: [] };
       case HomeSectionType.CATEGORY_SHOWCASE:
         return { categories: [] };
       case HomeSectionType.BESTSELLER:
@@ -676,34 +710,23 @@ export class HomeSectionService {
     // Return empty if section is not active
     if (!section.isActive) {
       return {
-        promoCards: [],
-        categoryCourses: []
+        categoryCourses: [] // Remove promo cards from response
       };
     }
 
     const config = section.config as any;
 
     // Return empty if no data configured
-    if ((!config.promoCards || !Array.isArray(config.promoCards)) &&
-      (!config.categoryCourses || !Array.isArray(config.categoryCourses))) {
+    if (!config.categoryCourses || !Array.isArray(config.categoryCourses)) {
       return {
-        promoCards: [],
         categoryCourses: []
       };
     }
 
-    // Process promo cards
-    const promoCards = (config.promoCards || []).map((card: any) => ({
-      imageUrl: card.imageUrl,
-      linkUrl: card.linkUrl,
-      order: card.order
-    })).sort((a, b) => a.order - b.order);
-
-    // Process category courses
+    // Process category courses only (no promo cards)
     const categoryCourses = await this.processCategoryCourses(config.categoryCourses || []);
 
     return {
-      promoCards,
       categoryCourses: categoryCourses.sort((a, b) => a.order - b.order)
     };
   }
@@ -1071,26 +1094,17 @@ export class HomeSectionService {
       return {
         ...section,
         config: {
-          promoCards: [],
-          categoryCourses: []
+          categoryCourses: [] // Remove promo cards
         }
       };
     }
 
-    // Process promo cards
-    const promoCards = (config.promoCards || []).map((card: any) => ({
-      imageUrl: card.imageUrl,
-      linkUrl: card.linkUrl,
-      order: card.order
-    })).sort((a, b) => a.order - b.order);
-
-    // Process category courses
+    // Process category courses only
     const categoryCourses = await this.processCategoryCourses(config.categoryCourses || []);
 
     return {
       ...section,
       config: {
-        promoCards,
         categoryCourses: categoryCourses.sort((a, b) => a.order - b.order)
       }
     };
@@ -1977,5 +1991,69 @@ export class HomeSectionService {
       console.error('Error fetching enriched instructors:', error);
       return [];
     }
+  }
+
+  async getPublicPromoCards() {
+    // Get the promo cards section from database
+    const section = await this.findByType(HomeSectionType.PROMO_CARDS);
+
+    // Return empty array if section is not active
+    if (!section.isActive) {
+      return {
+        promoCards: []
+      };
+    }
+
+    const config = section.config as any;
+
+    // Return empty array if no promo cards configured
+    if (!config.promoCards || !Array.isArray(config.promoCards) || config.promoCards.length === 0) {
+      return {
+        promoCards: []
+      };
+    }
+
+    // Process promo cards (only return active ones)
+    const promoCards = config.promoCards
+      .filter((card: any) => card.isActive !== false) // Filter out inactive cards
+      .map((card: any) => ({
+        order: card.order,
+        imageUrl: card.imageUrl,
+        linkUrl: card.linkUrl,
+      }))
+      .sort((a, b) => a.order - b.order);
+
+    return {
+      promoCards
+    };
+  }
+
+  private async enrichPromoCards(section: HomeSection): Promise<any> {
+    const config = section.config as any;
+
+    if (!section.isActive || !config.promoCards || !Array.isArray(config.promoCards) || config.promoCards.length === 0) {
+      return {
+        ...section,
+        config: {
+          ...config,
+          promoCards: []
+        }
+      };
+    }
+
+    // Process promo cards
+    const promoCards = config.promoCards.map((card: any) => ({
+      imageUrl: card.imageUrl,
+      linkUrl: card.linkUrl,
+      order: card.order
+    })).sort((a, b) => a.order - b.order);
+
+    return {
+      ...section,
+      config: {
+        ...config,
+        promoCards
+      }
+    };
   }
 }
