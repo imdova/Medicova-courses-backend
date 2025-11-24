@@ -8,6 +8,7 @@ import { CourseStudent } from 'src/course/entities/course-student.entity';
 import { Payment } from 'src/payment/entities/payment.entity';
 import { Role } from './roles.entity';
 import { IdentityVerification } from './identity-verification.entity';
+import { FileUpload } from '../../file-upload/entities/file-upload.entity';
 
 @Entity()
 export class User extends BasicEntity {
@@ -86,6 +87,10 @@ export class User extends BasicEntity {
     cascade: true, // Optional: if you want to save the submission with the user
   })
   identityVerification?: IdentityVerification;
+
+  // 🆕 Add files relationship
+  @OneToMany(() => FileUpload, (fileUpload) => fileUpload.uploadedBy)
+  fileUploads: FileUpload[];
 
   get permissions(): string[] {
     return this.role?.rolePermissions?.map(rp => rp.permission.name) || [];

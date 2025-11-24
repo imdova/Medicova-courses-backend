@@ -68,6 +68,8 @@ import { BlogCategory } from './blog/blog-category/entities/blog-category.entity
 import { HomeSectionModule } from './home-section/home-section.module';
 import { HomeSection } from './home-section/entities/home-section.entity';
 import { BlogTag } from './blog/blog-tags/entities/blog-tag.entity';
+import { FileUploadModule } from './file-upload/file-upload.module';
+import { FileUpload } from './file-upload/entities/file-upload.entity';
 
 @Module({
   imports: [
@@ -126,7 +128,8 @@ import { BlogTag } from './blog/blog-tags/entities/blog-tag.entity';
         Blog,
         BlogCategory,
         HomeSection,
-        BlogTag
+        BlogTag,
+        FileUpload
       ],
       synchronize: true,
       extra: {
@@ -160,6 +163,7 @@ import { BlogTag } from './blog/blog-tags/entities/blog-tag.entity';
     AdminModule,
     BlogModule,
     HomeSectionModule,
+    FileUploadModule,
   ],
   controllers: [AppController],
   providers: [AppService, DatabaseService],
