@@ -3,14 +3,14 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { FileUpload } from './entities/file-upload.entity';
-import { SupabaseStorageService } from './supabase-storage.service';
+import { GcpStorageService } from './gcp-storage.service';
 
 @Injectable()
 export class FileUploadService {
   constructor(
     @InjectRepository(FileUpload)
     private readonly fileRepository: Repository<FileUpload>,
-    private readonly supabaseStorage: SupabaseStorageService,
+    private readonly gcpStorage: GcpStorageService,
   ) { }
 
   async uploadFile(
@@ -19,8 +19,8 @@ export class FileUploadService {
     folder: string = 'general'
   ): Promise<FileUpload> {
     try {
-      // Upload to Supabase Storage
-      const uploadResult = await this.supabaseStorage.uploadFile(file, folder);
+      // Upload to Google Cloud Storage
+      const uploadResult = await this.gcpStorage.uploadFile(file, folder);
 
       // Save file metadata to database
       const fileEntity = this.fileRepository.create({
@@ -29,7 +29,7 @@ export class FileUploadService {
         mimeType: file.mimetype,
         size: file.size,
         url: uploadResult.url,
-        bucket: 'medicova-courses-files',
+        bucket: process.env.GCP_STORAGE_BUCKET || 'medicova-courses-files',
         path: uploadResult.path,
         createdBy: userId,
       });
@@ -79,13 +79,23 @@ export class FileUploadService {
     }
 
     try {
-      // Delete from Supabase Storage
-      await this.supabaseStorage.deleteFile(file.path);
+      // Delete from Google Cloud Storage
+      await this.gcpStorage.deleteFile(file.path);
 
       // Delete from database
       await this.fileRepository.remove(file);
     } catch (error) {
       throw new BadRequestException(`File deletion failed: ${error.message}`);
+    }
+  }
+
+  async getSignedUrl(id: string, expiresInMinutes: number = 15): Promise<string> {
+    const file = await this.findOne(id);
+
+    try {
+      return await this.gcpStorage.getSignedUrl(file.path, expiresInMinutes);
+    } catch (error) {
+      throw new BadRequestException(`Signed URL generation failed: ${error.message}`);
     }
   }
 }
