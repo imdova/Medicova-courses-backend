@@ -77,51 +77,73 @@ export class CourseCategoryService {
       ...(cat.subcategories?.map(sub => sub.id) || [])
     ]);
 
-    // Get course counts for main categories
-    const mainCategoryCounts = await this.courseRepository
-      .createQueryBuilder('course')
-      .select('course.category_id', 'categoryId')
-      .addSelect('COUNT(course.id)', 'count')
-      .where('course.deleted_at IS NULL')
-      .andWhere('course.category_id IN (:...ids)', { ids: allCategoryIds })
-      .groupBy('course.category_id')
-      .getRawMany();
+    // Get all published courses for these categories
+    const courses = await this.courseRepository.find({
+      where: {
+        deleted_at: null,
+      },
+      relations: ['category', 'subCategory'],
+      select: ['id', 'name', 'slug', 'category', 'subCategory']
+    });
 
-    // Get course counts for subcategories
-    const subCategoryCounts = await this.courseRepository
-      .createQueryBuilder('course')
-      .select('course.subcategory_id', 'categoryId')
-      .addSelect('COUNT(course.id)', 'count')
-      .where('course.deleted_at IS NULL')
-      .andWhere('course.subcategory_id IN (:...ids)', { ids: allCategoryIds })
-      .groupBy('course.subcategory_id')
-      .getRawMany();
+    // Filter courses that belong to our categories
+    const relevantCourses = courses.filter(course =>
+      (course.category && allCategoryIds.includes(course.category.id)) ||
+      (course.subCategory && allCategoryIds.includes(course.subCategory.id))
+    );
 
-    // Combine both counts (accumulate like in processCategoriesWithCounts)
+    // Create maps for counts and course lists
     const countMap = new Map();
+    const coursesMap = new Map();
 
-    // Add main category counts
-    mainCategoryCounts.forEach(item => {
-      if (item.categoryId) {
-        countMap.set(item.categoryId, parseInt(item.count, 10) || 0);
+    // Initialize all category IDs with empty arrays and zero counts
+    allCategoryIds.forEach(id => {
+      coursesMap.set(id, []);
+      countMap.set(id, 0);
+    });
+
+    // Process each course and add to appropriate categories
+    relevantCourses.forEach(course => {
+      // Add to main category if it exists
+      if (course.category && allCategoryIds.includes(course.category.id)) {
+        const currentCount = countMap.get(course.category.id) || 0;
+        countMap.set(course.category.id, currentCount + 1);
+
+        const categoryCourses = coursesMap.get(course.category.id);
+        if (!categoryCourses.some(c => c.id === course.id)) {
+          categoryCourses.push({
+            id: course.id,
+            name: course.name,
+            slug: course.slug
+          });
+        }
+      }
+
+      // Add to subcategory if it exists
+      if (course.subCategory && allCategoryIds.includes(course.subCategory.id)) {
+        const currentCount = countMap.get(course.subCategory.id) || 0;
+        countMap.set(course.subCategory.id, currentCount + 1);
+
+        const subcategoryCourses = coursesMap.get(course.subCategory.id);
+        if (!subcategoryCourses.some(c => c.id === course.id)) {
+          subcategoryCourses.push({
+            id: course.id,
+            name: course.name,
+            slug: course.slug
+          });
+        }
       }
     });
 
-    // Add subcategory counts (accumulate if category appears in both)
-    subCategoryCounts.forEach(item => {
-      if (item.categoryId) {
-        const currentCount = countMap.get(item.categoryId) || 0;
-        countMap.set(item.categoryId, currentCount + (parseInt(item.count, 10) || 0));
-      }
-    });
-
-    // Add counts to categories and subcategories
+    // Add counts and courses to categories and subcategories
     return categories.map(category => ({
       ...category,
       courseCount: countMap.get(category.id) || 0,
+      courses: coursesMap.get(category.id) || [],
       subcategories: (category.subcategories || []).map(subcategory => ({
         ...subcategory,
-        courseCount: countMap.get(subcategory.id) || 0
+        courseCount: countMap.get(subcategory.id) || 0,
+        courses: coursesMap.get(subcategory.id) || []
       }))
     }));
   }
