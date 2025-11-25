@@ -1,19 +1,17 @@
-// src/file-upload/file-upload.controller.ts
 import {
   Controller,
   Post,
   Get,
   Delete,
-  Param,
+  Body,
   UseInterceptors,
   UploadedFiles,
-  UploadedFile,
   UseGuards,
   Req,
+  Param,
   ParseUUIDPipe,
-  Body,
 } from '@nestjs/common';
-import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
   ApiOperation,
@@ -24,9 +22,9 @@ import {
 } from '@nestjs/swagger';
 import { FileUploadService } from './file-upload.service';
 import { FileResponseDto } from './dto/file-response.dto';
+import { UploadResponseDto } from './dto/upload-response.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { PermissionsGuard } from '../auth/permission.guard';
-import { RequirePermissions } from '../auth/decorator/permission.decorator';
 
 @ApiBearerAuth('access_token')
 @ApiTags('Files-Upload')
@@ -35,37 +33,7 @@ import { RequirePermissions } from '../auth/decorator/permission.decorator';
 export class FileUploadController {
   constructor(private readonly fileUploadService: FileUploadService) { }
 
-  @Post('upload')
-  //@RequirePermissions('files:upload')
-  @UseInterceptors(FileInterceptor('file'))
-  @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Upload a single file' })
-  @ApiBody({
-    description: 'File to upload',
-    schema: {
-      type: 'object',
-      properties: {
-        file: {
-          type: 'string',
-          format: 'binary',
-        },
-      },
-    },
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'File uploaded successfully',
-    type: FileResponseDto,
-  })
-  async uploadFile(
-    @UploadedFile() file: Express.Multer.File,
-    @Req() req,
-  ): Promise<FileResponseDto> {
-    return this.fileUploadService.uploadFile(file, req.user.sub);
-  }
-
-  @Post('upload-multiple')
-  //@RequirePermissions('files:upload')
+  @Post()
   @UseInterceptors(FilesInterceptor('files', 10)) // Max 10 files
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload multiple files' })
@@ -87,18 +55,17 @@ export class FileUploadController {
   @ApiResponse({
     status: 201,
     description: 'Files uploaded successfully',
-    type: [FileResponseDto],
+    type: [UploadResponseDto],
   })
   async uploadMultipleFiles(
     @UploadedFiles() files: Express.Multer.File[],
     @Req() req,
-  ): Promise<FileResponseDto[]> {
+  ): Promise<UploadResponseDto[]> {
     return this.fileUploadService.uploadMultipleFiles(files, req.user.sub);
   }
 
   @Get(':id')
-  //@RequirePermissions('files:read')
-  @ApiOperation({ summary: 'Get file by ID' })
+  @ApiOperation({ summary: 'Get file by ID (send ID in request body)' })
   @ApiResponse({
     status: 200,
     description: 'File found',
@@ -108,30 +75,37 @@ export class FileUploadController {
     return this.fileUploadService.findOne(id);
   }
 
-  @Get()
-  //@RequirePermissions('files:read')
-  @ApiOperation({ summary: 'Get all files uploaded by user' })
-  @ApiResponse({
-    status: 200,
-    description: 'List of files',
-    type: [FileResponseDto],
-  })
-  async getUserFiles(@Req() req): Promise<FileResponseDto[]> {
-    return this.fileUploadService.findAllByUser(req.user.sub);
-  }
-
   @Delete(':id')
-  //@RequirePermissions('files:delete')
-  @ApiOperation({ summary: 'Delete a file' })
+  @ApiOperation({ summary: 'Delete a file (send ID in request body)' })
   @ApiResponse({
     status: 200,
     description: 'File deleted successfully',
   })
-  async deleteFile(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Req() req,
-  ): Promise<{ message: string }> {
-    await this.fileUploadService.remove(id, req.user.sub);
-    return { message: 'File deleted successfully' };
+  async deleteFile(@Param('id', ParseUUIDPipe) id: string, @Req() req): Promise<{ message: string }> {
+    return this.fileUploadService.remove(id, req.user.sub);
   }
+
+  // // Optional: Keep the original endpoint for getting user files
+  // @Get('my-files')
+  // @ApiOperation({ summary: 'Get all files uploaded by current user' })
+  // @ApiResponse({
+  //   status: 200,
+  //   description: 'List of files',
+  //   type: [FileResponseDto],
+  // })
+  // async getUserFiles(@Req() req): Promise<FileResponseDto[]> {
+  //   return this.fileUploadService.findAllByUser(req.user.sub);
+  // }
+
+  // // Optional: Get all files (admin only)
+  // @Get('all')
+  // @ApiOperation({ summary: 'Get all files (admin only)' })
+  // @ApiResponse({
+  //   status: 200,
+  //   description: 'List of all files',
+  //   type: [FileResponseDto],
+  // })
+  // async getAllFiles(): Promise<FileResponseDto[]> {
+  //   return this.fileUploadService.findAll();
+  // }
 }
