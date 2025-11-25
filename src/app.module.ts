@@ -70,6 +70,9 @@ import { HomeSection } from './home-section/entities/home-section.entity';
 import { BlogTag } from './blog/blog-tags/entities/blog-tag.entity';
 import { FileUploadModule } from './file-upload/file-upload.module';
 import { FileUpload } from './file-upload/entities/file-upload.entity';
+import { CartModule } from './cart/cart.module';
+import { Cart } from './cart/entities/cart.entity';
+import { CartItem } from './cart/entities/cart-item.entity';
 
 @Module({
   imports: [
@@ -129,7 +132,9 @@ import { FileUpload } from './file-upload/entities/file-upload.entity';
         BlogCategory,
         HomeSection,
         BlogTag,
-        FileUpload
+        FileUpload,
+        Cart,
+        CartItem
       ],
       synchronize: true,
       extra: {
@@ -164,6 +169,7 @@ import { FileUpload } from './file-upload/entities/file-upload.entity';
     BlogModule,
     HomeSectionModule,
     FileUploadModule,
+    CartModule,
   ],
   controllers: [AppController],
   providers: [AppService, DatabaseService],
