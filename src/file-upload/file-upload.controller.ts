@@ -10,8 +10,9 @@ import {
   Req,
   Param,
   ParseUUIDPipe,
+  UploadedFile,
 } from '@nestjs/common';
-import { FilesInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
   ApiOperation,
@@ -34,6 +35,35 @@ export class FileUploadController {
   constructor(private readonly fileUploadService: FileUploadService) { }
 
   @Post()
+  //@RequirePermissions('files:upload')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Upload a single file' })
+  @ApiBody({
+    description: 'File to upload',
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'File uploaded successfully',
+    type: FileResponseDto,
+  })
+  async uploadFile(
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req,
+  ): Promise<UploadResponseDto> {
+    return this.fileUploadService.uploadFile(file, req.user.sub);
+  }
+
+  @Post('multiple')
   @UseInterceptors(FilesInterceptor('files', 10)) // Max 10 files
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload multiple files' })
