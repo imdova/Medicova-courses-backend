@@ -1,5 +1,5 @@
 // cart.service.ts
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { Cart, CartStatus } from './entities/cart.entity';
@@ -23,7 +23,7 @@ export class CartService {
     private dataSource: DataSource,
   ) { }
 
-  async getOrCreateActiveCart(createdBy: string): Promise<Cart> {
+  async getOrCreateActiveCart(createdBy: string, initialCurrencyCode?: string): Promise<Cart> {
     let cart = await this.cartRepository.findOne({
       where: { createdBy, status: CartStatus.ACTIVE },
       relations: ['items', 'items.course', 'items.bundle'],
@@ -35,7 +35,7 @@ export class CartService {
         status: CartStatus.ACTIVE,
         totalPrice: 0,
         itemsCount: 0,
-        currencyCode: 'USD',
+        currencyCode: initialCurrencyCode || 'USD', // Use provided currency or default
       });
       cart = await this.cartRepository.save(cart);
     }
@@ -44,24 +44,32 @@ export class CartService {
   }
 
   async addItemToCart(createdBy: string, createCartItemDto: CreateCartItemDto): Promise<Cart> {
-    const { itemType, itemId, quantity = 1 } = createCartItemDto;
+    const { itemType, itemId, currencyCode, quantity = 1 } = createCartItemDto;
 
     return this.dataSource.transaction(async (transactionalEntityManager) => {
       // Get or create active cart
       let cart = await transactionalEntityManager.findOne(Cart, {
         where: { createdBy, status: CartStatus.ACTIVE },
-        relations: ['items'], // Load items to check for duplicates
+        relations: ['items'],
       });
 
       if (!cart) {
+        // First item - create cart with the specified currency
         cart = transactionalEntityManager.create(Cart, {
           createdBy,
           status: CartStatus.ACTIVE,
           totalPrice: 0,
           itemsCount: 0,
-          currencyCode: 'USD',
+          currencyCode: currencyCode,
         });
         cart = await transactionalEntityManager.save(Cart, cart);
+      } else {
+        // Cart exists - validate currency consistency
+        if (cart.currencyCode !== currencyCode) {
+          throw new BadRequestException(
+            `Cannot add item with currency ${currencyCode} to cart with currency ${cart.currencyCode}. All items in cart must use the same currency.`
+          );
+        }
       }
 
       // Initialize items array if it's undefined
@@ -69,7 +77,7 @@ export class CartService {
         cart.items = [];
       }
 
-      // Check if item already exists in cart - FIXED: Handle undefined items
+      // Check if item already exists in cart
       const existingItem = cart.items.find(item => {
         if (itemType === CartItemType.COURSE) {
           return item.itemType === itemType && item.courseId === itemId;
@@ -82,9 +90,9 @@ export class CartService {
         throw new ConflictException('Item already exists in cart');
       }
 
-      // Get item details and pricing
-      const { price, currencyCode, title, thumbnailUrl, courseId, bundleId } =
-        await this.getItemDetails(itemType, itemId);
+      // Get item details and pricing for the specified currency
+      const { price, title, thumbnailUrl, courseId, bundleId } =
+        await this.getItemDetails(itemType, itemId, currencyCode);
 
       // Create cart item with appropriate IDs
       const cartItemData: any = {
@@ -92,7 +100,7 @@ export class CartService {
         itemType,
         quantity,
         price,
-        currencyCode,
+        currencyCode, // Use the requested currency
         itemTitle: title,
         thumbnailUrl,
       };
@@ -271,9 +279,12 @@ export class CartService {
     return cart;
   }
 
-  private async getItemDetails(itemType: CartItemType, itemId: string): Promise<{
+  private async getItemDetails(
+    itemType: CartItemType,
+    itemId: string,
+    currencyCode: string
+  ): Promise<{
     price: number;
-    currencyCode: string;
     title: string;
     thumbnailUrl?: string;
     courseId?: string;
@@ -292,24 +303,27 @@ export class CartService {
       if (course.isCourseFree) {
         return {
           price: 0,
-          currencyCode: 'USD',
           title: course.name,
           thumbnailUrl: course.courseImage,
           courseId: itemId,
         };
       }
 
-      // Get active pricing
-      const activePricing = course.pricings?.find(pricing => pricing.isActive);
-      if (!activePricing) {
-        throw new NotFoundException('No active pricing found for course');
+      // Get pricing for the specified currency
+      const pricingForCurrency = course.pricings?.find(
+        pricing => pricing.isActive && pricing.currencyCode === currencyCode
+      );
+
+      if (!pricingForCurrency) {
+        throw new NotFoundException(
+          `No active pricing found for course in currency ${currencyCode}`
+        );
       }
 
-      const price = activePricing.salePrice || activePricing.regularPrice;
+      const price = pricingForCurrency.salePrice || pricingForCurrency.regularPrice;
 
       return {
         price,
-        currencyCode: activePricing.currencyCode,
         title: course.name,
         thumbnailUrl: course.courseImage,
         courseId: itemId,
@@ -327,28 +341,54 @@ export class CartService {
       if (bundle.is_free) {
         return {
           price: 0,
-          currencyCode: 'USD',
           title: bundle.title,
           thumbnailUrl: bundle.thumbnail_url,
           bundleId: itemId,
         };
       }
 
-      // Get active pricing for bundle
-      const activePricing = bundle.pricings?.find(pricing => pricing.is_active);
-      if (!activePricing) {
-        throw new NotFoundException('No active pricing found for bundle');
+      // Get pricing for the specified currency
+      const pricingForCurrency = bundle.pricings?.find(
+        pricing => pricing.is_active && pricing.currency_code === currencyCode
+      );
+
+      if (!pricingForCurrency) {
+        throw new NotFoundException(
+          `No active pricing found for bundle in currency ${currencyCode}`
+        );
       }
 
-      const price = activePricing.sale_price || activePricing.regular_price;
+      const price = pricingForCurrency.sale_price || pricingForCurrency.regular_price;
 
       return {
         price,
-        currencyCode: activePricing.currency_code,
         title: bundle.title,
         thumbnailUrl: bundle.thumbnail_url,
         bundleId: itemId,
       };
     }
+  }
+
+  // Helper method to change cart currency (this would require recreating the cart)
+  async changeCartCurrency(createdBy: string, newCurrencyCode: string): Promise<Cart> {
+    return this.dataSource.transaction(async (transactionalEntityManager) => {
+      const cart = await transactionalEntityManager.findOne(Cart, {
+        where: { createdBy, status: CartStatus.ACTIVE },
+        relations: ['items'],
+      });
+
+      if (!cart) {
+        throw new NotFoundException('Active cart not found');
+      }
+
+      if (cart.items && cart.items.length > 0) {
+        throw new ConflictException(
+          'Cannot change currency on a cart with items. Please clear the cart first or create a new one.'
+        );
+      }
+
+      cart.currencyCode = newCurrencyCode;
+      return await transactionalEntityManager.save(Cart, cart);
+    });
   }
 }

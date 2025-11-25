@@ -1,6 +1,6 @@
 // create-cart-item.dto.ts
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsUUID, IsInt, Min, IsOptional } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsEnum, IsUUID, IsInt, Min, IsOptional, IsString } from 'class-validator';
 import { CartItemType } from '../entities/cart-item.entity';
 
 export class CreateCartItemDto {
@@ -18,7 +18,15 @@ export class CreateCartItemDto {
     @IsUUID()
     itemId: string;
 
-    @ApiPropertyOptional({
+    @ApiProperty({
+        description: 'Currency code for the item',
+        enum: ['USD', 'EUR', 'EGP', 'SAR'],
+        example: 'USD'
+    })
+    @IsString()
+    currencyCode: string;
+
+    @ApiProperty({
         description: 'Quantity of items',
         default: 1,
         minimum: 1
