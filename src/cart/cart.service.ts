@@ -9,6 +9,59 @@ import { UpdateCartItemDto } from './dto/update-cart-item.dto';
 import { Course } from '../course/entities/course.entity';
 import { Bundle } from '../bundle/entities/bundle.entity';
 
+// Enhanced interfaces only for GET endpoint
+interface EnhancedCartItem {
+  id: string;
+  cartId: string;
+  itemType: CartItemType;
+  courseId?: string;
+  bundleId?: string;
+  quantity: number;
+  price: number;
+  currencyCode: string;
+  itemTitle: string;
+  thumbnailUrl?: string;
+  created_at: Date;
+  updated_at: Date;
+  deleted_at: Date | null;
+  courseDetails?: {
+    id: string;
+    name: string;
+    slug: string;
+    averageRating: number;
+    instructor: {
+      id: string;
+      fullName: string;
+      photoUrl?: string;
+    };
+    totalLessons: number;
+    enrolledStudents: number;
+    courseDuration?: number;
+    courseDurationUnit?: string;
+    type: string;
+  };
+  bundleDetails?: {
+    id: string;
+    title: string;
+    slug: string;
+    description?: string;
+    thumbnail_url?: string;
+  };
+}
+
+export interface EnhancedCartResponse {
+  id: string;
+  createdBy: string;
+  status: CartStatus;
+  totalPrice: number;
+  currencyCode: string;
+  itemsCount: number;
+  items: EnhancedCartItem[];
+  created_at: Date;
+  updated_at: Date;
+  deleted_at: Date | null;
+}
+
 @Injectable()
 export class CartService {
   constructor(
@@ -23,26 +76,7 @@ export class CartService {
     private dataSource: DataSource,
   ) { }
 
-  async getOrCreateActiveCart(createdBy: string, initialCurrencyCode?: string): Promise<Cart> {
-    let cart = await this.cartRepository.findOne({
-      where: { createdBy, status: CartStatus.ACTIVE },
-      relations: ['items', 'items.course', 'items.bundle'],
-    });
-
-    if (!cart) {
-      cart = this.cartRepository.create({
-        createdBy,
-        status: CartStatus.ACTIVE,
-        totalPrice: 0,
-        itemsCount: 0,
-        currencyCode: initialCurrencyCode || 'USD', // Use provided currency or default
-      });
-      cart = await this.cartRepository.save(cart);
-    }
-
-    return cart;
-  }
-
+  // Keep all other methods returning basic Cart (without enhanced details)
   async addItemToCart(createdBy: string, createCartItemDto: CreateCartItemDto): Promise<Cart> {
     const { itemType, itemId, currencyCode, quantity = 1 } = createCartItemDto;
 
@@ -100,7 +134,7 @@ export class CartService {
         itemType,
         quantity,
         price,
-        currencyCode, // Use the requested currency
+        currencyCode,
         itemTitle: title,
         thumbnailUrl,
       };
@@ -168,7 +202,7 @@ export class CartService {
     });
   }
 
-  async removeItemFromCart(createdBy: string, cartItemId: string): Promise<Cart> {
+  async removeItemFromCart(createdBy: string, cartItemId: string): Promise<Cart | null> {
     return this.dataSource.transaction(async (transactionalEntityManager) => {
       const cart = await transactionalEntityManager.findOne(Cart, {
         where: { createdBy, status: CartStatus.ACTIVE },
@@ -212,17 +246,6 @@ export class CartService {
     });
   }
 
-  async clearCart(createdBy: string): Promise<void> {
-    const cart = await this.cartRepository.findOne({
-      where: { createdBy, status: CartStatus.ACTIVE },
-    });
-
-    if (cart) {
-      await this.cartItemRepository.delete({ cartId: cart.id });
-      await this.cartRepository.delete(cart.id);
-    }
-  }
-
   async checkoutCart(createdBy: string): Promise<Cart> {
     return this.dataSource.transaction(async (transactionalEntityManager) => {
       const cart = await transactionalEntityManager.findOne(Cart, {
@@ -243,17 +266,12 @@ export class CartService {
       cart.status = CartStatus.COMPLETED;
       await transactionalEntityManager.save(Cart, cart);
 
-      // Here you would typically:
-      // 1. Process payment
-      // 2. Create orders
-      // 3. Enroll users in courses/bundles
-      // 4. Send confirmation emails, etc.
-
       return cart;
     });
   }
 
-  async getCart(createdBy: string): Promise<Cart> {
+  // ONLY the getCart method returns enhanced details
+  async getCart(createdBy: string): Promise<EnhancedCartResponse> {
     const cart = await this.cartRepository.findOne({
       where: { createdBy, status: CartStatus.ACTIVE },
       relations: ['items', 'items.course', 'items.bundle'],
@@ -261,14 +279,18 @@ export class CartService {
 
     if (!cart) {
       // Return empty cart structure
-      return this.cartRepository.create({
+      return {
+        id: null,
         createdBy,
         status: CartStatus.ACTIVE,
         totalPrice: 0,
-        itemsCount: 0,
         currencyCode: 'USD',
+        itemsCount: 0,
         items: [],
-      });
+        created_at: new Date(),
+        updated_at: new Date(),
+        deleted_at: null,
+      };
     }
 
     // Ensure items array is initialized
@@ -276,7 +298,140 @@ export class CartService {
       cart.items = [];
     }
 
-    return cart;
+    // Return enhanced cart with additional details (ONLY for GET endpoint)
+    return await this.enhanceCartWithDetails(cart);
+  }
+
+  private async enhanceCartWithDetails(cart: Cart): Promise<EnhancedCartResponse> {
+    const enhancedItems = await Promise.all(
+      cart.items.map(async (item) => {
+        // Create a plain object with only the data properties we need for response
+        const enhancedItem: EnhancedCartItem = {
+          id: item.id,
+          cartId: item.cartId,
+          itemType: item.itemType,
+          courseId: item.courseId,
+          bundleId: item.bundleId,
+          quantity: item.quantity,
+          price: item.price,
+          currencyCode: item.currencyCode,
+          itemTitle: item.itemTitle,
+          thumbnailUrl: item.thumbnailUrl,
+          created_at: item.created_at,
+          updated_at: item.updated_at,
+          deleted_at: item.deleted_at,
+        };
+
+        if (item.itemType === CartItemType.COURSE && item.courseId) {
+          const courseDetails = await this.getEnhancedCourseDetails(item.courseId);
+          enhancedItem.courseDetails = courseDetails;
+        } else if (item.itemType === CartItemType.BUNDLE && item.bundleId) {
+          const bundleDetails = await this.getBundleDetails(item.bundleId);
+          enhancedItem.bundleDetails = bundleDetails;
+        }
+
+        return enhancedItem;
+      })
+    );
+
+    return {
+      id: cart.id,
+      createdBy: cart.createdBy,
+      status: cart.status,
+      totalPrice: cart.totalPrice,
+      currencyCode: cart.currencyCode,
+      itemsCount: cart.itemsCount,
+      items: enhancedItems,
+      created_at: cart.created_at,
+      updated_at: cart.updated_at,
+      deleted_at: cart.deleted_at,
+    };
+  }
+
+  private async getEnhancedCourseDetails(courseId: string): Promise<any> {
+    const course = await this.courseRepository
+      .createQueryBuilder('course')
+      .innerJoin('course.instructor', 'instructor')
+      .innerJoin('instructor.profile', 'profile')
+      .leftJoin('course.enrollments', 'enrollments')
+      .select([
+        'course.id',
+        'course.name',
+        'course.slug',
+        'course.averageRating',
+        'course.totalHours',
+        'course.courseDuration',
+        'course.courseDurationUnit',
+        'course.type'
+      ])
+      .addSelect('instructor.id', 'instructorId')
+      .addSelect(
+        `CONCAT(COALESCE(profile.firstName, ''), ' ', COALESCE(profile.lastName, ''))`,
+        'instructorFullName',
+      )
+      .addSelect('profile.photoUrl', 'instructorPhotoUrl')
+      .addSelect('COUNT(DISTINCT enrollments.id)', 'enrolledStudents')
+      .addSelect(`(
+        SELECT COUNT(DISTINCT si.id) 
+        FROM course_sections cs 
+        LEFT JOIN course_section_items si ON cs.id = si.section_id 
+        WHERE cs.course_id = course.id 
+        AND si."curriculumType" = 'lecture'
+      )`, 'totalLessons')
+      .where('course.id = :courseId', { courseId })
+      .groupBy('course.id')
+      .addGroupBy('course.name')
+      .addGroupBy('course.slug')
+      .addGroupBy('course.averageRating')
+      .addGroupBy('course.totalHours')
+      .addGroupBy('course.courseDuration')
+      .addGroupBy('course.courseDurationUnit')
+      .addGroupBy('course.type')
+      .addGroupBy('instructor.id')
+      .addGroupBy('profile.firstName')
+      .addGroupBy('profile.lastName')
+      .addGroupBy('profile.photoUrl')
+      .getRawOne();
+
+    if (!course) {
+      return null;
+    }
+
+    return {
+      id: course.course_id,
+      name: course.course_name,
+      slug: course.course_slug,
+      averageRating: parseFloat(course.course_average_rating) || 0,
+      instructor: {
+        id: course.instructorId,
+        fullName: course.instructorFullName?.trim() || 'Unknown Instructor',
+        photoUrl: course.instructorPhotoUrl,
+      },
+      totalLessons: parseInt(course.totalLessons, 10) || 0,
+      enrolledStudents: parseInt(course.enrolledStudents, 10) || 0,
+      courseDuration: course.course_courseDuration,
+      courseDurationUnit: course.course_courseDurationUnit,
+      type: course.course_type,
+    };
+  }
+
+  private async getBundleDetails(bundleId: string): Promise<any> {
+    const bundle = await this.bundleRepository.findOne({
+      where: { id: bundleId },
+      select: ['id', 'title', 'slug', 'description', 'thumbnail_url']
+    });
+
+    if (!bundle) {
+      return null;
+    }
+
+    return {
+      id: bundle.id,
+      title: bundle.title,
+      slug: bundle.slug,
+      description: bundle.description,
+      thumbnail_url: bundle.thumbnail_url,
+    };
   }
 
   private async getItemDetails(
@@ -369,26 +524,14 @@ export class CartService {
     }
   }
 
-  // Helper method to change cart currency (this would require recreating the cart)
-  async changeCartCurrency(createdBy: string, newCurrencyCode: string): Promise<Cart> {
-    return this.dataSource.transaction(async (transactionalEntityManager) => {
-      const cart = await transactionalEntityManager.findOne(Cart, {
-        where: { createdBy, status: CartStatus.ACTIVE },
-        relations: ['items'],
-      });
-
-      if (!cart) {
-        throw new NotFoundException('Active cart not found');
-      }
-
-      if (cart.items && cart.items.length > 0) {
-        throw new ConflictException(
-          'Cannot change currency on a cart with items. Please clear the cart first or create a new one.'
-        );
-      }
-
-      cart.currencyCode = newCurrencyCode;
-      return await transactionalEntityManager.save(Cart, cart);
+  async clearCart(createdBy: string): Promise<void> {
+    const cart = await this.cartRepository.findOne({
+      where: { createdBy, status: CartStatus.ACTIVE },
     });
+
+    if (cart) {
+      await this.cartItemRepository.delete({ cartId: cart.id });
+      await this.cartRepository.delete(cart.id);
+    }
   }
 }

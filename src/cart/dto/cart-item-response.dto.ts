@@ -27,6 +27,13 @@ export class CartItemResponseDto {
     @ApiPropertyOptional({ example: 'https://example.com/thumbnail.jpg' })
     thumbnailUrl?: string;
 
+    // Add these new optional fields
+    @ApiPropertyOptional()
+    courseDetails?: any;
+
+    @ApiPropertyOptional()
+    bundleDetails?: any;
+
     @ApiProperty()
     createdAt: Date;
 

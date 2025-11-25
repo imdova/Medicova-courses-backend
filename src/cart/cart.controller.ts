@@ -19,7 +19,7 @@ import {
   ApiBearerAuth,
   ApiParam
 } from '@nestjs/swagger';
-import { CartService } from './cart.service';
+import { CartService, EnhancedCartResponse } from './cart.service';
 import { CreateCartItemDto } from './dto/create-cart-item.dto';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
 import { CartResponseDto } from './dto/cart-response.dto';
@@ -39,9 +39,9 @@ export class CartController {
   @ApiOperation({ summary: 'Get user cart' })
   @ApiResponse({ status: 200, type: CartResponseDto })
   async getCart(@Req() req): Promise<CartResponseDto> {
-    const createdBy = req.user.sub; // Assuming sub contains user ID
-    const cart = await this.cartService.getCart(createdBy);
-    return this.mapCartToDto(cart);
+    const createdBy = req.user.sub;
+    const cart = await this.cartService.getCart(createdBy); // This returns EnhancedCartResponse
+    return this.mapSuperCartToDto(cart);
   }
 
   @Post('items')
@@ -141,6 +141,48 @@ export class CartController {
       })) || [],
       createdAt: cart.createdAt,
       updatedAt: cart.updatedAt,
+    };
+  }
+
+  private mapSuperCartToDto(cart: EnhancedCartResponse): CartResponseDto {
+    if (!cart || !cart.id) {
+      return {
+        id: null,
+        createdBy: null,
+        status: CartStatus.ACTIVE,
+        totalPrice: 0,
+        currencyCode: 'USD',
+        itemsCount: 0,
+        items: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+    }
+
+    return {
+      id: cart.id,
+      createdBy: cart.createdBy,
+      status: cart.status,
+      totalPrice: cart.totalPrice,
+      currencyCode: cart.currencyCode,
+      itemsCount: cart.itemsCount,
+      items: cart.items.map(item => ({
+        id: item.id,
+        itemType: item.itemType,
+        itemId: item.itemType === 'course' ? item.courseId : item.bundleId,
+        quantity: item.quantity,
+        price: item.price,
+        currencyCode: item.currencyCode,
+        itemTitle: item.itemTitle,
+        thumbnailUrl: item.thumbnailUrl,
+        // Add the enhanced details here
+        courseDetails: item.courseDetails,
+        bundleDetails: item.bundleDetails,
+        createdAt: item.created_at,
+        updatedAt: item.updated_at,
+      })),
+      createdAt: cart.created_at,
+      updatedAt: cart.updated_at,
     };
   }
 }
