@@ -31,7 +31,6 @@ const isFeaturedCoursesConfig = (config: any): config is FeaturedCoursesConfig =
 
 const isTrendingConfig = (config: any): config is TrendingConfig => {
   return config &&
-    Array.isArray(config.promoCards) &&
     Array.isArray(config.categoryCourses);
 };
 
