@@ -1,9 +1,9 @@
-// src/file-upload/file-upload.service.ts
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { FileUpload } from './entities/file-upload.entity';
 import { GcpStorageService } from './gcp-storage.service';
+import { UploadResponseDto } from './dto/upload-response.dto';
 
 @Injectable()
 export class FileUploadService {
@@ -17,7 +17,7 @@ export class FileUploadService {
     file: Express.Multer.File,
     userId: string,
     folder: string = 'general'
-  ): Promise<FileUpload> {
+  ): Promise<UploadResponseDto> {
     try {
       // Upload to Google Cloud Storage
       const uploadResult = await this.gcpStorage.uploadFile(file, folder);
@@ -34,9 +34,19 @@ export class FileUploadService {
         createdBy: userId,
       });
 
-      return await this.fileRepository.save(fileEntity);
+      const savedFile = await this.fileRepository.save(fileEntity);
+
+      return {
+        message: 'File uploaded successfully',
+        fileId: savedFile.id,
+        fileUrl: savedFile.url,
+        fileName: savedFile.originalName,
+      };
     } catch (error) {
-      throw new BadRequestException(`File upload failed: ${error.message}`);
+      return {
+        error: `File upload failed: ${error.message}`,
+        fileName: file.originalname,
+      };
     }
   }
 
@@ -44,7 +54,7 @@ export class FileUploadService {
     files: Express.Multer.File[],
     userId: string,
     folder: string = 'general'
-  ): Promise<FileUpload[]> {
+  ): Promise<UploadResponseDto[]> {
     const uploadPromises = files.map(file =>
       this.uploadFile(file, userId, folder)
     );
@@ -70,13 +80,19 @@ export class FileUploadService {
     });
   }
 
-  async remove(id: string, userId: string): Promise<void> {
+  async findAll(): Promise<FileUpload[]> {
+    return this.fileRepository.find({
+      order: { created_at: 'DESC' },
+    });
+  }
+
+  async remove(id: string, userId: string): Promise<{ message: string }> {
     const file = await this.findOne(id);
 
     // Check if user owns the file
-    if (file.createdBy !== userId) {
-      throw new BadRequestException('You can only delete your own files');
-    }
+    // if (file.createdBy !== userId) {
+    //   throw new BadRequestException('You can only delete your own files');
+    // }
 
     try {
       // Delete from Google Cloud Storage
@@ -84,6 +100,8 @@ export class FileUploadService {
 
       // Delete from database
       await this.fileRepository.remove(file);
+
+      return { message: 'File deleted successfully' };
     } catch (error) {
       throw new BadRequestException(`File deletion failed: ${error.message}`);
     }
