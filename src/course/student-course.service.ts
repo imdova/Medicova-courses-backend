@@ -1019,7 +1019,12 @@ export class StudentCourseService {
       .leftJoinAndSelect('course.instructor', 'instructor')
       .leftJoinAndSelect('instructor.profile', 'instructorProfile')
       .andWhere('course.deleted_at IS NULL')
-      .loadRelationCountAndMap('course.studentCount', 'course.enrollments');
+      .loadRelationCountAndMap('course.studentCount', 'course.enrollments')
+      .loadRelationCountAndMap('course.lessonsCount', 'course.sections', 'sections',
+        (qb) => qb.leftJoin('sections.items', 'items')
+          .andWhere('items.curriculumType = :lectureType', { lectureType: 'lecture' })
+          .andWhere('items.deleted_at IS NULL')
+      );
 
     const favorites = await qb.getMany();
 
