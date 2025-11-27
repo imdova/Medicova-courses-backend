@@ -49,8 +49,8 @@ export class CourseCategoryController {
   }
 
   @Get(':id')
-  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  @RequirePermissions('category:get')
+  // @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  // @RequirePermissions('category:get')
   @ApiOperation({ summary: 'Get category by ID with subcategories' })
   @ApiParam({ name: 'id', description: 'Category ID' })
   @ApiResponse({
