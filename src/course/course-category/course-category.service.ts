@@ -148,15 +148,50 @@ export class CourseCategoryService {
     }));
   }
 
-  async findOne(id: string): Promise<CourseCategory> {
+  async findOne(id: string): Promise<any> {
     const category = await this.courseCategoryRepository.findOne({
       where: { id, deleted_at: null },
       relations: ['parent', 'subcategories'],
     });
+
     if (!category) {
       throw new NotFoundException('Category not found');
     }
-    return category;
+
+    // Get all counts in one query but handle ratings separately
+    const [stats, ratingStats] = await Promise.all([
+      // General stats (all courses)
+      this.courseRepository
+        .createQueryBuilder('course')
+        .leftJoin('course.enrollments', 'enrollments')
+        .leftJoin('enrollments.student', 'student')
+        .select('COUNT(DISTINCT course.id)', 'courseCount')
+        .addSelect('COUNT(DISTINCT student.id)', 'uniqueStudents')
+        .where('(course.category_id = :id OR course.subcategory_id = :id)', { id })
+        .andWhere('course.deleted_at IS NULL')
+        .getRawOne(),
+
+      // Rating stats (only courses with ratings)
+      this.courseRepository
+        .createQueryBuilder('course')
+        .select('AVG(course.averageRating)', 'averageRating')
+        .addSelect('SUM(course.ratingCount)', 'totalRatings')
+        .where('(course.category_id = :id OR course.subcategory_id = :id)', { id })
+        .andWhere('course.deleted_at IS NULL')
+        .andWhere('course.averageRating IS NOT NULL')
+        .getRawOne()
+    ]);
+
+    return {
+      ...category,
+      courseCount: parseInt(stats?.courseCount || '0', 10),
+      studentCount: parseInt(stats?.uniqueStudents || '0', 10),
+      averageRating: Math.round((parseFloat(ratingStats?.averageRating) || 0) * 10) / 10,
+      //totalRatings: parseInt(ratingStats?.totalRatings || '0', 10),
+      subcategories: (category.subcategories || []).map(subcategory => ({
+        ...subcategory,
+      }))
+    };
   }
 
   async update(
