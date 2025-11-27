@@ -148,15 +148,53 @@ export class CourseCategoryService {
     }));
   }
 
-  async findOne(id: string): Promise<CourseCategory> {
+  async findOne(id: string): Promise<any> {
     const category = await this.courseCategoryRepository.findOne({
       where: { id, deleted_at: null },
       relations: ['parent', 'subcategories'],
     });
+
     if (!category) {
       throw new NotFoundException('Category not found');
     }
-    return category;
+
+    // Get course count for this specific category (as main category)
+    const courseCount = await this.courseRepository
+      .createQueryBuilder('course')
+      .where('(course.category_id = :id OR course.subcategory_id = :id)', { id })
+      .andWhere('course.deleted_at IS NULL')
+      .getCount();
+
+    // Get unique students count for this category
+    const studentCount = await this.courseRepository
+      .createQueryBuilder('course')
+      .leftJoin('course.enrollments', 'enrollments')
+      .leftJoin('enrollments.student', 'student')
+      .select('COUNT(DISTINCT student.id)', 'uniqueStudents')
+      .where('(course.category_id = :id OR course.subcategory_id = :id)', { id })
+      .andWhere('course.deleted_at IS NULL')
+      .getRawOne();
+
+    // Get average rating for this category
+    const ratingStats = await this.courseRepository
+      .createQueryBuilder('course')
+      .select('AVG(course.averageRating)', 'averageRating')
+      .addSelect('SUM(course.ratingCount)', 'totalRatings')
+      .where('(course.category_id = :id OR course.subcategory_id = :id)', { id })
+      .andWhere('course.deleted_at IS NULL')
+      .andWhere('course.averageRating IS NOT NULL')
+      .getRawOne();
+
+    return {
+      ...category,
+      courseCount: courseCount,
+      studentCount: parseInt(studentCount?.uniqueStudents || '0', 10),
+      averageRating: Math.round((parseFloat(ratingStats?.averageRating) || 0) * 10) / 10,
+      //totalRatings: parseInt(ratingStats?.totalRatings || '0', 10),
+      subcategories: (category.subcategories || []).map(subcategory => ({
+        ...subcategory,
+      }))
+    };
   }
 
   async update(
