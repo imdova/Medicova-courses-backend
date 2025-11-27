@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   UseGuards,
   Query,
+  Req,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -24,6 +25,7 @@ import { UpdateHomeSectionDto } from './dto/update-home-section.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { PermissionsGuard } from '../auth/permission.guard';
 import { RequirePermissions } from '../auth/decorator/permission.decorator';
+import { OptionalJwtAuthGuard } from '../auth/strategy/optional-jwt-auth.guard';
 
 @ApiBearerAuth('access_token')
 @ApiTags('Home Sections')
@@ -69,13 +71,15 @@ export class HomeSectionController {
   // }
 
   @Get('public/featured-courses')
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Get featured courses with enriched data (Public)' })
   @ApiResponse({
     status: 200,
     description: 'Featured courses with instructor and stats',
   })
-  async getPublicFeaturedCourses() {
-    return this.homeSectionsService.getPublicFeaturedCourses();
+  async getPublicFeaturedCourses(@Req() req) {
+    const userId = req.user?.sub; // Will be undefined if user is not authenticated
+    return this.homeSectionsService.getPublicFeaturedCourses(userId);
   }
 
   @Get('public/trending')
@@ -109,23 +113,27 @@ export class HomeSectionController {
   }
 
   @Get('public/bestseller')
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Get bestseller courses with enriched data (Public)' })
   @ApiResponse({
     status: 200,
     description: 'Bestseller courses with instructor and stats',
   })
-  async getPublicBestseller() {
-    return this.homeSectionsService.getPublicBestseller();
+  async getPublicBestseller(@Req() req) {
+    const userId = req.user?.sub; // Will be undefined if user is not authenticated
+    return this.homeSectionsService.getPublicBestseller(userId);
   }
 
   @Get('public/top-rated')
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Get top rated courses with enriched data (Public)' })
   @ApiResponse({
     status: 200,
     description: 'Top rated courses with instructor and stats',
   })
-  async getPublicTopRated() {
-    return this.homeSectionsService.getPublicTopRated();
+  async getPublicTopRated(@Req() req) {
+    const userId = req.user?.sub; // Will be undefined if user is not authenticated
+    return this.homeSectionsService.getPublicTopRated(userId);
   }
 
   @Get('public/top-bundles')
