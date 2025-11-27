@@ -522,7 +522,7 @@ export class HomeSectionService {
   //   return await qb.getMany();
   // }
 
-  async getPublicFeaturedCourses() {
+  async getPublicFeaturedCourses(userId?: string) {
     // Get the featured courses section from database
     const section = await this.findByType(HomeSectionType.FEATURED_COURSES);
 
@@ -545,8 +545,8 @@ export class HomeSectionService {
     // Extract course IDs from the configuration
     const courseIds = config.courses.map((c: any) => c.courseId);
 
-    // Get enriched course data
-    const enrichedCourses = await this.getEnrichedCoursesByIds(courseIds);
+    // Get enriched course data with favorite status
+    const enrichedCourses = await this.getEnrichedCoursesByIds(courseIds, userId);
 
     // Map back to the original order with enriched data
     const courses = config.courses.map((item: any) => {
@@ -573,7 +573,8 @@ export class HomeSectionService {
         ratingCount: courseData.ratingCount,
         totalLessons: courseData.totalLessons,
         pricing: courseData.pricing,
-        isCourseFree: courseData.isCourseFree
+        isCourseFree: courseData.isCourseFree,
+        isFavorite: courseData.isFavorite // Add favorite status
       };
     }).filter(item => item !== null); // Remove courses that weren't found
 
@@ -583,8 +584,13 @@ export class HomeSectionService {
     };
   }
 
-  private async getEnrichedCoursesByIds(courseIds: string[]): Promise<any[]> {
+  private async getEnrichedCoursesByIds(courseIds: string[], userId?: string): Promise<any[]> {
     if (courseIds.length === 0) return [];
+
+    // Build the favorite subquery based on whether user is authenticated
+    const favoriteSubquery = userId
+      ? `(SELECT COUNT(cf.id) > 0 FROM course_favorite cf WHERE cf.course_id = course.id AND cf.student_id = '${userId}')`
+      : 'false';
 
     // First, get the course data with all the existing fields
     const results = await this.courseRepository
@@ -614,6 +620,7 @@ export class HomeSectionService {
       .addSelect('profile.photoUrl', 'instructorPhotoUrl')
       .addSelect('COUNT(DISTINCT enrollments.id)', 'enrolledStudents')
       .addSelect(`COUNT(DISTINCT CASE WHEN items.curriculumType = 'lecture' THEN items.id END)`, 'totalLessons')
+      .addSelect(favoriteSubquery, 'isFavorite') // Add favorite status
       .where('course.id IN (:...ids)', { ids: courseIds })
       .andWhere('course.status = :status', { status: 'published' })
       .andWhere('course.isActive = true')
@@ -652,6 +659,7 @@ export class HomeSectionService {
       ratingCount: parseInt(result.course_rating_count, 10) || 0,
       totalLessons: parseInt(result.totalLessons, 10) || 0,
       isCourseFree: result.course_is_course_free,
+      isFavorite: result.isFavorite === true || result.isFavorite === 'true', // Convert to boolean
       pricing: pricingData.get(result.course_id) || [] // Add pricing array
     }));
   }
@@ -909,7 +917,7 @@ export class HomeSectionService {
     }).filter(item => item !== null);
   }
 
-  async getPublicBestseller() {
+  async getPublicBestseller(userId?: string) {
     // Get the bestseller section from database
     const section = await this.findByType(HomeSectionType.BESTSELLER);
 
@@ -932,8 +940,8 @@ export class HomeSectionService {
     // Extract course IDs from the configuration
     const courseIds = config.courses.map((c: any) => c.courseId);
 
-    // Get enriched course data
-    const enrichedCourses = await this.getEnrichedCoursesByIds(courseIds);
+    // Get enriched course data with favorite status
+    const enrichedCourses = await this.getEnrichedCoursesByIds(courseIds, userId);
 
     // Map back to the original order with enriched data
     const courses = config.courses.map((item: any) => {
@@ -960,7 +968,8 @@ export class HomeSectionService {
         ratingCount: courseData.ratingCount,
         totalLessons: courseData.totalLessons,
         pricing: courseData.pricing,
-        isCourseFree: courseData.isCourseFree
+        isCourseFree: courseData.isCourseFree,
+        isFavorite: courseData.isFavorite // Add favorite status
       };
     }).filter(item => item !== null); // Remove courses that weren't found
 
@@ -969,7 +978,7 @@ export class HomeSectionService {
     };
   }
 
-  async getPublicTopRated() {
+  async getPublicTopRated(userId?: string) {
     // Get the top rated section from database
     const section = await this.findByType(HomeSectionType.TOP_RATED);
 
@@ -992,8 +1001,8 @@ export class HomeSectionService {
     // Extract course IDs from the configuration
     const courseIds = config.courses.map((c: any) => c.courseId);
 
-    // Get enriched course data
-    const enrichedCourses = await this.getEnrichedCoursesByIds(courseIds);
+    // Get enriched course data with favorite status
+    const enrichedCourses = await this.getEnrichedCoursesByIds(courseIds, userId);
 
     // Map back to the original order with enriched data
     const courses = config.courses.map((item: any) => {
@@ -1020,7 +1029,8 @@ export class HomeSectionService {
         ratingCount: courseData.ratingCount,
         totalLessons: courseData.totalLessons,
         pricing: courseData.pricing,
-        isCourseFree: courseData.isCourseFree
+        isCourseFree: courseData.isCourseFree,
+        isFavorite: courseData.isFavorite // Add favorite status
       };
     }).filter(item => item !== null); // Remove courses that weren't found
 
