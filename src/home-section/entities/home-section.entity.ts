@@ -13,6 +13,7 @@ export enum HomeSectionType {
     TOP_INSTRUCTORS = 'top_instructors',
     PROMO_CARDS = 'promo_cards',
     TRAINING_COURSES_CARDS = 'training_courses_cards',
+    BANNER_HOME_SECTION_CARDS = 'banner_home_section_cards',
 }
 
 // JSON Config Interfaces
@@ -48,6 +49,15 @@ export interface PromoCardsConfig {
 export interface TrainingCoursesCardsConfig {
     type: 'training_courses_cards';
     trainingCoursesCards: Array<{
+        linkUrl?: string;
+        imageUrl: string;
+        order: number;
+    }>;
+}
+
+export interface BannerHomeSectionCardsConfig {
+    type: 'banner_home_section_cards';
+    bannerHomeSectionCards: Array<{
         linkUrl?: string;
         imageUrl: string;
         order: number;
