@@ -166,4 +166,14 @@ export class HomeSectionController {
   async getPublicTopInstructors() {
     return this.homeSectionsService.getPublicTopInstructors();
   }
+
+  @Get('public/training-courses-cards')
+  @ApiOperation({ summary: 'Get training courses cards with enriched data (Public)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Training Courses Cards with card details',
+  })
+  async getPublicTrainingCoursesCards() {
+    return this.homeSectionsService.getTrainingCoursesCards();
+  }
 }
