@@ -12,7 +12,9 @@ import {
   TopBundleConfig,
   TopAcademiesConfig,
   TopInstructorsConfig,
-  PromoCardsConfig
+  PromoCardsConfig,
+  TrainingCoursesCardsConfig,
+  BannerHomeSectionCardsConfig
 } from './entities/home-section.entity';
 import { CreateHomeSectionDto } from './dto/create-home-section.dto';
 import { UpdateHomeSectionDto } from './dto/update-home-section.dto';
@@ -56,6 +58,14 @@ const isTopInstructorsConfig = (config: any): config is TopInstructorsConfig => 
 
 const isPromoCardsConfig = (config: any): config is PromoCardsConfig => {
   return config && Array.isArray(config.promoCards);
+};
+
+const isTrainingCoursesCardsConfig = (config: any): config is TrainingCoursesCardsConfig => {
+  return config && Array.isArray(config.trainingCoursesCards);
+};
+
+const isBannerHomeSectionCardsConfig = (config: any): config is BannerHomeSectionCardsConfig => {
+  return config && Array.isArray(config.bannerHomeSectionCards);
 };
 
 // Validation rules for each section type
@@ -183,10 +193,10 @@ const SECTION_RULES = {
     maxPromoCards: 2,
     validate: (config: any) => {
       if (!isPromoCardsConfig(config)) {
-        throw new BadRequestException('Invalid promo codes configuration');
+        throw new BadRequestException('Invalid promo cards configuration');
       }
-      if (config.promoCards.length > 6) {
-        throw new BadRequestException('promo codes cannot exceed 6 instructors');
+      if (config.promoCards.length > 2) {
+        throw new BadRequestException('promo codes cannot exceed 6 cards');
       }
       // Validate each promo card has required fields
       config.promoCards.forEach((card: any, index: number) => {
@@ -202,6 +212,58 @@ const SECTION_RULES = {
       const uniqueOrders = new Set(orders);
       if (uniqueOrders.size !== orders.length) {
         throw new BadRequestException('Duplicate orders are not allowed in promo cards');
+      }
+    }
+  },
+  [HomeSectionType.TRAINING_COURSES_CARDS]: {
+    maxTrainingCoursesCards: 2,
+    validate: (config: any) => {
+      if (!isTrainingCoursesCardsConfig(config)) {
+        throw new BadRequestException('Invalid training courses cards configuration');
+      }
+      if (config.trainingCoursesCards.length > 2) {
+        throw new BadRequestException('training courses cannot exceed 2 cards');
+      }
+      // Validate each promo card has required fields
+      config.trainingCoursesCards.forEach((card: any, index: number) => {
+        if (!card.imageUrl) {
+          throw new BadRequestException(`Training courses cards at position ${index} must have an imageUrl`);
+        }
+        if (!card.linkUrl) {
+          throw new BadRequestException(`Training courses cards at position ${index} must have a linkUrl`);
+        }
+      });
+      // Validate no duplicate orders
+      const orders = config.trainingCoursesCards.map((c: any) => c.order);
+      const uniqueOrders = new Set(orders);
+      if (uniqueOrders.size !== orders.length) {
+        throw new BadRequestException('Duplicate orders are not allowed in training courses cards');
+      }
+    }
+  },
+  [HomeSectionType.BANNER_HOME_SECTION_CARDS]: {
+    maxBannerHomeSectionCards: 2,
+    validate: (config: any) => {
+      if (!isBannerHomeSectionCardsConfig(config)) {
+        throw new BadRequestException('Invalid banner home section cards configuration');
+      }
+      if (config.bannerHomeSectionCards.length > 2) {
+        throw new BadRequestException('banner home section cannot exceed 2 cards');
+      }
+      // Validate each promo card has required fields
+      config.bannerHomeSectionCards.forEach((card: any, index: number) => {
+        if (!card.imageUrl) {
+          throw new BadRequestException(`Banner home section cards at position ${index} must have an imageUrl`);
+        }
+        if (!card.linkUrl) {
+          throw new BadRequestException(`Banner home section cards at position ${index} must have a linkUrl`);
+        }
+      });
+      // Validate no duplicate orders
+      const orders = config.bannerHomeSectionCards.map((c: any) => c.order);
+      const uniqueOrders = new Set(orders);
+      if (uniqueOrders.size !== orders.length) {
+        throw new BadRequestException('Duplicate orders are not allowed in banner home section cards');
       }
     }
   }
@@ -297,6 +359,8 @@ export class HomeSectionService {
         }
         break;
       case HomeSectionType.PROMO_CARDS:
+      case HomeSectionType.TRAINING_COURSES_CARDS:
+      case HomeSectionType.BANNER_HOME_SECTION_CARDS:
         // No entity validation needed for promo cards - they're just URLs and images
         break;
     }
@@ -427,6 +491,12 @@ export class HomeSectionService {
 
       case HomeSectionType.PROMO_CARDS:
         return await this.enrichPromoCards(homeSection);
+
+      case HomeSectionType.TRAINING_COURSES_CARDS:
+        return await this.enrichTrainingCoursesCards(homeSection);
+
+      case HomeSectionType.BANNER_HOME_SECTION_CARDS:
+        return await this.enrichBannerHomeSectionCards(homeSection);
 
       default:
         return homeSection; // Return as-is for unknown types
@@ -2062,6 +2132,134 @@ export class HomeSectionService {
       config: {
         ...config,
         promoCards
+      }
+    };
+  }
+
+  async getPublicTrainingCoursesCards() {
+    // Get the promo cards section from database
+    const section = await this.findByType(HomeSectionType.TRAINING_COURSES_CARDS);
+
+    // Return empty array if section is not active
+    if (!section.isActive) {
+      return {
+        trainingCoursesCards: []
+      };
+    }
+
+    const config = section.config as any;
+
+    // Return empty array if no promo cards configured
+    if (!config.trainingCoursesCards || !Array.isArray(config.trainingCoursesCards) || config.trainingCoursesCards.length === 0) {
+      return {
+        trainingCoursesCards: []
+      };
+    }
+
+    // Process promo cards (only return active ones)
+    const trainingCoursesCards = config.trainingCoursesCards
+      .filter((card: any) => card.isActive !== false) // Filter out inactive cards
+      .map((card: any) => ({
+        order: card.order,
+        imageUrl: card.imageUrl,
+        linkUrl: card.linkUrl,
+      }))
+      .sort((a, b) => a.order - b.order);
+
+    return {
+      trainingCoursesCards
+    };
+  }
+
+  private async enrichTrainingCoursesCards(section: HomeSection): Promise<any> {
+    const config = section.config as any;
+
+    if (!section.isActive || !config.trainingCoursesCards || !Array.isArray(config.trainingCoursesCards) || config.trainingCoursesCards.length === 0) {
+      return {
+        ...section,
+        config: {
+          ...config,
+          trainingCoursesCards: []
+        }
+      };
+    }
+
+    // Process promo cards
+    const trainingCoursesCards = config.trainingCoursesCards.map((card: any) => ({
+      imageUrl: card.imageUrl,
+      linkUrl: card.linkUrl,
+      order: card.order
+    })).sort((a, b) => a.order - b.order);
+
+    return {
+      ...section,
+      config: {
+        ...config,
+        trainingCoursesCards
+      }
+    };
+  }
+
+  async getPublicBannerHomeSectionCards() {
+    // Get the promo cards section from database
+    const section = await this.findByType(HomeSectionType.BANNER_HOME_SECTION_CARDS);
+
+    // Return empty array if section is not active
+    if (!section.isActive) {
+      return {
+        bannerHomeSectionCards: []
+      };
+    }
+
+    const config = section.config as any;
+
+    // Return empty array if no promo cards configured
+    if (!config.bannerHomeSectionCards || !Array.isArray(config.bannerHomeSectionCards) || config.bannerHomeSectionCards.length === 0) {
+      return {
+        bannerHomeSectionCards: []
+      };
+    }
+
+    // Process promo cards (only return active ones)
+    const bannerHomeSectionCards = config.bannerHomeSectionCards
+      .filter((card: any) => card.isActive !== false) // Filter out inactive cards
+      .map((card: any) => ({
+        order: card.order,
+        imageUrl: card.imageUrl,
+        linkUrl: card.linkUrl,
+      }))
+      .sort((a, b) => a.order - b.order);
+
+    return {
+      bannerHomeSectionCards
+    };
+  }
+
+  private async enrichBannerHomeSectionCards(section: HomeSection): Promise<any> {
+    const config = section.config as any;
+
+    if (!section.isActive || !config.bannerHomeSectionCards || !Array.isArray(config.bannerHomeSectionCards) || config.bannerHomeSectionCards.length === 0) {
+      return {
+        ...section,
+        config: {
+          ...config,
+          bannerHomeSectionCards: []
+        }
+      };
+    }
+
+    // Process promo cards
+    const bannerHomeSectionCards = config.bannerHomeSectionCards.map((card: any) => ({
+      imageUrl: card.imageUrl,
+      linkUrl: card.linkUrl,
+      order: card.order
+    })).sort((a, b) => a.order - b.order);
+
+    return {
+      ...section,
+      config: {
+        ...config,
+        bannerHomeSectionCards
       }
     };
   }
