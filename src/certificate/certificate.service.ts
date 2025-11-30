@@ -133,7 +133,7 @@ export class CertificateService {
       action: AuditAction.TEMPLATE_CREATED,
       description: `New template "${createDto.name}" uploaded`,
       template: savedTemplate,
-      performedBy: user,
+      createdBy: user,
       metadata: {
         fileName: file.originalname,
         fileSize: file.size
@@ -169,7 +169,7 @@ export class CertificateService {
       action: AuditAction.TEMPLATE_UPDATED,
       description: `Template "${template.name}" updated`,
       template: updatedTemplate,
-      performedBy: user,
+      createdBy: user,
       metadata: { changes: updateDto }
     });
 
@@ -202,7 +202,7 @@ export class CertificateService {
       action: AuditAction.TEMPLATE_ARCHIVED,
       description: `Template "${template.name}" archived`,
       template: archivedTemplate,
-      performedBy: user,
+      createdBy: user,
       metadata: { certificatesIssued: template.certificatesIssued }
     });
 
@@ -234,7 +234,7 @@ export class CertificateService {
       action: AuditAction.TEMPLATE_PUBLISHED,
       description: `Template "${template.name}" published`,
       template: publishedTemplate,
-      performedBy: user
+      createdBy: user
     });
 
     return publishedTemplate;
@@ -281,7 +281,7 @@ export class CertificateService {
       action: AuditAction.TEMPLATE_UPDATED,
       description: `Template "${template.name}" assigned to course "${course.name}"`,
       template: template,
-      performedBy: user,
+      createdBy: user,
       metadata: { courseId: course.id, courseName: course.name }
     });
 
@@ -292,13 +292,13 @@ export class CertificateService {
     templateId: string;
     courseId: string;
     studentId: string;
-    issuedBy: string;
+    createdBy: string;
     role: string;
     academyId: string | null;
     metadata?: any;
   }): Promise<Certificate> {
     const user = await this.userRepository.findOne({
-      where: { id: data.issuedBy },
+      where: { id: data.createdBy },
       relations: ['academy']
     });
 
@@ -307,7 +307,7 @@ export class CertificateService {
     }
 
     // Check template access
-    const template = await this.findById(data.templateId, data.issuedBy, data.role, data.academyId);
+    const template = await this.findById(data.templateId, data.createdBy, data.role, data.academyId);
 
     if (template.status !== TemplateStatus.ACTIVE) {
       throw new BadRequestException('Cannot issue certificates from inactive templates');
@@ -323,7 +323,7 @@ export class CertificateService {
     }
 
     // Check course access
-    this.checkCourseOwnership(course, data.issuedBy, data.academyId, data.role);
+    this.checkCourseOwnership(course, data.createdBy, data.academyId, data.role);
 
     const student = await this.userRepository.findOne({
       where: { id: data.studentId },
@@ -369,7 +369,7 @@ export class CertificateService {
       action: AuditAction.CERTIFICATE_ISSUED,
       description: `Certificate issued to ${savedCertificate.studentName} for course "${course.name}"`,
       template: template,
-      performedBy: user,
+      createdBy: user,
       metadata: {
         certificateId: savedCertificate.certificateId,
         studentId: student.id,
@@ -533,7 +533,7 @@ export class CertificateService {
       action: AuditAction.TEMPLATE_ARCHIVED,
       description: `Template "${template.name}" deleted`,
       template: template,
-      performedBy: user,
+      createdBy: user,
       metadata: {
         templateName: template.name,
         certificatesIssued: template.certificatesIssued
@@ -574,14 +574,14 @@ export class CertificateService {
     action: AuditAction;
     description: string;
     template: CertificateTemplate;
-    performedBy: User;
+    createdBy: User;
     metadata?: any;
   }): Promise<void> {
     const auditTrail = this.auditTrailRepository.create({
       action: data.action,
       description: data.description,
       template: data.template,
-      createdBy: data.performedBy,
+      createdBy: data.createdBy,
       metadata: data.metadata
     });
 

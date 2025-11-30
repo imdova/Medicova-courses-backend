@@ -339,7 +339,7 @@ export class CertificateController {
   ) {
     return this.certificateService.issueCertificate({
       ...body,
-      issuedBy: req.user.sub,
+      createdBy: req.user.sub,
       role: req.user.role,
       academyId: req.user.academyId
     });
