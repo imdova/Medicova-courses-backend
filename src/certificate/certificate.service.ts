@@ -526,7 +526,8 @@ export class CertificateService {
       throw new BadRequestException('Cannot delete template with issued certificates. Archive it instead.');
     }
 
-    await this.templateRepository.remove(template);
+    // Use soft delete instead of remove
+    await this.templateRepository.softDelete(id);
 
     await this.createAuditTrail({
       action: AuditAction.TEMPLATE_ARCHIVED,
