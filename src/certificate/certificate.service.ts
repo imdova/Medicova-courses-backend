@@ -1,5 +1,5 @@
 // services/certificate-templates.service.ts
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CertificateTemplate, TemplateStatus, TemplateType } from './entities/certificate-template.entity';
@@ -25,14 +25,49 @@ export class CertificateService {
     private readonly userRepository: Repository<User>,
   ) { }
 
-  async findAll(academyId: string | null, status?: TemplateStatus): Promise<CertificateTemplate[]> {
+  private checkTemplateOwnership(
+    template: CertificateTemplate,
+    userId: string,
+    academyId: string | null,
+    role: string,
+  ) {
+    if (role === 'admin') return; // full access
+
+    if (role === 'academy_admin') {
+      if (template.createdBy?.academy?.id !== academyId) {
+        throw new ForbiddenException(
+          'You cannot access certificate templates outside your academy',
+        );
+      }
+    } else {
+      // instructor / academy_user / student
+      if (template.createdBy?.id !== userId) {
+        throw new ForbiddenException(
+          'You are not allowed to access this certificate template',
+        );
+      }
+    }
+  }
+
+  async findAll(
+    userId: string,
+    role: string,
+    academyId: string | null,
+    status?: TemplateStatus
+  ): Promise<CertificateTemplate[]> {
     const query = this.templateRepository.createQueryBuilder('template')
       .leftJoinAndSelect('template.createdBy', 'createdBy')
       .leftJoinAndSelect('createdBy.academy', 'academy');
 
-    // If user is from an academy, filter by academy templates
-    if (academyId) {
+    // Apply role-based filtering
+    if (role === 'admin') {
+      // Admin sees all templates - no additional filters
+    } else if (role === 'academy_admin' && academyId) {
+      // Academy admin sees templates from their academy
       query.where('createdBy.academy = :academyId', { academyId });
+    } else {
+      // Regular users only see their own templates
+      query.where('template.createdBy = :userId', { userId });
     }
 
     if (status) {
@@ -44,22 +79,23 @@ export class CertificateService {
       .getMany();
   }
 
-  async findById(id: string, academyId: string | null): Promise<CertificateTemplate> {
-    const query = this.templateRepository.createQueryBuilder('template')
-      .where('template.id = :id', { id })
-      .leftJoinAndSelect('template.createdBy', 'createdBy')
-      .leftJoinAndSelect('createdBy.academy', 'academy');
-
-    // If user is from an academy, ensure they can only access their academy's templates
-    if (academyId) {
-      query.andWhere('createdBy.academy = :academyId', { academyId });
-    }
-
-    const template = await query.getOne();
+  async findById(
+    id: string,
+    userId: string,
+    role: string,
+    academyId: string | null
+  ): Promise<CertificateTemplate> {
+    const template = await this.templateRepository.findOne({
+      where: { id },
+      relations: ['createdBy', 'createdBy.academy']
+    });
 
     if (!template) {
-      throw new NotFoundException(`Certificate template with ID ${id} not found or access denied`);
+      throw new NotFoundException(`Certificate template with ID ${id} not found`);
     }
+
+    // Check ownership/access rights
+    this.checkTemplateOwnership(template, userId, academyId, role);
 
     return template;
   }
@@ -110,7 +146,9 @@ export class CertificateService {
   async update(
     id: string,
     updateDto: UpdateCertificateTemplateDto,
-    userId: string
+    userId: string,
+    role: string,
+    academyId: string | null
   ): Promise<CertificateTemplate> {
     const user = await this.userRepository.findOne({
       where: { id: userId }
@@ -120,7 +158,7 @@ export class CertificateService {
       throw new NotFoundException('User not found');
     }
 
-    const template = await this.findById(id, userId);
+    const template = await this.findById(id, userId, role, academyId);
 
     const updatedTemplate = await this.templateRepository.save({
       ...template,
@@ -138,7 +176,12 @@ export class CertificateService {
     return updatedTemplate;
   }
 
-  async archive(id: string, userId: string): Promise<CertificateTemplate> {
+  async archive(
+    id: string,
+    userId: string,
+    role: string,
+    academyId: string | null
+  ): Promise<CertificateTemplate> {
     const user = await this.userRepository.findOne({
       where: { id: userId }
     });
@@ -147,7 +190,7 @@ export class CertificateService {
       throw new NotFoundException('User not found');
     }
 
-    const template = await this.findById(id, userId);
+    const template = await this.findById(id, userId, role, academyId);
 
     const archivedTemplate = await this.templateRepository.save({
       ...template,
@@ -166,7 +209,12 @@ export class CertificateService {
     return archivedTemplate;
   }
 
-  async publish(id: string, userId: string): Promise<CertificateTemplate> {
+  async publish(
+    id: string,
+    userId: string,
+    role: string,
+    academyId: string | null
+  ): Promise<CertificateTemplate> {
     const user = await this.userRepository.findOne({
       where: { id: userId }
     });
@@ -175,7 +223,7 @@ export class CertificateService {
       throw new NotFoundException('User not found');
     }
 
-    const template = await this.findById(id, userId);
+    const template = await this.findById(id, userId, role, academyId);
 
     const publishedTemplate = await this.templateRepository.save({
       ...template,
@@ -192,7 +240,13 @@ export class CertificateService {
     return publishedTemplate;
   }
 
-  async assignToCourse(templateId: string, courseId: string, userId: string): Promise<Course> {
+  async assignToCourse(
+    templateId: string,
+    courseId: string,
+    userId: string,
+    role: string,
+    academyId: string | null
+  ): Promise<Course> {
     const user = await this.userRepository.findOne({
       where: { id: userId },
       relations: ['academy']
@@ -202,7 +256,9 @@ export class CertificateService {
       throw new NotFoundException('User not found');
     }
 
-    const template = await this.findById(templateId, userId);
+    // Check template access
+    const template = await this.findById(templateId, userId, role, academyId);
+
     const course = await this.courseRepository.findOne({
       where: { id: courseId },
       relations: ['instructor', 'academy']
@@ -212,10 +268,8 @@ export class CertificateService {
       throw new NotFoundException(`Course with ID ${courseId} not found`);
     }
 
-    // Check if user has permission to assign template to this course
-    if (user.academy && course.academy?.id !== user.academy.id) {
-      throw new BadRequestException('You can only assign templates to courses in your academy');
-    }
+    // Check course access based on role
+    this.checkCourseOwnership(course, userId, academyId, role);
 
     // Update the course with the certificate template
     const updatedCourse = await this.courseRepository.save({
@@ -238,7 +292,9 @@ export class CertificateService {
     templateId: string;
     courseId: string;
     studentId: string;
-    issuedBy: string; // Now accepts user ID string
+    issuedBy: string;
+    role: string;
+    academyId: string | null;
     metadata?: any;
   }): Promise<Certificate> {
     const user = await this.userRepository.findOne({
@@ -250,7 +306,8 @@ export class CertificateService {
       throw new NotFoundException('User not found');
     }
 
-    const template = await this.findById(data.templateId, data.issuedBy);
+    // Check template access
+    const template = await this.findById(data.templateId, data.issuedBy, data.role, data.academyId);
 
     if (template.status !== TemplateStatus.ACTIVE) {
       throw new BadRequestException('Cannot issue certificates from inactive templates');
@@ -264,6 +321,9 @@ export class CertificateService {
     if (!course) {
       throw new NotFoundException(`Course with ID ${data.courseId} not found`);
     }
+
+    // Check course access
+    this.checkCourseOwnership(course, data.issuedBy, data.academyId, data.role);
 
     const student = await this.userRepository.findOne({
       where: { id: data.studentId },
@@ -292,7 +352,7 @@ export class CertificateService {
       issuedDate: new Date(),
       instructorSignature: instructorSignature,
       template: template,
-      issuedBy: user,
+      createdBy: user,
       course: course,
       student: student,
       metadata: data.metadata
@@ -302,7 +362,7 @@ export class CertificateService {
 
     // Update issued count
     await this.templateRepository.update(template.id, {
-      certificatesIssued: () => 'certificates_issued + 1'
+      certificatesIssued: () => 'certificatesIssued + 1'
     });
 
     await this.createAuditTrail({
@@ -328,7 +388,12 @@ export class CertificateService {
     });
   }
 
-  async getCourseCertificates(courseId: string, userId: string): Promise<Certificate[]> {
+  async getCourseCertificates(
+    courseId: string,
+    userId: string,
+    role: string,
+    academyId: string | null
+  ): Promise<Certificate[]> {
     const user = await this.userRepository.findOne({
       where: { id: userId },
       relations: ['academy']
@@ -338,26 +403,30 @@ export class CertificateService {
       throw new NotFoundException('User not found');
     }
 
-    const query = this.certificateRepository.createQueryBuilder('certificate')
-      .where('certificate.course = :courseId', { courseId })
-      .leftJoinAndSelect('certificate.template', 'template')
-      .leftJoinAndSelect('certificate.student', 'student')
-      .leftJoinAndSelect('student.profile', 'studentProfile')
-      .leftJoinAndSelect('certificate.issuedBy', 'issuedBy')
-      .leftJoinAndSelect('issuedBy.profile', 'issuedByProfile')
-      .orderBy('certificate.issuedDate', 'DESC');
+    const course = await this.courseRepository.findOne({
+      where: { id: courseId },
+      relations: ['academy']
+    });
 
-    // If user is from an academy, ensure they can only access their academy's certificates
-    if (user.academy) {
-      query
-        .leftJoin('certificate.course', 'course')
-        .andWhere('course.academy = :academyId', { academyId: user.academy.id });
+    if (!course) {
+      throw new NotFoundException(`Course with ID ${courseId} not found`);
     }
 
-    return query.getMany();
+    // Check course access
+    this.checkCourseOwnership(course, userId, academyId, role);
+
+    return this.certificateRepository.find({
+      where: { course: { id: courseId } },
+      relations: ['template', 'student', 'student.profile', 'issuedBy', 'issuedBy.profile'],
+      order: { issuedDate: 'DESC' }
+    });
   }
 
-  async getAuditTrails(userId: string): Promise<CertificateAuditTrail[]> {
+  async getAuditTrails(
+    userId: string,
+    role: string,
+    academyId: string | null
+  ): Promise<CertificateAuditTrail[]> {
     const user = await this.userRepository.findOne({
       where: { id: userId },
       relations: ['academy']
@@ -369,22 +438,32 @@ export class CertificateService {
 
     const query = this.auditTrailRepository.createQueryBuilder('audit')
       .leftJoinAndSelect('audit.template', 'template')
-      .leftJoinAndSelect('audit.performedBy', 'performedBy')
-      .leftJoinAndSelect('performedBy.profile', 'profile')
+      .leftJoinAndSelect('audit.createdBy', 'createdBy')
+      .leftJoinAndSelect('createdBy.profile', 'profile')
       .orderBy('audit.created_at', 'DESC')
       .take(50);
 
-    // If user is from an academy, filter by academy templates
-    if (user.academy) {
+    // Apply role-based filtering
+    if (role === 'admin') {
+      // Admin sees all audit trails
+    } else if (role === 'academy_admin' && academyId) {
+      // Academy admin sees audit trails from their academy
       query
         .leftJoin('template.createdBy', 'createdBy')
-        .andWhere('createdBy.academy = :academyId', { academyId: user.academy.id });
+        .andWhere('createdBy.academy = :academyId', { academyId });
+    } else {
+      // Regular users only see their own audit trails
+      query.andWhere('audit.createdBy = :userId', { userId });
     }
 
     return query.getMany();
   }
 
-  async getStats(userId: string) {
+  async getStats(
+    userId: string,
+    role: string,
+    academyId: string | null
+  ) {
     const user = await this.userRepository.findOne({
       where: { id: userId },
       relations: ['academy']
@@ -394,13 +473,18 @@ export class CertificateService {
       throw new NotFoundException('User not found');
     }
 
-    const query = this.templateRepository.createQueryBuilder('template');
+    const query = this.templateRepository.createQueryBuilder('template')
+      .leftJoin('template.createdBy', 'createdBy');
 
-    // If user is from an academy, filter by academy
-    if (user.academy) {
-      query
-        .leftJoin('template.createdBy', 'createdBy')
-        .where('createdBy.academy = :academyId', { academyId: user.academy.id });
+    // Apply role-based filtering
+    if (role === 'admin') {
+      // Admin sees all templates
+    } else if (role === 'academy_admin' && academyId) {
+      // Academy admin sees templates from their academy
+      query.where('createdBy.academy = :academyId', { academyId });
+    } else {
+      // Regular users only see their own templates
+      query.where('template.createdBy = :userId', { userId });
     }
 
     const [draftCount, activeCount, archivedCount] = await Promise.all([
@@ -421,7 +505,12 @@ export class CertificateService {
     };
   }
 
-  async remove(id: string, userId: string): Promise<void> {
+  async remove(
+    id: string,
+    userId: string,
+    role: string,
+    academyId: string | null
+  ): Promise<void> {
     const user = await this.userRepository.findOne({
       where: { id: userId }
     });
@@ -430,7 +519,7 @@ export class CertificateService {
       throw new NotFoundException('User not found');
     }
 
-    const template = await this.findById(id, userId);
+    const template = await this.findById(id, userId, role, academyId);
 
     // Check if template has issued certificates
     if (template.certificatesIssued > 0) {
@@ -449,6 +538,29 @@ export class CertificateService {
         certificatesIssued: template.certificatesIssued
       }
     });
+  }
+
+  private checkCourseOwnership(
+    course: Course,
+    userId: string,
+    academyId: string | null,
+    role: string,
+  ) {
+    if (role === 'admin') return; // full access
+    if (role === 'academy_admin') {
+      if (course.academy?.id !== academyId) {
+        throw new ForbiddenException(
+          'You cannot access courses outside your academy',
+        );
+      }
+    } else {
+      // instructor / academy_user
+      if (course.createdBy !== userId) {
+        throw new ForbiddenException(
+          'You are not allowed to access this course',
+        );
+      }
+    }
   }
 
   private generateCertificateId(): string {

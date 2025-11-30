@@ -1,5 +1,5 @@
 // entities/certificate.entity.ts
-import { Entity, Column, ManyToOne } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { BasicEntity } from '../../common/entities/basic.entity';
 import { CertificateTemplate } from './certificate-template.entity';
 import { User } from '../../user/entities/user.entity';
@@ -29,7 +29,8 @@ export class Certificate extends BasicEntity {
     template: CertificateTemplate;
 
     @ManyToOne(() => User, { eager: true })
-    issuedBy: User;
+    @JoinColumn({ name: 'created_by' })
+    createdBy: User;
 
     @ManyToOne(() => Course, { eager: true })
     course: Course;

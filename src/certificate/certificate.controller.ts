@@ -1,4 +1,3 @@
-// controllers/certificate-templates.controller.ts
 import {
   Controller,
   Get,
@@ -66,7 +65,7 @@ export class CertificateController {
   })
   create(
     @UploadedFile() file: Express.Multer.File,
-    @Body() body: any, // Accept as any and parse manually
+    @Body() body: any,
     @Req() req,
   ) {
     const createDto: CreateCertificateTemplateDto = {
@@ -94,8 +93,12 @@ export class CertificateController {
     @Req() req,
     @Query('status') status?: TemplateStatus,
   ) {
-    const academyId = req.user.academyId; // This comes from the JWT token
-    return this.certificateService.findAll(academyId, status);
+    return this.certificateService.findAll(
+      req.user.sub,
+      req.user.role,
+      req.user.academyId,
+      status
+    );
   }
 
   @Get('stats')
@@ -105,7 +108,11 @@ export class CertificateController {
     description: 'Returns certificate templates statistics.'
   })
   getStats(@Req() req) {
-    return this.certificateService.getStats(req.user.sub);
+    return this.certificateService.getStats(
+      req.user.sub,
+      req.user.role,
+      req.user.academyId
+    );
   }
 
   @Get('audit-trails')
@@ -115,7 +122,11 @@ export class CertificateController {
     description: 'Returns certificate templates audit trails.'
   })
   getAuditTrails(@Req() req) {
-    return this.certificateService.getAuditTrails(req.user.sub);
+    return this.certificateService.getAuditTrails(
+      req.user.sub,
+      req.user.role,
+      req.user.academyId
+    );
   }
 
   @Get(':id')
@@ -137,8 +148,12 @@ export class CertificateController {
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req,
   ) {
-    const academyId = req.user.academyId;
-    return this.certificateService.findById(id, academyId);
+    return this.certificateService.findById(
+      id,
+      req.user.sub,
+      req.user.role,
+      req.user.academyId
+    );
   }
 
   @Put(':id')
@@ -161,7 +176,13 @@ export class CertificateController {
     @Body() updateCertificateTemplateDto: UpdateCertificateTemplateDto,
     @Req() req,
   ) {
-    return this.certificateService.update(id, updateCertificateTemplateDto, req.user.sub);
+    return this.certificateService.update(
+      id,
+      updateCertificateTemplateDto,
+      req.user.sub,
+      req.user.role,
+      req.user.academyId
+    );
   }
 
   @Put(':id/publish')
@@ -183,7 +204,12 @@ export class CertificateController {
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req,
   ) {
-    return this.certificateService.publish(id, req.user.sub);
+    return this.certificateService.publish(
+      id,
+      req.user.sub,
+      req.user.role,
+      req.user.academyId
+    );
   }
 
   @Put(':id/archive')
@@ -205,7 +231,12 @@ export class CertificateController {
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req,
   ) {
-    return this.certificateService.archive(id, req.user.sub);
+    return this.certificateService.archive(
+      id,
+      req.user.sub,
+      req.user.role,
+      req.user.academyId
+    );
   }
 
   @Delete(':id')
@@ -228,7 +259,12 @@ export class CertificateController {
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req,
   ) {
-    return this.certificateService.remove(id, req.user.sub);
+    return this.certificateService.remove(
+      id,
+      req.user.sub,
+      req.user.role,
+      req.user.academyId
+    );
   }
 
   @Post(':id/assign-to-course/:courseId')
@@ -256,7 +292,13 @@ export class CertificateController {
     @Param('courseId', ParseUUIDPipe) courseId: string,
     @Req() req,
   ) {
-    return this.certificateService.assignToCourse(templateId, courseId, req.user.sub);
+    return this.certificateService.assignToCourse(
+      templateId,
+      courseId,
+      req.user.sub,
+      req.user.role,
+      req.user.academyId
+    );
   }
 
   @Post('issue-certificate')
@@ -297,7 +339,9 @@ export class CertificateController {
   ) {
     return this.certificateService.issueCertificate({
       ...body,
-      issuedBy: req.user.sub
+      issuedBy: req.user.sub,
+      role: req.user.role,
+      academyId: req.user.academyId
     });
   }
 
@@ -330,6 +374,11 @@ export class CertificateController {
     @Param('courseId', ParseUUIDPipe) courseId: string,
     @Req() req,
   ) {
-    return this.certificateService.getCourseCertificates(courseId, req.user.sub);
+    return this.certificateService.getCourseCertificates(
+      courseId,
+      req.user.sub,
+      req.user.role,
+      req.user.academyId
+    );
   }
 }
