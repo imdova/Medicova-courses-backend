@@ -94,7 +94,7 @@ export class CertificateController {
     @Req() req,
     @Query('status') status?: TemplateStatus,
   ) {
-    return this.certificateService.findAll(req.user, status);
+    return this.certificateService.findAll(req.user.sub, status);
   }
 
   @Get('stats')
@@ -104,7 +104,7 @@ export class CertificateController {
     description: 'Returns certificate templates statistics.'
   })
   getStats(@Req() req) {
-    return this.certificateService.getStats(req.user);
+    return this.certificateService.getStats(req.user.sub);
   }
 
   @Get('audit-trails')
@@ -114,7 +114,7 @@ export class CertificateController {
     description: 'Returns certificate templates audit trails.'
   })
   getAuditTrails(@Req() req) {
-    return this.certificateService.getAuditTrails(req.user);
+    return this.certificateService.getAuditTrails(req.user.sub);
   }
 
   @Get(':id')
@@ -136,7 +136,7 @@ export class CertificateController {
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req,
   ) {
-    return this.certificateService.findById(id, req.user);
+    return this.certificateService.findById(id, req.user.sub);
   }
 
   @Put(':id')
@@ -159,7 +159,7 @@ export class CertificateController {
     @Body() updateCertificateTemplateDto: UpdateCertificateTemplateDto,
     @Req() req,
   ) {
-    return this.certificateService.update(id, updateCertificateTemplateDto, req.user);
+    return this.certificateService.update(id, updateCertificateTemplateDto, req.user.sub);
   }
 
   @Put(':id/publish')
@@ -181,7 +181,7 @@ export class CertificateController {
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req,
   ) {
-    return this.certificateService.publish(id, req.user);
+    return this.certificateService.publish(id, req.user.sub);
   }
 
   @Put(':id/archive')
@@ -203,7 +203,7 @@ export class CertificateController {
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req,
   ) {
-    return this.certificateService.archive(id, req.user);
+    return this.certificateService.archive(id, req.user.sub);
   }
 
   @Delete(':id')
@@ -226,7 +226,7 @@ export class CertificateController {
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req,
   ) {
-    return this.certificateService.remove(id, req.user);
+    return this.certificateService.remove(id, req.user.sub);
   }
 
   @Post(':id/assign-to-course/:courseId')
@@ -254,7 +254,7 @@ export class CertificateController {
     @Param('courseId', ParseUUIDPipe) courseId: string,
     @Req() req,
   ) {
-    return this.certificateService.assignToCourse(templateId, courseId, req.user);
+    return this.certificateService.assignToCourse(templateId, courseId, req.user.sub);
   }
 
   @Post('issue-certificate')
@@ -295,7 +295,7 @@ export class CertificateController {
   ) {
     return this.certificateService.issueCertificate({
       ...body,
-      issuedBy: req.user
+      issuedBy: req.user.sub
     });
   }
 
@@ -306,7 +306,7 @@ export class CertificateController {
     description: 'Returns all certificates for the current student.'
   })
   getStudentCertificates(@Req() req) {
-    return this.certificateService.getStudentCertificates(req.user.id);
+    return this.certificateService.getStudentCertificates(req.user.sub);
   }
 
   @Get('course/:courseId/certificates')
@@ -328,6 +328,6 @@ export class CertificateController {
     @Param('courseId', ParseUUIDPipe) courseId: string,
     @Req() req,
   ) {
-    return this.certificateService.getCourseCertificates(courseId, req.user);
+    return this.certificateService.getCourseCertificates(courseId, req.user.sub);
   }
 }

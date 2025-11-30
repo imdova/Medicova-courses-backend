@@ -21,9 +21,20 @@ export class CertificateService {
     private readonly certificateRepository: Repository<Certificate>,
     @InjectRepository(Course)
     private readonly courseRepository: Repository<Course>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
   ) { }
 
-  async findAll(user: User, status?: TemplateStatus): Promise<CertificateTemplate[]> {
+  async findAll(userId: string, status?: TemplateStatus): Promise<CertificateTemplate[]> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['academy']
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
     const query = this.templateRepository.createQueryBuilder('template');
 
     // If user is from an academy, filter by academy templates
@@ -42,7 +53,16 @@ export class CertificateService {
       .getMany();
   }
 
-  async findById(id: string, user: User): Promise<CertificateTemplate> {
+  async findById(id: string, userId: string): Promise<CertificateTemplate> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['academy']
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
     const query = this.templateRepository.createQueryBuilder('template')
       .where('template.id = :id', { id })
       .leftJoinAndSelect('template.createdBy', 'createdBy')
@@ -65,8 +85,16 @@ export class CertificateService {
   async create(
     createDto: CreateCertificateTemplateDto,
     file: Express.Multer.File,
-    user: User
+    userId: string
   ): Promise<CertificateTemplate> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
     this.validateFile(file);
 
     const templateData = {
@@ -100,9 +128,17 @@ export class CertificateService {
   async update(
     id: string,
     updateDto: UpdateCertificateTemplateDto,
-    user: User
+    userId: string
   ): Promise<CertificateTemplate> {
-    const template = await this.findById(id, user);
+    const user = await this.userRepository.findOne({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const template = await this.findById(id, userId);
 
     const updatedTemplate = await this.templateRepository.save({
       ...template,
@@ -120,8 +156,16 @@ export class CertificateService {
     return updatedTemplate;
   }
 
-  async archive(id: string, user: User): Promise<CertificateTemplate> {
-    const template = await this.findById(id, user);
+  async archive(id: string, userId: string): Promise<CertificateTemplate> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const template = await this.findById(id, userId);
 
     const archivedTemplate = await this.templateRepository.save({
       ...template,
@@ -140,8 +184,16 @@ export class CertificateService {
     return archivedTemplate;
   }
 
-  async publish(id: string, user: User): Promise<CertificateTemplate> {
-    const template = await this.findById(id, user);
+  async publish(id: string, userId: string): Promise<CertificateTemplate> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const template = await this.findById(id, userId);
 
     const publishedTemplate = await this.templateRepository.save({
       ...template,
@@ -158,8 +210,17 @@ export class CertificateService {
     return publishedTemplate;
   }
 
-  async assignToCourse(templateId: string, courseId: string, user: User): Promise<Course> {
-    const template = await this.findById(templateId, user);
+  async assignToCourse(templateId: string, courseId: string, userId: string): Promise<Course> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['academy']
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const template = await this.findById(templateId, userId);
     const course = await this.courseRepository.findOne({
       where: { id: courseId },
       relations: ['instructor', 'academy']
@@ -195,9 +256,18 @@ export class CertificateService {
     templateId: string;
     courseId: string;
     studentId: string;
-    issuedBy: User;
+    issuedBy: string; // Now accepts user ID string
     metadata?: any;
   }): Promise<Certificate> {
+    const user = await this.userRepository.findOne({
+      where: { id: data.issuedBy },
+      relations: ['academy']
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
     const template = await this.findById(data.templateId, data.issuedBy);
 
     if (template.status !== TemplateStatus.ACTIVE) {
@@ -213,7 +283,7 @@ export class CertificateService {
       throw new NotFoundException(`Course with ID ${data.courseId} not found`);
     }
 
-    const student = await this.courseRepository.manager.findOne(User, {
+    const student = await this.userRepository.findOne({
       where: { id: data.studentId },
       relations: ['profile']
     });
@@ -240,7 +310,7 @@ export class CertificateService {
       issuedDate: new Date(),
       instructorSignature: instructorSignature,
       template: template,
-      issuedBy: data.issuedBy,
+      issuedBy: user,
       course: course,
       student: student,
       metadata: data.metadata
@@ -257,7 +327,7 @@ export class CertificateService {
       action: AuditAction.CERTIFICATE_ISSUED,
       description: `Certificate issued to ${savedCertificate.studentName} for course "${course.name}"`,
       template: template,
-      performedBy: data.issuedBy,
+      performedBy: user,
       metadata: {
         certificateId: savedCertificate.certificateId,
         studentId: student.id,
@@ -276,7 +346,16 @@ export class CertificateService {
     });
   }
 
-  async getCourseCertificates(courseId: string, user: User): Promise<Certificate[]> {
+  async getCourseCertificates(courseId: string, userId: string): Promise<Certificate[]> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['academy']
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
     const query = this.certificateRepository.createQueryBuilder('certificate')
       .where('certificate.course = :courseId', { courseId })
       .leftJoinAndSelect('certificate.template', 'template')
@@ -296,7 +375,16 @@ export class CertificateService {
     return query.getMany();
   }
 
-  async getAuditTrails(user: User): Promise<CertificateAuditTrail[]> {
+  async getAuditTrails(userId: string): Promise<CertificateAuditTrail[]> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['academy']
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
     const query = this.auditTrailRepository.createQueryBuilder('audit')
       .leftJoinAndSelect('audit.template', 'template')
       .leftJoinAndSelect('audit.performedBy', 'performedBy')
@@ -314,7 +402,16 @@ export class CertificateService {
     return query.getMany();
   }
 
-  async getStats(user: User) {
+  async getStats(userId: string) {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['academy']
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
     const query = this.templateRepository.createQueryBuilder('template');
 
     // If user is from an academy, filter by academy
@@ -340,6 +437,36 @@ export class CertificateService {
       archived: archivedCount,
       totalIssued: parseInt(totalIssuedResult.total) || 0
     };
+  }
+
+  async remove(id: string, userId: string): Promise<void> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const template = await this.findById(id, userId);
+
+    // Check if template has issued certificates
+    if (template.certificatesIssued > 0) {
+      throw new BadRequestException('Cannot delete template with issued certificates. Archive it instead.');
+    }
+
+    await this.templateRepository.remove(template);
+
+    await this.createAuditTrail({
+      action: AuditAction.TEMPLATE_ARCHIVED,
+      description: `Template "${template.name}" deleted`,
+      template: template,
+      performedBy: user,
+      metadata: {
+        templateName: template.name,
+        certificatesIssued: template.certificatesIssued
+      }
+    });
   }
 
   private generateCertificateId(): string {
@@ -393,28 +520,5 @@ export class CertificateService {
     if (file.size > maxSize) {
       throw new BadRequestException('File size must be less than 10MB');
     }
-  }
-
-  // Add to certificate-templates.service.ts
-  async remove(id: string, user: User): Promise<void> {
-    const template = await this.findById(id, user);
-
-    // Check if template has issued certificates
-    if (template.certificatesIssued > 0) {
-      throw new BadRequestException('Cannot delete template with issued certificates. Archive it instead.');
-    }
-
-    await this.templateRepository.remove(template);
-
-    await this.createAuditTrail({
-      action: AuditAction.TEMPLATE_ARCHIVED, // Or create a TEMPLATE_DELETED action
-      description: `Template "${template.name}" deleted`,
-      template: template, // This might cause issues since template is deleted, adjust as needed
-      performedBy: user,
-      metadata: {
-        templateName: template.name,
-        certificatesIssued: template.certificatesIssued
-      }
-    });
   }
 }
