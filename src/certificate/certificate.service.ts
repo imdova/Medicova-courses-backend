@@ -486,7 +486,7 @@ export class CertificateService {
       action: data.action,
       description: data.description,
       template: data.template,
-      performedBy: data.performedBy,
+      createdBy: data.performedBy,
       metadata: data.metadata
     });
 
