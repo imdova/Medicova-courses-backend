@@ -73,6 +73,10 @@ import { FileUpload } from './file-upload/entities/file-upload.entity';
 import { CartModule } from './cart/cart.module';
 import { Cart } from './cart/entities/cart.entity';
 import { CartItem } from './cart/entities/cart-item.entity';
+import { CertificateModule } from './certificate/certificate.module';
+import { Certificate } from './certificate/entities/certificate.entity';
+import { CertificateTemplate } from './certificate/entities/certificate-template.entity';
+import { CertificateAuditTrail } from './certificate/entities/certificate-audit-trail.entity';
 
 @Module({
   imports: [
@@ -134,15 +138,18 @@ import { CartItem } from './cart/entities/cart-item.entity';
         BlogTag,
         FileUpload,
         Cart,
-        CartItem
+        CartItem,
+        Certificate,
+        CertificateTemplate,
+        CertificateAuditTrail
       ],
       synchronize: true,
       extra: {
         max: 5
       },
-      ssl: {
-        rejectUnauthorized: false, // ✅ Allow self-signed certs from Cloud SQL
-      },
+      // ssl: {
+      //   rejectUnauthorized: false, // ✅ Allow self-signed certs from Cloud SQL
+      // },
     }),
     MailerModule.forRoot({
       transport: process.env.SMTP_TRANSPORT,
@@ -170,6 +177,7 @@ import { CartItem } from './cart/entities/cart-item.entity';
     HomeSectionModule,
     FileUploadModule,
     CartModule,
+    CertificateModule,
   ],
   controllers: [AppController],
   providers: [AppService, DatabaseService],
