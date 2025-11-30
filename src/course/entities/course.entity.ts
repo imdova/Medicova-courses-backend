@@ -9,6 +9,7 @@ import { CourseCategory } from 'src/course/course-category/entities/course-categ
 import { Academy } from 'src/academy/entities/academy.entity';
 import { CourseRating } from './course-rating.entity';
 import { User } from 'src/user/entities/user.entity';
+import { CertificateTemplate } from 'src/certificate/entities/certificate-template.entity';
 
 export enum CourseType {
   RECORDED = 'recorded',
@@ -328,4 +329,11 @@ export class Course extends BasicEntity {
     name: 'approval_status'
   })
   approvalStatus: CourseApprovalStatus;
+
+  @ManyToOne(() => CertificateTemplate, { nullable: true })
+  @JoinColumn({ name: 'certificate_template_id' })
+  certificateTemplate?: CertificateTemplate;
+
+  @Column({ name: 'certificate_template_id', nullable: true })
+  certificateTemplateId?: string;
 }
