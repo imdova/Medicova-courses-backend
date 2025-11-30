@@ -35,11 +35,13 @@ export class CertificateService {
       throw new NotFoundException('User not found');
     }
 
-    const query = this.templateRepository.createQueryBuilder('template');
+    const query = this.templateRepository.createQueryBuilder('template')
+      .leftJoinAndSelect('template.createdBy', 'createdBy')
+      .leftJoinAndSelect('createdBy.academy', 'academy');
 
     // If user is from an academy, filter by academy templates
     if (user.academy) {
-      query.where('template.createdBy.academy = :academyId', { academyId: user.academy.id });
+      query.where('createdBy.academy = :academyId', { academyId: user.academy.id });
     }
 
     if (status) {
@@ -47,8 +49,6 @@ export class CertificateService {
     }
 
     return query
-      .leftJoinAndSelect('template.createdBy', 'createdBy')
-      .leftJoinAndSelect('createdBy.academy', 'academy')
       .orderBy('template.updated_at', 'DESC')
       .getMany();
   }
