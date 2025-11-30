@@ -383,7 +383,7 @@ export class CertificateService {
   async getStudentCertificates(studentId: string): Promise<Certificate[]> {
     return this.certificateRepository.find({
       where: { student: { id: studentId } },
-      relations: ['template', 'course', 'issuedBy', 'issuedBy.profile'],
+      relations: ['template', 'course', 'createdBy', 'createdBy.profile'],
       order: { issuedDate: 'DESC' }
     });
   }
@@ -417,7 +417,7 @@ export class CertificateService {
 
     return this.certificateRepository.find({
       where: { course: { id: courseId } },
-      relations: ['template', 'student', 'student.profile', 'issuedBy', 'issuedBy.profile'],
+      relations: ['template', 'student', 'student.profile', 'createdBy', 'createdBy.profile'],
       order: { issuedDate: 'DESC' }
     });
   }
