@@ -171,6 +171,7 @@ export class CertificateController {
     status: 404,
     description: 'Certificate template not found.'
   })
+  @ApiBody({ type: UpdateCertificateTemplateDto })
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateCertificateTemplateDto: UpdateCertificateTemplateDto,

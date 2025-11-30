@@ -1,4 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { TemplateType } from '../entities/certificate-template.entity';
+import { IsEnum } from 'class-validator';
 
 export class CreateCertificateTemplateDto {
     @ApiProperty({
@@ -14,9 +16,10 @@ export class CreateCertificateTemplateDto {
     description?: string;
 
     @ApiProperty({
-        enum: ['continuing_education', 'instructor_recognition', 'general_completion', 'advanced_workshop'],
-        example: 'advanced_workshop',
+        enum: TemplateType,
+        example: TemplateType.CONTINUING_EDUCATION,
         description: 'Type of certificate template'
     })
-    type: string;
+    @IsEnum(TemplateType)
+    type?: TemplateType;
 }
