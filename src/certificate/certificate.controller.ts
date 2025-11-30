@@ -94,7 +94,8 @@ export class CertificateController {
     @Req() req,
     @Query('status') status?: TemplateStatus,
   ) {
-    return this.certificateService.findAll(req.user.sub, status);
+    const academyId = req.user.academyId; // This comes from the JWT token
+    return this.certificateService.findAll(academyId, status);
   }
 
   @Get('stats')
@@ -136,7 +137,8 @@ export class CertificateController {
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req,
   ) {
-    return this.certificateService.findById(id, req.user.sub);
+    const academyId = req.user.academyId;
+    return this.certificateService.findById(id, academyId);
   }
 
   @Put(':id')

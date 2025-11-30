@@ -25,23 +25,14 @@ export class CertificateService {
     private readonly userRepository: Repository<User>,
   ) { }
 
-  async findAll(userId: string, status?: TemplateStatus): Promise<CertificateTemplate[]> {
-    const user = await this.userRepository.findOne({
-      where: { id: userId },
-      relations: ['academy']
-    });
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
+  async findAll(academyId: string | null, status?: TemplateStatus): Promise<CertificateTemplate[]> {
     const query = this.templateRepository.createQueryBuilder('template')
       .leftJoinAndSelect('template.createdBy', 'createdBy')
       .leftJoinAndSelect('createdBy.academy', 'academy');
 
     // If user is from an academy, filter by academy templates
-    if (user.academy) {
-      query.where('createdBy.academy = :academyId', { academyId: user.academy.id });
+    if (academyId) {
+      query.where('createdBy.academy = :academyId', { academyId });
     }
 
     if (status) {
@@ -53,30 +44,21 @@ export class CertificateService {
       .getMany();
   }
 
-  async findById(id: string, userId: string): Promise<CertificateTemplate> {
-    const user = await this.userRepository.findOne({
-      where: { id: userId },
-      relations: ['academy']
-    });
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
+  async findById(id: string, academyId: string | null): Promise<CertificateTemplate> {
     const query = this.templateRepository.createQueryBuilder('template')
       .where('template.id = :id', { id })
       .leftJoinAndSelect('template.createdBy', 'createdBy')
       .leftJoinAndSelect('createdBy.academy', 'academy');
 
     // If user is from an academy, ensure they can only access their academy's templates
-    if (user.academy) {
-      query.andWhere('createdBy.academy = :academyId', { academyId: user.academy.id });
+    if (academyId) {
+      query.andWhere('createdBy.academy = :academyId', { academyId });
     }
 
     const template = await query.getOne();
 
     if (!template) {
-      throw new NotFoundException(`Certificate template with ID ${id} not found`);
+      throw new NotFoundException(`Certificate template with ID ${id} not found or access denied`);
     }
 
     return template;
