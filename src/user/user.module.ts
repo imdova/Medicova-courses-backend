@@ -17,16 +17,21 @@ import { RolePermission } from './entities/roles-permission.entity';
 import { UserPermissionsController } from './user-permissions.controller';
 import { EmailService } from '../common/email.service';
 import { IdentityVerification } from './entities/identity-verification.entity';
+import { DepartmentController } from './department.controller';
+import { DepartmentService } from './department.service';
+import { Department } from './entities/department.entity';
+import { EmployeeController } from './employee.controller';
+import { EmployeeService } from './employee.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Course, Profile, Role, Permission, RolePermission, IdentityVerification]),
+    TypeOrmModule.forFeature([User, Course, Profile, Role, Permission, RolePermission, IdentityVerification, Department]),
     forwardRef(() => AuthModule),
     forwardRef(() => ProfileModule),
     forwardRef(() => AcademyModule),
   ],
-  controllers: [UserController, UserRolesController, UserPermissionsController],
-  providers: [UserService, RolesGuard, UserRolesPermissionsService, EmailService],
+  controllers: [UserController, UserRolesController, UserPermissionsController, DepartmentController, EmployeeController],
+  providers: [UserService, RolesGuard, UserRolesPermissionsService, EmailService, DepartmentService, EmployeeService],
   exports: [UserService],
 })
 export class UserModule { }
