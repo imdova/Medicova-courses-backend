@@ -92,27 +92,27 @@ export class EmployeeController {
         }
     }
 
-    @Get('my-department')
-    @ApiOperation({ summary: 'Get employees in my department (for employees)' })
-    @ApiResponse({
-        status: HttpStatus.OK,
-        description: 'List of employees in current user\'s department',
-    })
-    getMyDepartmentEmployees(@Req() req) {
-        const userId = req.user.sub;
-        return this.employeeService.getEmployeesInMyDepartment(userId);
-    }
+    // @Get('my-department')
+    // @ApiOperation({ summary: 'Get employees in my department (for employees)' })
+    // @ApiResponse({
+    //     status: HttpStatus.OK,
+    //     description: 'List of employees in current user\'s department',
+    // })
+    // getMyDepartmentEmployees(@Req() req) {
+    //     const userId = req.user.sub;
+    //     return this.employeeService.getEmployeesInMyDepartment(userId);
+    // }
 
-    @Get('my-organization')
-    @ApiOperation({ summary: 'Get all employees in my organization (for admins/managers)' })
-    @ApiResponse({
-        status: HttpStatus.OK,
-        description: 'List of all employees in organization',
-    })
-    getMyOrganizationEmployees(@Req() req) {
-        const creatorId = req.user.sub;
-        return this.employeeService.getEmployeesByCreator(creatorId);
-    }
+    // @Get('my-organization')
+    // @ApiOperation({ summary: 'Get all employees in my organization (for admins/managers)' })
+    // @ApiResponse({
+    //     status: HttpStatus.OK,
+    //     description: 'List of all employees in organization',
+    // })
+    // getMyOrganizationEmployees(@Req() req) {
+    //     const creatorId = req.user.sub;
+    //     return this.employeeService.getEmployeesByCreator(creatorId);
+    // }
 
     @Get(':id')
     @ApiOperation({ summary: 'Get employee by ID' })
@@ -134,7 +134,7 @@ export class EmployeeController {
     @Patch(':id')
     @ApiOperation({ summary: 'Update employee' })
     @ApiParam({ name: 'id', description: 'Employee ID' })
-    @ApiBody({ type: UpdateEmployeeDto })
+    @ApiBody({ type: CreateEmployeeDto })
     @ApiResponse({
         status: HttpStatus.OK,
         description: 'Employee updated successfully',
@@ -152,22 +152,22 @@ export class EmployeeController {
         return this.employeeService.update(id, updateEmployeeDto, updaterId);
     }
 
-    @Patch(':id/department/:departmentId')
-    @ApiOperation({ summary: 'Assign employee to department' })
-    @ApiParam({ name: 'id', description: 'Employee ID' })
-    @ApiParam({ name: 'departmentId', description: 'Department ID' })
-    @ApiResponse({
-        status: HttpStatus.OK,
-        description: 'Employee assigned successfully',
-    })
-    assignToDepartment(
-        @Param('id', ParseUUIDPipe) employeeId: string,
-        @Param('departmentId', ParseUUIDPipe) departmentId: string,
-        @Req() req,
-    ) {
-        const creatorId = req.user.sub;
-        return this.employeeService.assignToDepartment(employeeId, departmentId, creatorId);
-    }
+    // @Patch(':id/department/:departmentId')
+    // @ApiOperation({ summary: 'Assign employee to department' })
+    // @ApiParam({ name: 'id', description: 'Employee ID' })
+    // @ApiParam({ name: 'departmentId', description: 'Department ID' })
+    // @ApiResponse({
+    //     status: HttpStatus.OK,
+    //     description: 'Employee assigned successfully',
+    // })
+    // assignToDepartment(
+    //     @Param('id', ParseUUIDPipe) employeeId: string,
+    //     @Param('departmentId', ParseUUIDPipe) departmentId: string,
+    //     @Req() req,
+    // ) {
+    //     const creatorId = req.user.sub;
+    //     return this.employeeService.assignToDepartment(employeeId, departmentId, creatorId);
+    // }
 
     @Delete(':id')
     @HttpCode(HttpStatus.NO_CONTENT)
@@ -191,20 +191,20 @@ export class EmployeeController {
         return this.employeeService.remove(id, deleterId, deleterRole);
     }
 
-    @Patch(':id/status')
-    @ApiOperation({ summary: 'Update employee status (active/inactive/terminated)' })
-    @ApiParam({ name: 'id', description: 'Employee ID' })
-    @ApiBody({ schema: { properties: { status: { type: 'string', example: 'inactive' } } } })
-    @ApiResponse({
-        status: HttpStatus.OK,
-        description: 'Employee status updated',
-    })
-    updateStatus(
-        @Param('id', ParseUUIDPipe) id: string,
-        @Body('status') status: string,
-        @Req() req,
-    ) {
-        const updaterId = req.user.sub;
-        return this.employeeService.updateStatus(id, status, updaterId);
-    }
+    // @Patch(':id/status')
+    // @ApiOperation({ summary: 'Update employee status (active/inactive/terminated)' })
+    // @ApiParam({ name: 'id', description: 'Employee ID' })
+    // @ApiBody({ schema: { properties: { status: { type: 'string', example: 'inactive' } } } })
+    // @ApiResponse({
+    //     status: HttpStatus.OK,
+    //     description: 'Employee status updated',
+    // })
+    // updateStatus(
+    //     @Param('id', ParseUUIDPipe) id: string,
+    //     @Body('status') status: string,
+    //     @Req() req,
+    // ) {
+    //     const updaterId = req.user.sub;
+    //     return this.employeeService.updateStatus(id, status, updaterId);
+    // }
 }
