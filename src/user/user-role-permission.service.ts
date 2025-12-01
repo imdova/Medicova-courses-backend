@@ -4,6 +4,7 @@ import { Repository, In } from 'typeorm';
 import { Role } from './entities/roles.entity';
 import { Permission } from './entities/permission.entity';
 import { RolePermission } from './entities/roles-permission.entity';
+import { CreateRolesBulkDto } from './dto/roles-and-permissions.dto';
 
 @Injectable()
 export class UserRolesPermissionsService {
@@ -16,19 +17,21 @@ export class UserRolesPermissionsService {
         private readonly rolePermissionRepository: Repository<RolePermission>,
     ) { }
 
-    async createRoles(roleNames: string[]): Promise<Role[]> {
+    async createRoles(createRolesBulkDto: CreateRolesBulkDto): Promise<Role[]> {
+        const { roles } = createRolesBulkDto;
+
         // Find existing roles to avoid duplicates
         const existingRoles = await this.roleRepository.find({
-            where: { name: In(roleNames) },
+            where: { name: In(roles.map(r => r.name)) },
         });
 
         const existingRoleNames = existingRoles.map(role => role.name);
-        const newRoleNames = roleNames.filter(name => !existingRoleNames.includes(name));
+        const newRolesData = roles.filter(role => !existingRoleNames.includes(role.name));
 
         // Create new roles
-        const newRoles = newRoleNames.map(name => this.roleRepository.create({ name }));
+        const newRoles = newRolesData.map(data => this.roleRepository.create(data));
 
-        return this.roleRepository.save(newRoles);
+        return await this.roleRepository.save(newRoles);
     }
 
     async addPermissionsToRole(roleId: string, permissionNames: string[]): Promise<RolePermission[]> {
