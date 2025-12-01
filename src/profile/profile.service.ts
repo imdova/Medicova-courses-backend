@@ -370,4 +370,23 @@ export class ProfileService {
 
     return await this.profileRepository.save(profile);
   }
+
+  // In profile.service.ts
+  async updateEmployeeProfile(
+    userId: string,
+    updateData: Partial<CreateEmployeeProfileDto>,
+  ): Promise<Profile> {
+    const profile = await this.profileRepository.findOne({
+      where: { user: { id: userId } },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('Profile not found');
+    }
+
+    // Update fields that are provided
+    Object.assign(profile, updateData);
+
+    return await this.profileRepository.save(profile);
+  }
 }

@@ -287,15 +287,24 @@ export class EmployeeService {
     }
 
     async findOne(id: string, userId: string, userRole: string): Promise<User> {
+        // First, find the user without the complex department condition
         const employee = await this.userRepository.findOne({
-            where: {
-                id, department: { id: () => 'departmentId IS NOT NULL' } as any, // Raw SQL
-            },
-            relations: ['profile', 'department', 'role', 'department.createdBy'],
+            where: { id },
+            relations: ['profile', 'department', 'role', 'department.createdBy', 'academy'],
         });
 
         if (!employee) {
             throw new NotFoundException('Employee not found');
+        }
+
+        // Check if user is actually an employee (has a department)
+        if (!employee.department) {
+            throw new NotFoundException('User is not an employee (no department assigned)');
+        }
+
+        // If userRole is 'any', skip permission checks (used internally)
+        if (userRole === 'any') {
+            return employee;
         }
 
         // Check permissions
@@ -304,7 +313,13 @@ export class EmployeeService {
         }
 
         if (userRole === 'academy_admin') {
-            if (employee.academy?.id !== userId) {
+            // Get the academy admin's academy
+            const adminUser = await this.userRepository.findOne({
+                where: { id: userId },
+                relations: ['academy'],
+            });
+
+            if (!adminUser?.academy || employee.academy?.id !== adminUser.academy.id) {
                 throw new ForbiddenException('You can only view employees in your academy');
             }
             return employee;
@@ -325,7 +340,19 @@ export class EmployeeService {
     ): Promise<User> {
         const employee = await this.findOne(id, updaterId, 'any'); // Check permissions first
 
-        const { departmentId, ...employeeData } = updateEmployeeDto;
+        const {
+            departmentId,
+            email,
+            password,
+            firstName,
+            lastName,
+            photoUrl,
+            jobTitle,
+            jobLevel,
+            phoneNumber,
+            role,
+            ...rest
+        } = updateEmployeeDto;
 
         // Update department if provided
         if (departmentId) {
@@ -340,21 +367,67 @@ export class EmployeeService {
             employee.department = department;
         }
 
-        // Update user fields
-        if (employeeData.email) {
-            employee.email = employeeData.email.trim().toLowerCase();
+        // Update email if provided (with uniqueness check)
+        if (email) {
+            const normalizedEmail = email.trim().toLowerCase();
+
+            // Check if new email is different from current
+            if (normalizedEmail !== employee.email) {
+                // Check if email already exists for another user
+                const existingUser = await this.userRepository.findOne({
+                    where: { email: normalizedEmail },
+                });
+
+                if (existingUser && existingUser.id !== id) {
+                    throw new ConflictException('Email is already in use by another user');
+                }
+
+                employee.email = normalizedEmail;
+            }
         }
 
-        // Update profile fields
-        // if (employee.profile) {
-        //     await this.profileService.updateEmployeeProfile(id, {
-        //         jobTitle: employeeData.jobTitle,
-        //         jobLevel: employeeData.jobLevel,
-        //         phoneNumber: employeeData.phoneNumber,
-        //     });
-        // }
+        // Update password if provided
+        if (password) {
+            employee.password = await bcrypt.hash(password, 10);
+        }
 
+        // Update role if provided
+        if (role) {
+            const roleEntity = await this.roleRepository.findOne({
+                where: { name: role },
+            });
+
+            if (!roleEntity) {
+                throw new NotFoundException(`Role "${role}" not found`);
+            }
+
+            employee.role = roleEntity;
+        }
+
+        // Update other user fields
+        Object.assign(employee, rest);
+
+        // Save user updates first
         await this.userRepository.save(employee);
+
+        // Update profile fields if they exist
+        if (employee.profile) {
+            const profileUpdateData: any = {};
+
+            if (firstName) profileUpdateData.firstName = firstName;
+            if (lastName) profileUpdateData.lastName = lastName;
+            if (photoUrl) profileUpdateData.photoUrl = photoUrl;
+            if (jobTitle) profileUpdateData.jobTitle = jobTitle;
+            if (jobLevel) profileUpdateData.jobLevel = jobLevel;
+            if (phoneNumber !== undefined) profileUpdateData.phoneNumber = phoneNumber;
+
+            // Only update if there are profile changes
+            if (Object.keys(profileUpdateData).length > 0) {
+                await this.profileService.updateEmployeeProfile(employee.id, profileUpdateData);
+            }
+        }
+
+        // Return updated employee with fresh data
         return await this.findOne(id, updaterId, 'any');
     }
 
