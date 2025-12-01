@@ -213,4 +213,18 @@ export class Profile extends BasicEntity {
 
   @OneToMany(() => ProfileRating, (rating) => rating.profile)
   ratings: ProfileRating[];
+
+  @ApiPropertyOptional({
+    example: 'Marketing Manager',
+    description: 'Job title/position',
+  })
+  @Column({ name: 'job_title', nullable: true })
+  jobTitle?: string;
+
+  @ApiPropertyOptional({
+    example: 'Senior',
+    description: 'Job level/grade',
+  })
+  @Column({ name: 'job_level', nullable: true })
+  jobLevel?: string;
 }

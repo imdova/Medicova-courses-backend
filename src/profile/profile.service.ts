@@ -17,6 +17,15 @@ import { ProfileSpeciality } from './profile-category/entities/profile-specailit
 import { ProfileRating } from './entities/profile-rating.entity';
 import { RateProfileDto } from './dto/rate-profile.dto';
 
+export interface CreateEmployeeProfileDto {
+  firstName: string;
+  lastName: string;
+  photoUrl?: string;
+  phoneNumber?: string;
+  jobTitle: string;
+  jobLevel: string;
+}
+
 @Injectable()
 export class ProfileService {
   constructor(
@@ -323,5 +332,61 @@ export class ProfileService {
     await this.profileRepository.save(profile);
 
     return rating;
+  }
+
+  async createEmployeeProfile(
+    userId: string,
+    employeeData: CreateEmployeeProfileDto,
+  ): Promise<Profile> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Generate username from email or name
+    const baseUsername = employeeData.firstName.toLowerCase() + '.' + employeeData.lastName.toLowerCase();
+    let username = baseUsername;
+    let counter = 1;
+
+    // Ensure unique username
+    while (await this.profileRepository.findOne({ where: { userName: username } })) {
+      username = `${baseUsername}${counter}`;
+      counter++;
+    }
+
+    const profile = this.profileRepository.create({
+      user,
+      userName: username,
+      firstName: employeeData.firstName,
+      lastName: employeeData.lastName,
+      photoUrl: employeeData.photoUrl,
+      phoneNumber: employeeData.phoneNumber,
+      jobTitle: employeeData.jobTitle,
+      jobLevel: employeeData.jobLevel,
+    });
+
+    return await this.profileRepository.save(profile);
+  }
+
+  // In profile.service.ts
+  async updateEmployeeProfile(
+    userId: string,
+    updateData: Partial<CreateEmployeeProfileDto>,
+  ): Promise<Profile> {
+    const profile = await this.profileRepository.findOne({
+      where: { user: { id: userId } },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('Profile not found');
+    }
+
+    // Update fields that are provided
+    Object.assign(profile, updateData);
+
+    return await this.profileRepository.save(profile);
   }
 }

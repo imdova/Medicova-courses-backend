@@ -9,6 +9,7 @@ import { Payment } from 'src/payment/entities/payment.entity';
 import { Role } from './roles.entity';
 import { IdentityVerification } from './identity-verification.entity';
 import { FileUpload } from '../../file-upload/entities/file-upload.entity';
+import { Department } from './department.entity';
 
 @Entity()
 export class User extends BasicEntity {
@@ -91,6 +92,12 @@ export class User extends BasicEntity {
   // 🆕 Add files relationship
   @OneToMany(() => FileUpload, (fileUpload) => fileUpload.uploadedBy)
   fileUploads: FileUpload[];
+
+  @ManyToOne(() => Department, (department) => department.employees, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  department?: Department;
 
   get permissions(): string[] {
     return this.role?.rolePermissions?.map(rp => rp.permission.name) || [];

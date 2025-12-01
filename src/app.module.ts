@@ -77,6 +77,7 @@ import { CertificateModule } from './certificate/certificate.module';
 import { Certificate } from './certificate/entities/certificate.entity';
 import { CertificateTemplate } from './certificate/entities/certificate-template.entity';
 import { CertificateAuditTrail } from './certificate/entities/certificate-audit-trail.entity';
+import { Department } from './user/entities/department.entity';
 
 @Module({
   imports: [
@@ -141,7 +142,8 @@ import { CertificateAuditTrail } from './certificate/entities/certificate-audit-
         CartItem,
         Certificate,
         CertificateTemplate,
-        CertificateAuditTrail
+        CertificateAuditTrail,
+        Department
       ],
       synchronize: true,
       extra: {
