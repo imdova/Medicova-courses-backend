@@ -26,4 +26,8 @@ export class Department extends BasicEntity {
     @OneToMany(() => User, (user) => user.department)
     employees: User[];
 
+    // Department belongs to an Academy (optional)
+    @ManyToOne(() => Academy, { nullable: true, onDelete: 'SET NULL' })
+    @JoinColumn({ name: 'academy_id' })
+    academy?: Academy;
 }

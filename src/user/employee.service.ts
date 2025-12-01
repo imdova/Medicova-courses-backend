@@ -16,6 +16,8 @@ import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 import { QueryFailedError } from 'typeorm';
+import { FilterOperator, paginate, PaginateQuery } from 'nestjs-paginate';
+import { QueryConfig } from 'src/common/utils/query-options';
 
 export interface EmployeeFilters {
     departmentId?: string;
@@ -23,6 +25,39 @@ export interface EmployeeFilters {
     role?: string;
     status?: string;
 }
+
+export const EMPLOYEE_PAGINATION_CONFIG: QueryConfig<User> = {
+    sortableColumns: ['created_at', 'email'],
+    defaultSortBy: [['created_at', 'DESC']],
+    searchableColumns: [
+        'email',
+        'profile.firstName',
+        'profile.lastName',
+        'profile.jobTitle',
+        'department.name',
+    ],
+    filterableColumns: {
+        email: [FilterOperator.ILIKE, FilterOperator.EQ],
+        'profile.firstName': [FilterOperator.ILIKE],
+        'profile.lastName': [FilterOperator.ILIKE],
+        'profile.jobTitle': [FilterOperator.ILIKE],
+        'profile.jobLevel': [FilterOperator.EQ],
+        'profile.employeeId': [FilterOperator.EQ],
+        'department.id': [FilterOperator.EQ],
+        'department.name': [FilterOperator.ILIKE],
+        'academy.id': [FilterOperator.EQ],
+        'role.name': [FilterOperator.EQ],
+        'profile.phoneNumber': [FilterOperator.ILIKE],
+    },
+    relations: {
+        profile: true,
+        department: true,
+        role: true,
+        academy: true,
+    },
+    maxLimit: 100,
+    defaultLimit: 20,
+};
 
 @Injectable()
 export class EmployeeService {
@@ -50,6 +85,16 @@ export class EmployeeService {
             photoUrl,
             ...rest
         } = createEmployeeDto;
+
+        // Get creator with academy
+        const creator = await this.userRepository.findOne({
+            where: { id: creatorId },
+            relations: ['academy'], // Get creator's academy
+        });
+
+        if (!creator) {
+            throw new NotFoundException('Creator user not found');
+        }
 
         // Verify department exists and creator has permission
         const department = await this.departmentRepository.findOne({
@@ -89,12 +134,13 @@ export class EmployeeService {
         const hashedPassword = await bcrypt.hash(password, 10);
         const verificationToken = uuidv4();
 
-        // Create user with department
+        // Create user with department and academy
         const user = this.userRepository.create({
             email: normalizedEmail,
             password: hashedPassword,
             role: employeeRole,
             department,
+            academy: creator.academy, // Assign creator's academy to employee
             emailVerificationToken: verificationToken,
             ...rest,
         });
@@ -128,6 +174,52 @@ export class EmployeeService {
             }
             throw error;
         }
+    }
+
+    async findAllWithPagination(
+        query: PaginateQuery,
+        filterType?: 'academy' | 'department_creator' | null,
+        filterValue?: string,
+    ): Promise<any> {
+        const queryBuilder = this.userRepository
+            .createQueryBuilder('user')
+            .leftJoinAndSelect('user.profile', 'profile')
+            .leftJoinAndSelect('user.department', 'department')
+            .leftJoinAndSelect('user.role', 'role')
+            .leftJoinAndSelect('user.academy', 'academy')
+            .where('user.department IS NOT NULL');
+
+        // Apply role-based filters
+        if (filterType === 'academy' && filterValue) {
+            queryBuilder.andWhere('academy.id = :academyId', { academyId: filterValue });
+        } else if (filterType === 'department_creator' && filterValue) {
+            const departments = await this.departmentRepository.find({
+                where: { createdBy: { id: filterValue } },
+                select: ['id'],
+            });
+
+            const departmentIds = departments.map(dept => dept.id);
+            if (departmentIds.length > 0) {
+                queryBuilder.andWhere('user.departmentId IN (:...departmentIds)', {
+                    departmentIds
+                });
+            } else {
+                return {
+                    data: [],
+                    meta: {
+                        totalItems: 0,
+                        itemCount: 0,
+                        itemsPerPage: query.limit || 20,
+                        totalPages: 0,
+                        currentPage: query.page || 1,
+                    },
+                    links: {},
+                };
+            }
+        }
+
+        // Handle query filters (nestjs-paginate will parse dot notation automatically)
+        return paginate(query, queryBuilder, EMPLOYEE_PAGINATION_CONFIG);
     }
 
     async findAll(
@@ -186,12 +278,6 @@ export class EmployeeService {
         if (filters?.role) {
             query = query.andWhere('role.name = :role', {
                 role: filters.role
-            });
-        }
-
-        if (filters?.status) {
-            query = query.andWhere('user.employmentStatus = :status', {
-                status: filters.status
             });
         }
 

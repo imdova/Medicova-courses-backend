@@ -18,12 +18,14 @@ import {
     ApiBody,
     ApiBearerAuth,
     ApiParam,
+    ApiQuery,
 } from '@nestjs/swagger';
 import { DepartmentService } from './department.service';
 import { CreateDepartmentDto } from './dto/create-department.dto';
 import { Department } from './entities/department.entity';
 import { AuthGuard } from '@nestjs/passport';
 import { PermissionsGuard } from 'src/auth/permission.guard';
+import { Paginate, PaginateQuery } from 'nestjs-paginate';
 
 @ApiTags('Departments')
 @ApiBearerAuth('access_token')
@@ -54,14 +56,61 @@ export class DepartmentController {
     }
 
     @Get()
-    @ApiOperation({ summary: 'Get all departments' })
+    @ApiOperation({ summary: 'Get all departments with pagination and filters' })
+    @ApiQuery({
+        name: 'page',
+        required: false,
+        type: Number,
+        description: 'Page number',
+        example: 1
+    })
+    @ApiQuery({
+        name: 'limit',
+        required: false,
+        type: Number,
+        description: 'Items per page',
+        example: 20
+    })
+    @ApiQuery({
+        name: 'search',
+        required: false,
+        type: String,
+        description: 'Search term',
+        example: 'marketing'
+    })
+    @ApiQuery({
+        name: 'filter.academy.id',
+        required: false,
+        type: String,
+        description: 'Filter by academy ID',
+        example: 'acad-123'
+    })
+    @ApiQuery({
+        name: 'filter.createdBy.id',
+        required: false,
+        type: String,
+        description: 'Filter by creator ID',
+        example: 'user-456'
+    })
     @ApiResponse({
         status: HttpStatus.OK,
-        description: 'Return all departments.',
-        type: [Department],
+        description: 'Paginated list of departments',
     })
-    findAll() {
-        return this.departmentService.findAll();
+    findAll(
+        @Req() req,
+        @Paginate() query: PaginateQuery,
+    ) {
+        const userId = req.user.sub;
+        const userRole = req.user.role;
+        const userAcademyId = req.user.academyId;
+
+        if (userRole === 'admin') {
+            return this.departmentService.findAllWithPagination(query, null, null);
+        } else if (userRole === 'academy_admin') {
+            return this.departmentService.findAllWithPagination(query, 'academy', userAcademyId);
+        } else {
+            return this.departmentService.findAllWithPagination(query, 'creator', userId);
+        }
     }
 
     @Get('my-departments')

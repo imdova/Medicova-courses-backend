@@ -28,6 +28,7 @@ import { EmployeeService } from './employee.service';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { PermissionsGuard } from 'src/auth/permission.guard';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
+import { Paginate, PaginateQuery } from 'nestjs-paginate';
 //import { UpdateEmployeeDto } from './dto/update-employee.dto';
 
 @ApiTags('Employees')
@@ -62,37 +63,33 @@ export class EmployeeController {
     }
 
     @Get()
-    @ApiOperation({ summary: 'Get all employees (with optional filters)' })
-    @ApiQuery({ name: 'departmentId', required: false, type: String })
-    @ApiQuery({ name: 'academyId', required: false, type: String })
-    @ApiQuery({ name: 'role', required: false, type: String })
-    @ApiQuery({ name: 'status', required: false, type: String })
+    @ApiOperation({ summary: 'Get all employees with pagination and filters' })
+    @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number' })
+    @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page' })
+    @ApiQuery({ name: 'search', required: false, type: String, description: 'Search term' })
+    @ApiQuery({ name: 'filter.department.id', required: false, type: String, description: 'Filter by department ID' })
+    @ApiQuery({ name: 'filter.academy.id', required: false, type: String, description: 'Filter by academy ID' })
+    @ApiQuery({ name: 'filter.role.name', required: false, type: String, description: 'Filter by role' })
     @ApiResponse({
         status: HttpStatus.OK,
-        description: 'List of employees',
+        description: 'Paginated list of employees',
     })
     findAll(
         @Req() req,
-        @Query('departmentId') departmentId?: string,
-        @Query('academyId') filterAcademyId?: string, // Rename to avoid confusion
-        @Query('role') role?: string,
-        @Query('status') status?: string,
+        @Paginate() query: PaginateQuery,
     ) {
         const userId = req.user.sub;
         const userRole = req.user.role;
-        const userAcademyId = req.user.academyId; // Get from JWT token
+        const userAcademyId = req.user.academyId;
 
-        return this.employeeService.findAll(
-            userId,
-            userRole,
-            userAcademyId, // Pass the user's academyId
-            {
-                departmentId,
-                academyId: filterAcademyId, // Pass filter academyId separately
-                role,
-                status,
-            }
-        );
+        // Apply role-based filtering
+        if (userRole === 'admin') {
+            return this.employeeService.findAllWithPagination(query, null, null);
+        } else if (userRole === 'academy_admin') {
+            return this.employeeService.findAllWithPagination(query, 'academy', userAcademyId);
+        } else {
+            return this.employeeService.findAllWithPagination(query, 'department_creator', userId);
+        }
     }
 
     @Get('my-department')
