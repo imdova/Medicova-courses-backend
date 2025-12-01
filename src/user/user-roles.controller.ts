@@ -34,7 +34,7 @@ export class UserRolesController {
         type: [Role],
     })
     async createRolesBulk(@Body() body: CreateRolesBulkDto): Promise<Role[]> {
-        return this.rolesService.createRoles(body.roles);
+        return this.rolesService.createRoles(body);
     }
 
     @Post(':roleId/permissions')
