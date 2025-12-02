@@ -8,6 +8,7 @@ import { CreateCartItemDto } from './dto/create-cart-item.dto';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
 import { Course } from '../course/entities/course.entity';
 import { Bundle } from '../bundle/entities/bundle.entity';
+import { User } from 'src/user/entities/user.entity';
 
 // Enhanced interfaces only for GET endpoint
 interface EnhancedCartItem {
@@ -21,6 +22,7 @@ interface EnhancedCartItem {
   currencyCode: string;
   itemTitle: string;
   thumbnailUrl?: string;
+  creatorId: string; // Add creatorId
   created_at: Date;
   updated_at: Date;
   deleted_at: Date | null;
@@ -46,6 +48,7 @@ interface EnhancedCartItem {
     slug: string;
     description?: string;
     thumbnail_url?: string;
+    creatorId: string; // Add creatorId for bundles
   };
 }
 
@@ -73,6 +76,8 @@ export class CartService {
     private courseRepository: Repository<Course>,
     @InjectRepository(Bundle)
     private bundleRepository: Repository<Bundle>,
+    @InjectRepository(User)
+    private userRepository: Repository<User>,
     private dataSource: DataSource,
   ) { }
 
@@ -124,11 +129,11 @@ export class CartService {
         throw new ConflictException('Item already exists in cart');
       }
 
-      // Get item details and pricing for the specified currency
-      const { price, title, thumbnailUrl, courseId, bundleId } =
+      // Get item details and pricing for the specified currency, including creator
+      const { price, title, thumbnailUrl, courseId, bundleId, creatorId } =
         await this.getItemDetails(itemType, itemId, currencyCode);
 
-      // Create cart item with appropriate IDs
+      // Create cart item with appropriate IDs and creator
       const cartItemData: any = {
         cartId: cart.id,
         itemType,
@@ -137,6 +142,7 @@ export class CartService {
         currencyCode,
         itemTitle: title,
         thumbnailUrl,
+        creatorId, // Add creatorId
       };
 
       // Set the appropriate ID based on item type
@@ -152,7 +158,7 @@ export class CartService {
       // Reload cart with all relations to get the complete cart
       const updatedCart = await transactionalEntityManager.findOne(Cart, {
         where: { id: cart.id },
-        relations: ['items', 'items.course', 'items.bundle'],
+        relations: ['items', 'items.course', 'items.bundle', 'items.creator'],
       });
 
       // Calculate totals and save
@@ -192,7 +198,7 @@ export class CartService {
       // Reload cart and recalculate totals
       const updatedCart = await transactionalEntityManager.findOne(Cart, {
         where: { id: cart.id },
-        relations: ['items', 'items.course', 'items.bundle'],
+        relations: ['items', 'items.course', 'items.bundle', 'items.creator'],
       });
 
       updatedCart.calculateTotals();
@@ -228,7 +234,7 @@ export class CartService {
       // Reload cart and recalculate totals
       const updatedCart = await transactionalEntityManager.findOne(Cart, {
         where: { id: cart.id },
-        relations: ['items', 'items.course', 'items.bundle'],
+        relations: ['items', 'items.course', 'items.bundle', 'items.creator'],
       });
 
       if (!updatedCart || !updatedCart.items || updatedCart.items.length === 0) {
@@ -246,35 +252,13 @@ export class CartService {
     });
   }
 
-  async checkoutCart(createdBy: string): Promise<Cart> {
-    return this.dataSource.transaction(async (transactionalEntityManager) => {
-      const cart = await transactionalEntityManager.findOne(Cart, {
-        where: { createdBy, status: CartStatus.ACTIVE },
-        relations: ['items', 'items.course', 'items.bundle'],
-      });
-
-      if (!cart) {
-        throw new NotFoundException('Active cart not found');
-      }
-
-      // Initialize items array if undefined
-      if (!cart.items || cart.items.length === 0) {
-        throw new ConflictException('Cannot checkout empty cart');
-      }
-
-      // Mark cart as completed
-      cart.status = CartStatus.COMPLETED;
-      await transactionalEntityManager.save(Cart, cart);
-
-      return cart;
-    });
-  }
+  // Removed checkoutCart method - it's now handled in payment controller
 
   // ONLY the getCart method returns enhanced details
   async getCart(createdBy: string): Promise<EnhancedCartResponse> {
     const cart = await this.cartRepository.findOne({
       where: { createdBy, status: CartStatus.ACTIVE },
-      relations: ['items', 'items.course', 'items.bundle'],
+      relations: ['items', 'items.course', 'items.bundle', 'items.creator'],
     });
 
     if (!cart) {
@@ -317,6 +301,7 @@ export class CartService {
           currencyCode: item.currencyCode,
           itemTitle: item.itemTitle,
           thumbnailUrl: item.thumbnailUrl,
+          creatorId: item.creatorId, // Include creatorId
           created_at: item.created_at,
           updated_at: item.updated_at,
           deleted_at: item.deleted_at,
@@ -418,7 +403,8 @@ export class CartService {
   private async getBundleDetails(bundleId: string): Promise<any> {
     const bundle = await this.bundleRepository.findOne({
       where: { id: bundleId },
-      select: ['id', 'title', 'slug', 'description', 'thumbnail_url']
+      select: ['id', 'title', 'slug', 'description', 'thumbnail_url', 'created_by'],
+      relations: ['creator'],
     });
 
     if (!bundle) {
@@ -431,6 +417,7 @@ export class CartService {
       slug: bundle.slug,
       description: bundle.description,
       thumbnail_url: bundle.thumbnail_url,
+      creatorId: bundle.created_by, // Get creatorId from bundle
     };
   }
 
@@ -444,15 +431,20 @@ export class CartService {
     thumbnailUrl?: string;
     courseId?: string;
     bundleId?: string;
+    creatorId: string; // Add creatorId to return
   }> {
     if (itemType === CartItemType.COURSE) {
       const course = await this.courseRepository.findOne({
         where: { id: itemId },
-        relations: ['pricings'],
+        relations: ['pricings', 'instructor'],
       });
 
       if (!course) {
         throw new NotFoundException('Course not found');
+      }
+
+      if (!course.instructor) {
+        throw new NotFoundException('Course instructor not found');
       }
 
       if (course.isCourseFree) {
@@ -461,6 +453,7 @@ export class CartService {
           title: course.name,
           thumbnailUrl: course.courseImage,
           courseId: itemId,
+          creatorId: course.instructor.id,
         };
       }
 
@@ -482,15 +475,20 @@ export class CartService {
         title: course.name,
         thumbnailUrl: course.courseImage,
         courseId: itemId,
+        creatorId: course.instructor.id,
       };
     } else {
       const bundle = await this.bundleRepository.findOne({
         where: { id: itemId },
-        relations: ['pricings'],
+        relations: ['pricings', 'creator'],
       });
 
       if (!bundle) {
         throw new NotFoundException('Bundle not found');
+      }
+
+      if (!bundle.created_by) {
+        throw new NotFoundException('Bundle creator not found');
       }
 
       if (bundle.is_free) {
@@ -499,6 +497,7 @@ export class CartService {
           title: bundle.title,
           thumbnailUrl: bundle.thumbnail_url,
           bundleId: itemId,
+          creatorId: bundle.created_by,
         };
       }
 
@@ -520,6 +519,7 @@ export class CartService {
         title: bundle.title,
         thumbnailUrl: bundle.thumbnail_url,
         bundleId: itemId,
+        creatorId: bundle.created_by,
       };
     }
   }

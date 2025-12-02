@@ -4,11 +4,15 @@ import { Entity, Column, OneToMany, ManyToOne, JoinColumn } from 'typeorm';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { User } from 'src/user/entities/user.entity';
 import { CartItem } from './cart-item.entity';
+import { Payment } from 'src/payment/entities/payment.entity';
+import { Transaction } from 'src/payment/entities/transaction.entity';
+
 
 export enum CartStatus {
     ACTIVE = 'active',
     COMPLETED = 'completed',
     ABANDONED = 'abandoned',
+    CANCELLED = 'cancelled'
 }
 
 @Entity('carts')
@@ -47,13 +51,18 @@ export class Cart extends BasicEntity {
     @Column({
         type: 'enum',
         enum: ['EGP', 'SAR', 'USD', 'EUR'],
-        default: 'USD',
-        name: 'currency_code'
+        default: 'USD'
     })
     currencyCode: string;
 
     @OneToMany(() => CartItem, (item) => item.cart, { cascade: true })
     items: CartItem[];
+
+    @OneToMany(() => Payment, (payment) => payment.cart)
+    payments: Payment[];
+
+    @OneToMany(() => Transaction, (transaction) => transaction.cart)
+    transactions: Transaction[];
 
     @ApiPropertyOptional({
         description: 'Number of items in cart',
@@ -64,7 +73,6 @@ export class Cart extends BasicEntity {
 
     // Helper method to calculate totals
     calculateTotals(): void {
-        // Ensure items array is initialized
         if (!this.items) {
             this.items = [];
         }
@@ -73,5 +81,10 @@ export class Cart extends BasicEntity {
         this.totalPrice = this.items.reduce((total, item) => {
             return total + (item.price * item.quantity);
         }, 0);
+    }
+
+    // Mark cart as completed
+    markAsCompleted(): void {
+        this.status = CartStatus.COMPLETED;
     }
 }

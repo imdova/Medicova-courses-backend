@@ -4,11 +4,14 @@ import { PaymentService } from './payment.service';
 import { PaymentController } from './payment.controller';
 import { Payment } from './entities/payment.entity';
 import { User } from 'src/user/entities/user.entity';
+import { Cart } from 'src/cart/entities/cart.entity';
+import { CartItem } from 'src/cart/entities/cart-item.entity';
+import { Transaction } from './entities/transaction.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Payment, User])],
+  imports: [TypeOrmModule.forFeature([Payment, User, Cart, CartItem, Transaction])],
   controllers: [PaymentController],
   providers: [PaymentService],
   exports: [PaymentService],
 })
-export class PaymentModule {}
+export class PaymentModule { }
