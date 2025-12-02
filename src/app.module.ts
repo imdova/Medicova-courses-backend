@@ -151,9 +151,9 @@ import { Transaction } from './payment/entities/transaction.entity';
       extra: {
         max: 5
       },
-      // ssl: {
-      //   rejectUnauthorized: false, // ✅ Allow self-signed certs from Cloud SQL
-      // },
+      ssl: {
+        rejectUnauthorized: false, // ✅ Allow self-signed certs from Cloud SQL
+      },
     }),
     MailerModule.forRoot({
       transport: process.env.SMTP_TRANSPORT,
