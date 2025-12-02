@@ -1,7 +1,9 @@
 import { BasicEntity } from '../../common/entities/basic.entity';
 import { User } from 'src/user/entities/user.entity';
-import { Entity, Column, ManyToOne, Index } from 'typeorm';
+import { Cart } from 'src/cart/entities/cart.entity';
+import { Entity, Column, ManyToOne, Index, OneToMany, JoinColumn } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
+import { Transaction } from './transaction.entity';
 
 export enum PaymentStatus {
   PENDING = 'PENDING',
@@ -19,24 +21,24 @@ export enum PaymentMethod {
   INSTANT_TRANSFER = 'INSTANT_TRANSFER',
 }
 
-export enum CurrencyCode {
-  EGP = 'EGP',
-  SAR = 'SAR',
-  USD = 'USD',
-}
-
-export enum OrderType {
-  COURSE = 'COURSE',
-  QUIZ = 'QUIZ',
-  BUNDLE = 'BUNDLE',
-  SUBSCRIPTION = 'SUBSCRIPTION',
-}
-
 @Entity('payments')
 export class Payment extends BasicEntity {
   @ApiProperty({ description: 'User who made the payment', type: () => User })
   @ManyToOne(() => User, (user) => user.payments)
+  @JoinColumn({ name: 'created_by' })
   user: User;
+
+  @ApiProperty({ description: 'User ID who made the payment', format: 'uuid' })
+  @Column({ type: 'uuid', name: 'created_by' })
+  createdBy: string;
+
+  @ApiProperty({ description: 'Cart associated with this payment', type: () => Cart })
+  @ManyToOne(() => Cart, (cart) => cart.payments)
+  cart: Cart;
+
+  @ApiProperty({ description: 'Cart ID' })
+  @Column({ type: 'uuid' })
+  cartId: string;
 
   @ApiProperty({ description: 'Payment method used', enum: PaymentMethod })
   @Column({ type: 'enum', enum: PaymentMethod })
@@ -50,19 +52,6 @@ export class Payment extends BasicEntity {
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   amount: number;
 
-  @ApiProperty({ description: 'Currency code', enum: CurrencyCode })
-  @Column({ type: 'enum', enum: CurrencyCode, default: CurrencyCode.EGP })
-  currency: CurrencyCode;
-
-  @ApiProperty({ description: 'Type of order', enum: OrderType })
-  @Column({ type: 'enum', enum: OrderType })
-  orderType: OrderType;
-
-  @ApiProperty({ description: 'ID of the purchased item', nullable: true })
-  @Index()
-  @Column({ nullable: true })
-  orderId: string;
-
   @ApiProperty({ description: 'Transaction ID from provider', nullable: true })
   @Index()
   @Column({ nullable: true })
@@ -74,4 +63,9 @@ export class Payment extends BasicEntity {
   })
   @Column({ type: 'json', nullable: true })
   providerResponse: any;
+
+  // Add relationship to transactions
+  @ApiProperty({ description: 'Transactions for this payment', type: () => [Transaction] })
+  @OneToMany(() => Transaction, (transaction) => transaction.payment)
+  transactions: Transaction[];
 }

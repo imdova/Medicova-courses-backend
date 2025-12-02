@@ -85,17 +85,6 @@ export class CartController {
     return this.mapCartToDto(cart);
   }
 
-  @Post('checkout')
-  @ApiOperation({ summary: 'Checkout cart' })
-  @ApiResponse({ status: 200, type: CartResponseDto })
-  @ApiResponse({ status: 404, description: 'Active cart not found' })
-  @ApiResponse({ status: 409, description: 'Cannot checkout empty cart' })
-  async checkout(@Req() req): Promise<CartResponseDto> {
-    const createdBy = req.user.sub;
-    const cart = await this.cartService.checkoutCart(createdBy);
-    return this.mapCartToDto(cart);
-  }
-
   @Delete('clear')
   @ApiOperation({ summary: 'Clear cart' })
   @ApiResponse({ status: 200, description: 'Cart cleared successfully' })
@@ -136,6 +125,8 @@ export class CartController {
         currencyCode: item.currencyCode,
         itemTitle: item.itemTitle,
         thumbnailUrl: item.thumbnailUrl,
+        // Add creator info if available
+        creatorId: item.creatorId,
         createdAt: item.createdAt,
         updatedAt: item.updatedAt,
       })) || [],
@@ -175,6 +166,7 @@ export class CartController {
         currencyCode: item.currencyCode,
         itemTitle: item.itemTitle,
         thumbnailUrl: item.thumbnailUrl,
+        creatorId: item.creatorId, // Include creatorId
         // Add the enhanced details here
         courseDetails: item.courseDetails,
         bundleDetails: item.bundleDetails,

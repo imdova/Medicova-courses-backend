@@ -28,7 +28,6 @@ import { Course, CourseLevel, CourseType } from './entities/course.entity';
 import { CourseStudent } from './entities/course-student.entity';
 import { CreatePaymentDto } from 'src/payment/dto/create-payment.dto';
 import { PaymentService } from 'src/payment/payment.service';
-import { OrderType } from 'src/payment/entities/payment.entity';
 import { PermissionsGuard } from '../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 import { OptionalJwtAuthGuard } from '../auth/strategy/optional-jwt-auth.guard';
@@ -80,25 +79,25 @@ export class StudentCourseController {
     return this.studentCourseService.enroll(id, req.user.sub);
   }
 
-  @Post(':id/purchase')
-  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  @RequirePermissions('course:purchase')
-  @ApiOperation({ summary: 'Purchase a course' })
-  @ApiBody({ type: CreatePaymentDto })
-  @ApiResponse({ status: 201, description: 'Payment request created' })
-  @ApiResponse({ status: 400, description: 'Invalid purchase request' })
-  purchaseCourse(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Req() req,
-    @Body() body: CreatePaymentDto,
-  ) {
-    return this.paymentService.createPayment({
-      ...body,
-      userId: req.user.sub,
-      orderId: id, // overwrite orderId from the route param
-      orderType: OrderType.COURSE,
-    });
-  }
+  // @Post(':id/purchase')
+  // @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  // @RequirePermissions('course:purchase')
+  // @ApiOperation({ summary: 'Purchase a course' })
+  // @ApiBody({ type: CreatePaymentDto })
+  // @ApiResponse({ status: 201, description: 'Payment request created' })
+  // @ApiResponse({ status: 400, description: 'Invalid purchase request' })
+  // purchaseCourse(
+  //   @Param('id', ParseUUIDPipe) id: string,
+  //   @Req() req,
+  //   @Body() body: CreatePaymentDto,
+  // ) {
+  //   return this.paymentService.createPayment({
+  //     ...body,
+  //     userId: req.user.sub,
+  //     orderId: id, // overwrite orderId from the route param
+  //     orderType: OrderType.COURSE,
+  //   });
+  // }
 
   @Post(':id/favorite')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
