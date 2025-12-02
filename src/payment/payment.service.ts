@@ -69,6 +69,7 @@ export class PaymentService {
       // 2. Create payment record
       const payment = queryRunner.manager.create(Payment, {
         user: { id: userId },
+        createdBy: userId,
         cart: { id: cartId },
         cartId,
         method: paymentMethod,
@@ -136,68 +137,66 @@ export class PaymentService {
     }
   }
 
-  // Remove createTransactionsForCart method - it's now part of checkout
+  // async confirmPayment(paymentId: string, providerData: any): Promise<{ success: boolean; message: string; payment: Payment; transactions: Transaction[] }> {
+  //   const queryRunner = this.dataSource.createQueryRunner();
+  //   await queryRunner.connect();
+  //   await queryRunner.startTransaction();
 
-  async confirmPayment(paymentId: string, providerData: any): Promise<{ success: boolean; message: string; payment: Payment; transactions: Transaction[] }> {
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
+  //   try {
+  //     // 1. Update payment status
+  //     const payment = await queryRunner.manager.findOne(Payment, {
+  //       where: { id: paymentId },
+  //       relations: ['cart', 'transactions'],
+  //     });
 
-    try {
-      // 1. Update payment status
-      const payment = await queryRunner.manager.findOne(Payment, {
-        where: { id: paymentId },
-        relations: ['cart', 'transactions'],
-      });
+  //     if (!payment) {
+  //       throw new NotFoundException('Payment not found');
+  //     }
 
-      if (!payment) {
-        throw new NotFoundException('Payment not found');
-      }
+  //     if (payment.status === PaymentStatus.SUCCESS) {
+  //       throw new BadRequestException('Payment already confirmed');
+  //     }
 
-      if (payment.status === PaymentStatus.SUCCESS) {
-        throw new BadRequestException('Payment already confirmed');
-      }
+  //     payment.status = PaymentStatus.SUCCESS;
+  //     payment.providerTransactionId = providerData.transactionId || providerData.id;
+  //     payment.providerResponse = providerData;
+  //     await queryRunner.manager.save(payment);
 
-      payment.status = PaymentStatus.SUCCESS;
-      payment.providerTransactionId = providerData.transactionId || providerData.id;
-      payment.providerResponse = providerData;
-      await queryRunner.manager.save(payment);
+  //     // 2. Get all transactions for this payment and mark them as PAID
+  //     await queryRunner.manager.update(
+  //       Transaction,
+  //       { paymentId: paymentId },
+  //       {
+  //         status: TransactionStatus.PAID,
+  //         updated_at: new Date(),
+  //       }
+  //     );
 
-      // 2. Get all transactions for this payment and mark them as PAID
-      await queryRunner.manager.update(
-        Transaction,
-        { paymentId: paymentId },
-        {
-          status: TransactionStatus.PAID,
-          updated_at: new Date(),
-        }
-      );
+  //     // 3. Get updated transactions
+  //     const transactions = await queryRunner.manager.find(Transaction, {
+  //       where: { paymentId: paymentId },
+  //       relations: ['creator', 'buyer', 'cartItem'],
+  //     });
 
-      // 3. Get updated transactions
-      const transactions = await queryRunner.manager.find(Transaction, {
-        where: { paymentId: paymentId },
-        relations: ['creator', 'buyer', 'cartItem'],
-      });
+  //     await queryRunner.commitTransaction();
 
-      await queryRunner.commitTransaction();
+  //     this.logger.log(`Payment ${paymentId} confirmed successfully, updated ${transactions.length} transactions to PAID`);
 
-      this.logger.log(`Payment ${paymentId} confirmed successfully, updated ${transactions.length} transactions to PAID`);
+  //     return {
+  //       success: true,
+  //       message: 'Payment confirmed successfully',
+  //       payment,
+  //       transactions
+  //     };
 
-      return {
-        success: true,
-        message: 'Payment confirmed successfully',
-        payment,
-        transactions
-      };
-
-    } catch (error) {
-      await queryRunner.rollbackTransaction();
-      this.logger.error(`Payment confirmation failed: ${error.message}`);
-      throw error;
-    } finally {
-      await queryRunner.release();
-    }
-  }
+  //   } catch (error) {
+  //     await queryRunner.rollbackTransaction();
+  //     this.logger.error(`Payment confirmation failed: ${error.message}`);
+  //     throw error;
+  //   } finally {
+  //     await queryRunner.release();
+  //   }
+  // }
 
   async confirmPaymentByCart(cartId: string, userId?: string): Promise<{ success: boolean; message: string; payment: Payment }> {
     const queryRunner = this.dataSource.createQueryRunner();
@@ -219,7 +218,7 @@ export class PaymentService {
       }
 
       // 2. Validate user ownership (if userId is provided)
-      if (userId && payment.user.id !== userId) {
+      if (userId && payment.createdBy !== userId) {
         throw new ForbiddenException('You are not authorized to confirm this payment');
       }
 
@@ -256,51 +255,51 @@ export class PaymentService {
     }
   }
 
-  async cancelPayment(paymentId: string): Promise<{ success: boolean; message: string }> {
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
+  // async cancelPayment(paymentId: string): Promise<{ success: boolean; message: string }> {
+  //   const queryRunner = this.dataSource.createQueryRunner();
+  //   await queryRunner.connect();
+  //   await queryRunner.startTransaction();
 
-    try {
-      // 1. Update payment status to FAILED
-      const payment = await queryRunner.manager.findOne(Payment, {
-        where: { id: paymentId, status: PaymentStatus.PENDING },
-      });
+  //   try {
+  //     // 1. Update payment status to FAILED
+  //     const payment = await queryRunner.manager.findOne(Payment, {
+  //       where: { id: paymentId, status: PaymentStatus.PENDING },
+  //     });
 
-      if (!payment) {
-        throw new NotFoundException('Pending payment not found');
-      }
+  //     if (!payment) {
+  //       throw new NotFoundException('Pending payment not found');
+  //     }
 
-      payment.status = PaymentStatus.FAILED;
-      await queryRunner.manager.save(payment);
+  //     payment.status = PaymentStatus.FAILED;
+  //     await queryRunner.manager.save(payment);
 
-      // 2. Mark all transactions as CANCELLED (or keep as PENDING for retry)
-      await queryRunner.manager.update(
-        Transaction,
-        { paymentId: paymentId, status: TransactionStatus.PENDING },
-        {
-          status: TransactionStatus.CANCELLED,
-          updated_at: new Date(),
-        }
-      );
+  //     // 2. Mark all transactions as CANCELLED (or keep as PENDING for retry)
+  //     await queryRunner.manager.update(
+  //       Transaction,
+  //       { paymentId: paymentId, status: TransactionStatus.PENDING },
+  //       {
+  //         status: TransactionStatus.CANCELLED,
+  //         updated_at: new Date(),
+  //       }
+  //     );
 
-      await queryRunner.commitTransaction();
+  //     await queryRunner.commitTransaction();
 
-      this.logger.log(`Payment ${paymentId} cancelled, transactions marked as CANCELLED`);
+  //     this.logger.log(`Payment ${paymentId} cancelled, transactions marked as CANCELLED`);
 
-      return {
-        success: true,
-        message: 'Payment cancelled successfully'
-      };
+  //     return {
+  //       success: true,
+  //       message: 'Payment cancelled successfully'
+  //     };
 
-    } catch (error) {
-      await queryRunner.rollbackTransaction();
-      this.logger.error(`Payment cancellation failed: ${error.message}`);
-      throw error;
-    } finally {
-      await queryRunner.release();
-    }
-  }
+  //   } catch (error) {
+  //     await queryRunner.rollbackTransaction();
+  //     this.logger.error(`Payment cancellation failed: ${error.message}`);
+  //     throw error;
+  //   } finally {
+  //     await queryRunner.release();
+  //   }
+  // }
 
   async cancelPaymentByCart(cartId: string, userId?: string): Promise<{ success: boolean; message: string }> {
     const queryRunner = this.dataSource.createQueryRunner();
@@ -322,7 +321,7 @@ export class PaymentService {
       }
 
       // 2. Validate user ownership (if userId is provided)
-      if (userId && payment.user.id !== userId) {
+      if (userId && payment.createdBy !== userId) {
         throw new ForbiddenException('You are not authorized to cancel this payment');
       }
 

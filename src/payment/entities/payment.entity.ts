@@ -1,7 +1,7 @@
 import { BasicEntity } from '../../common/entities/basic.entity';
 import { User } from 'src/user/entities/user.entity';
 import { Cart } from 'src/cart/entities/cart.entity';
-import { Entity, Column, ManyToOne, Index, OneToMany } from 'typeorm';
+import { Entity, Column, ManyToOne, Index, OneToMany, JoinColumn } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 import { Transaction } from './transaction.entity';
 
@@ -25,7 +25,12 @@ export enum PaymentMethod {
 export class Payment extends BasicEntity {
   @ApiProperty({ description: 'User who made the payment', type: () => User })
   @ManyToOne(() => User, (user) => user.payments)
+  @JoinColumn({ name: 'created_by' })
   user: User;
+
+  @ApiProperty({ description: 'User ID who made the payment', format: 'uuid' })
+  @Column({ type: 'uuid', name: 'created_by' })
+  createdBy: string;
 
   @ApiProperty({ description: 'Cart associated with this payment', type: () => Cart })
   @ManyToOne(() => Cart, (cart) => cart.payments)
