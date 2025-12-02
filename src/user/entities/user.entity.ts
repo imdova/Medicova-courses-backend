@@ -10,6 +10,7 @@ import { Role } from './roles.entity';
 import { IdentityVerification } from './identity-verification.entity';
 import { FileUpload } from '../../file-upload/entities/file-upload.entity';
 import { Department } from './department.entity';
+import { Cart } from 'src/cart/entities/cart.entity';
 
 @Entity()
 export class User extends BasicEntity {
@@ -98,6 +99,9 @@ export class User extends BasicEntity {
     onDelete: 'SET NULL',
   })
   department?: Department;
+
+  @OneToMany(() => Cart, (cart) => cart.user)
+  carts: Cart[];
 
   get permissions(): string[] {
     return this.role?.rolePermissions?.map(rp => rp.permission.name) || [];

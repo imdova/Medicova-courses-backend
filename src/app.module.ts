@@ -78,6 +78,7 @@ import { Certificate } from './certificate/entities/certificate.entity';
 import { CertificateTemplate } from './certificate/entities/certificate-template.entity';
 import { CertificateAuditTrail } from './certificate/entities/certificate-audit-trail.entity';
 import { Department } from './user/entities/department.entity';
+import { Transaction } from './payment/entities/transaction.entity';
 
 @Module({
   imports: [
@@ -143,15 +144,16 @@ import { Department } from './user/entities/department.entity';
         Certificate,
         CertificateTemplate,
         CertificateAuditTrail,
-        Department
+        Department,
+        Transaction
       ],
       synchronize: true,
       extra: {
         max: 5
       },
-      ssl: {
-        rejectUnauthorized: false, // ✅ Allow self-signed certs from Cloud SQL
-      },
+      // ssl: {
+      //   rejectUnauthorized: false, // ✅ Allow self-signed certs from Cloud SQL
+      // },
     }),
     MailerModule.forRoot({
       transport: process.env.SMTP_TRANSPORT,

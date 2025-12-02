@@ -1,10 +1,10 @@
-// cart-item.entity.ts
 import { BasicEntity } from '../../common/entities/basic.entity';
 import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Cart } from './cart.entity';
 import { Course } from 'src/course/entities/course.entity';
 import { Bundle } from 'src/bundle/entities/bundle.entity';
+import { User } from 'src/user/entities/user.entity';
 
 export enum CartItemType {
     COURSE = 'course',
@@ -37,6 +37,11 @@ export class CartItem extends BasicEntity {
     @Column({ type: 'uuid', nullable: true, name: 'bundle_id' })
     bundleId?: string;
 
+    // Creator reference
+    @ApiProperty({ description: 'Creator/Instructor ID', format: 'uuid' })
+    @Column({ type: 'uuid', name: 'creator_id' })
+    creatorId: string;
+
     // Relationships
     @ApiPropertyOptional({ type: () => Course })
     @ManyToOne(() => Course, { nullable: true })
@@ -47,6 +52,11 @@ export class CartItem extends BasicEntity {
     @ManyToOne(() => Bundle, { nullable: true })
     @JoinColumn({ name: 'bundle_id' })
     bundle?: Bundle;
+
+    @ApiPropertyOptional({ type: () => User })
+    @ManyToOne(() => User, { nullable: true })
+    @JoinColumn({ name: 'creator_id' })
+    creator?: User;
 
     @ApiProperty({ description: 'Quantity of items', default: 1 })
     @Column({ type: 'int', default: 1 })
