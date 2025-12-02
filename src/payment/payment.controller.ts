@@ -59,8 +59,9 @@ export class PaymentController {
   @ApiResponse({ status: 404, description: 'Cart or pending payment not found' })
   async confirmPaymentByCart(
     @Param('cartId', ParseUUIDPipe) cartId: string,
+    @Req() req,
   ) {
-    return this.paymentService.confirmPaymentByCart(cartId);
+    return this.paymentService.confirmPaymentByCart(cartId, req.user.sub);
   }
 
   // @Post('confirm/:paymentId')
@@ -86,7 +87,7 @@ export class PaymentController {
     @Req() req,
   ) {
     // Optional: Add user validation if needed
-    return this.paymentService.cancelPaymentByCart(cartId);
+    return this.paymentService.cancelPaymentByCart(cartId, req.user.sub);
   }
 
   // @Post('cancel/:paymentId')

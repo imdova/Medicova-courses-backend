@@ -1,5 +1,5 @@
 // payment.service.ts
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, Between, FindOptionsWhere } from 'typeorm';
 import { Payment, PaymentStatus, PaymentMethod } from './entities/payment.entity';
@@ -199,30 +199,35 @@ export class PaymentService {
     }
   }
 
-  async confirmPaymentByCart(cartId: string): Promise<{ success: boolean; message: string; payment: Payment }> {
+  async confirmPaymentByCart(cartId: string, userId?: string): Promise<{ success: boolean; message: string; payment: Payment }> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      // 1. Find the pending payment for this cart
+      // 1. Find the pending payment for this cart WITH user validation
       const payment = await queryRunner.manager.findOne(Payment, {
         where: {
           cartId,
           status: PaymentStatus.PENDING,
         },
+        relations: ['cart', 'user'], // Load cart and user for validation
       });
 
       if (!payment) {
         throw new NotFoundException('Pending payment not found for this cart');
       }
 
-      // 2. Update payment status
-      payment.status = PaymentStatus.SUCCESS;
+      // 2. Validate user ownership (if userId is provided)
+      if (userId && payment.user.id !== userId) {
+        throw new ForbiddenException('You are not authorized to confirm this payment');
+      }
 
+      // 3. Update payment status
+      payment.status = PaymentStatus.SUCCESS;
       await queryRunner.manager.save(payment);
 
-      // 3. Mark all transactions as PAID
+      // 4. Mark all transactions as PAID
       await queryRunner.manager.update(
         Transaction,
         { paymentId: payment.id },
@@ -297,29 +302,35 @@ export class PaymentService {
     }
   }
 
-  async cancelPaymentByCart(cartId: string): Promise<{ success: boolean; message: string }> {
+  async cancelPaymentByCart(cartId: string, userId?: string): Promise<{ success: boolean; message: string }> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      // 1. Find the pending payment for this cart
+      // 1. Find the pending payment for this cart WITH user validation
       const payment = await queryRunner.manager.findOne(Payment, {
         where: {
           cartId,
           status: PaymentStatus.PENDING,
         },
+        relations: ['cart', 'user'], // Load cart and user for validation
       });
 
       if (!payment) {
         throw new NotFoundException('Pending payment not found for this cart');
       }
 
-      // 2. Update payment status to FAILED
+      // 2. Validate user ownership (if userId is provided)
+      if (userId && payment.user.id !== userId) {
+        throw new ForbiddenException('You are not authorized to cancel this payment');
+      }
+
+      // 3. Update payment status to FAILED
       payment.status = PaymentStatus.FAILED;
       await queryRunner.manager.save(payment);
 
-      // 3. Mark all pending transactions as CANCELLED
+      // 4. Mark all pending transactions as CANCELLED
       await queryRunner.manager.update(
         Transaction,
         { paymentId: payment.id, status: TransactionStatus.PENDING },
@@ -329,13 +340,10 @@ export class PaymentService {
         }
       );
 
-      // 4. Optionally: Reset cart status to ACTIVE so user can retry
-      const cart = await queryRunner.manager.findOne(Cart, {
-        where: { id: cartId },
-      });
-      if (cart) {
-        cart.status = CartStatus.ACTIVE;
-        await queryRunner.manager.save(cart);
+      // 5. Reset cart status to ACTIVE so user can retry
+      if (payment.cart) {
+        payment.cart.status = CartStatus.ACTIVE;
+        await queryRunner.manager.save(payment.cart);
       }
 
       await queryRunner.commitTransaction();
@@ -439,8 +447,6 @@ export class PaymentService {
       .andWhere('t.status = :status', { status: TransactionStatus.PAID })
       .getRawOne();
 
-    console.log(paidStats)
-
     // Get pending transactions stats
     const pendingStats = await this.transactionRepository
       .createQueryBuilder('t')
@@ -451,8 +457,6 @@ export class PaymentService {
       .where('t.creator_id = :creatorId', { creatorId })
       .andWhere('t.status = :status', { status: TransactionStatus.PENDING })
       .getRawOne();
-
-    console.log(pendingStats)
 
     return {
       totalEarnings: parseFloat(paidStats?.total_earnings || '0'),
