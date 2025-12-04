@@ -18,7 +18,7 @@ export const TICKET_PAGINATION_CONFIG: QueryConfig<Ticket> = {
     'updated_at',
     'title',
     'priority',
-    'status'
+    'status',
   ],
   defaultSortBy: [['created_at', 'DESC']],
   searchableColumns: ['title', 'description'], // Allows ILIKE search across title and description
@@ -26,7 +26,7 @@ export const TICKET_PAGINATION_CONFIG: QueryConfig<Ticket> = {
     title: [FilterOperator.ILIKE],
     status: [FilterOperator.EQ],
     priority: [FilterOperator.EQ],
-    createdBy: [FilterOperator.EQ], // Allows filtering by the user who created the ticket
+    subject: [FilterOperator.EQ],
   },
 };
 
@@ -64,27 +64,19 @@ export class TicketsService {
   async findAllTicketsByRole(userId: string, userRole: string, query: PaginateQuery): Promise<any> {
     const isAdmin = ADMIN_ROLES.includes(userRole);
 
-    let where: FindOptionsWhere<Ticket> = {};
+    // 1. Start a QueryBuilder, aliasing the table as 'ticket'
+    const queryBuilder = this.ticketRepository.createQueryBuilder('ticket');
 
-    // If not an Admin, restrict the query to tickets created by this user
+    // 2. Apply Base WHERE Condition using QueryBuilder (Crucial Fix)
     if (!isAdmin) {
-      where.createdBy = userId;
+      // For clients, explicitly add the authorization WHERE clause
+      queryBuilder.where('ticket.createdBy = :userId', { userId });
     }
 
-    const PAGINATION_CONFIG = {
-      sortableColumns: ['created_at', 'status', 'priority'],
-      defaultSortBy: [['created_at', 'DESC']],
-      searchableColumns: ['title', 'description'],
-      filterableColumns: {
-        status: true,
-        priority: true,
-      },
-      // Apply user ID restriction via TypeORM 'where' clause
-      // Note: NestJS-Paginate works best when you pre-filter the repository/query builder
-      where,
-    };
-
-    return paginate(query, this.ticketRepository, TICKET_PAGINATION_CONFIG);
+    // 3. Call paginate with the QueryBuilder and the configuration.
+    // When passing a QueryBuilder, the 'where' property in TICKET_PAGINATION_CONFIG 
+    // is ignored, as the WHERE clause is already controlled by the QueryBuilder.
+    return paginate(query, queryBuilder, TICKET_PAGINATION_CONFIG);
   }
 
   /**

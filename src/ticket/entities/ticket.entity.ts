@@ -17,6 +17,17 @@ export enum TicketPriority {
     HIGH = 'High',
 }
 
+export enum TicketSubject {
+    ACCOUNT_INQUIRY = 'Account Inquiry',
+    BILLING_PAYMENTS = 'Billing/Payments',
+    COURSE_ACCESS = 'Course Access Issue',
+    TECHNICAL_SUPPORT = 'Technical Support (Bug)',
+    FEATURE_REQUEST = 'Feature Request',
+    CERTIFICATE_ISSUES = 'Certificate Issue',
+    GENERAL_INQUIRY = 'General Inquiry',
+    OTHER = 'Other',
+}
+
 @Entity('tickets')
 export class Ticket extends BasicEntity {
     @ApiProperty({ description: 'A short, descriptive title for the ticket.' })
@@ -26,6 +37,11 @@ export class Ticket extends BasicEntity {
     @ApiProperty({ description: 'The detailed description of the issue or request.' })
     @Column({ type: 'text' })
     description: string; // The content of the ticket
+
+    // 🟢 NEW COLUMN: Ticket Subject
+    @ApiProperty({ description: 'The main subject or topic of the ticket.', enum: TicketSubject })
+    @Column({ type: 'enum', enum: TicketSubject })
+    subject: TicketSubject;
 
     @ApiProperty({ description: 'The priority level of the ticket.' })
     @Column({ type: 'enum', enum: TicketPriority, default: TicketPriority.MEDIUM })

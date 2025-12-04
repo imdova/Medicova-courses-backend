@@ -1,14 +1,14 @@
 // src/tickets/tickets.controller.ts
 
-import { Controller, Get, Post, Body, Patch, Param, UseGuards, Req, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, UseGuards, Req, Query, NotFoundException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiParam } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { TicketsService } from './ticket.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
-import { Ticket } from './entities/ticket.entity';
+import { Ticket, TicketPriority, TicketStatus, TicketSubject } from './entities/ticket.entity';
 import { PermissionsGuard } from 'src/auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
-import { PaginateQuery } from 'nestjs-paginate';
+import { Paginate, Paginated, PaginateQuery } from 'nestjs-paginate';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
 
 @ApiTags('Tickets')
@@ -41,9 +41,34 @@ export class TicketsController {
     summary: 'List tickets based on role (Client: only own tickets; Admin: all tickets).',
     description: 'Admins require `ticket:list` permission to fetch all tickets.'
   })
-  @ApiQuery({ name: 'status', enum: ['Open', 'Resolved', 'Closed'], required: false })
-  @ApiResponse({ status: 200, type: [Ticket] })
-  findAll(@Req() req, @Query() query: PaginateQuery) {
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 20 })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({
+    name: 'filter.status',
+    required: false,
+    enum: TicketStatus,
+    example: TicketStatus.OPEN
+  })
+  @ApiQuery({
+    name: 'filter.subject',
+    required: false,
+    enum: TicketSubject,
+    example: TicketSubject.TECHNICAL_SUPPORT
+  })
+  @ApiQuery({
+    name: 'filter.priority',
+    required: false,
+    enum: TicketPriority,
+    example: TicketPriority.MEDIUM
+  })
+  @ApiQuery({
+    name: 'filter.title',
+    required: false,
+    type: String
+  })
+  @ApiResponse({ status: 200 })
+  findAll(@Req() req, @Paginate() query: PaginateQuery) {
     const userId = req.user.sub;
     const userRole = req.user.role;
 
@@ -75,7 +100,10 @@ export class TicketsController {
   @ApiOperation({ summary: 'Admin: Update ticket status and/or priority.' })
   @ApiParam({ name: 'ticketId', type: String, description: 'UUID of the Ticket' })
   @ApiResponse({ status: 200, type: Ticket })
-  updateStatus(@Param('ticketId') ticketId: string, @Body() updateDto: UpdateTicketDto) {
+  updateStatus(@Param('ticketId') ticketId: string, @Body() updateDto: UpdateTicketDto, @Req() req) {
+    if (req.user.role !== 'admin') {
+      throw new NotFoundException(`Only Admin can edit tickets`);
+    }
     return this.ticketsService.updateTicket(ticketId, updateDto);
   }
 }

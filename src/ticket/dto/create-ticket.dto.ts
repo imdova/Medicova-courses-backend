@@ -2,7 +2,7 @@
 
 import { IsString, IsNotEmpty, IsEnum, MaxLength, IsOptional } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { TicketPriority, TicketStatus } from '../entities/ticket.entity';
+import { TicketPriority, TicketStatus, TicketSubject } from '../entities/ticket.entity';
 
 // --- Ticket Creation DTO (For the User) ---
 export class CreateTicketDto {
@@ -15,6 +15,11 @@ export class CreateTicketDto {
     @ApiPropertyOptional({ description: 'The detailed description of the issue or request.' })
     @IsString()
     description: string;
+
+    @ApiProperty({ description: 'The main subject or topic of the ticket.', enum: TicketSubject })
+    @IsEnum(TicketSubject)
+    @IsNotEmpty()
+    subject: TicketSubject; // 🟢 NEW FIELD
 
     @ApiProperty({ description: 'The priority level the user assigns to the ticket.', enum: TicketPriority, default: TicketPriority.MEDIUM, required: false })
     @IsOptional()
