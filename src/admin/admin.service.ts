@@ -22,6 +22,7 @@ import { ProfileService } from 'src/profile/profile.service';
 import { EmailService } from '../common/email.service';
 import { CourseRating } from 'src/course/entities/course-rating.entity';
 import { Academy } from 'src/academy/entities/academy.entity';
+import { CreateInstructorDto } from './dto/create-instructor.dto';
 
 @Injectable()
 export class AdminService {
@@ -1605,6 +1606,151 @@ export class AdminService {
 
     // 7. Return the created user entity (making the function return Promise<User>)
     return createdUser;
+  }
+
+  async createInstructor(
+    createInstructorDto: CreateInstructorDto,
+  ): Promise<User> {
+    const {
+      email,
+      password,
+      firstName,
+      lastName,
+      userName,
+      photoUrl,
+      phoneNumber,
+      country,
+      state,
+      city,
+    } = createInstructorDto;
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    let createdInstructor: User;
+
+    await this.dataSource.transaction(async (manager) => {
+      const userRepository = manager.getRepository(User);
+      const profileRepository = manager.getRepository(Profile);
+      const roleRepository = manager.getRepository(Role);
+
+      // 1. Check for existing user email and get instructor role
+      const [existingUser, roleEntity] = await Promise.all([
+        userRepository.findOne({
+          where: { email: normalizedEmail },
+          select: ['id'],
+        }),
+        roleRepository.findOne({
+          where: { name: 'instructor' },
+          cache: true,
+        }),
+      ]);
+
+      if (existingUser) {
+        throw new BadRequestException('Email address is already in use.');
+      }
+
+      if (!roleEntity) {
+        throw new InternalServerErrorException('Instructor role not found in the system.');
+      }
+
+      // 2. Create User Entity
+      const verificationToken = uuidv4();
+      let newUser = userRepository.create({
+        email: normalizedEmail,
+        password: hashedPassword,
+        role: roleEntity,
+        isEmailVerified: false,
+        isVerified: false,
+        emailVerificationToken: verificationToken,
+      });
+
+      newUser = await manager.save(newUser);
+
+      // 3. Generate or validate username
+      let finalUserName = userName;
+      if (!finalUserName) {
+        finalUserName = this.profileService.generateUsername(firstName, lastName);
+
+        // Ensure username is unique
+        const candidateUsernames = Array.from({ length: 5 }, () =>
+          this.profileService.generateUsername(firstName, lastName)
+        );
+
+        const existingProfiles = await profileRepository.find({
+          where: { userName: In(candidateUsernames) },
+          select: ['userName'],
+        });
+
+        const takenUsernames = new Set(existingProfiles.map(p => p.userName));
+        const availableUserName = candidateUsernames.find(u => !takenUsernames.has(u));
+
+        if (!availableUserName) {
+          throw new BadRequestException('Could not generate a unique username.');
+        }
+        finalUserName = availableUserName;
+      } else {
+        // Check if provided username is unique
+        const existingWithUsername = await profileRepository.findOne({
+          where: { userName: finalUserName },
+        });
+
+        if (existingWithUsername) {
+          throw new BadRequestException('Username is already taken.');
+        }
+      }
+
+      // 5. Create Profile Entity
+      const newProfile = profileRepository.create({
+        user: newUser,
+        firstName,
+        lastName,
+        userName: finalUserName,
+        photoUrl,
+        phoneNumber,
+        country,
+        state,
+        city,
+        contactEmail: normalizedEmail, // Use email as contact email
+        isPublic: true, // Instructors are public by default
+        averageRating: 0,
+        completionPercentage: 0,
+      });
+
+      // Calculate completion percentage
+      newProfile.completionPercentage = this.profileService.calculateCompletion(newProfile);
+      await manager.save(newProfile);
+
+      // Link profile back to user
+      newUser.profile = newProfile;
+
+      // 6. Assign the created user to the outer variable
+      createdInstructor = newUser;
+    });
+
+    // 7. Send Welcome Email (outside transaction)
+    if (createdInstructor) {
+      try {
+        const nameToSend = createdInstructor.profile.firstName || createdInstructor.email;
+
+        await this.emailService.sendEmail({
+          from: process.env.SMTP_DEMO_EMAIL,
+          to: createdInstructor.email,
+          subject: 'Welcome to Medicova - Your Instructor Account',
+          template: 'welcome-admin-created',
+          context: {
+            name: nameToSend,
+            email: createdInstructor.email,
+            password: password, // The original plaintext password
+          },
+        });
+      } catch (emailError) {
+        console.error('Failed to send instructor welcome email:', emailError);
+        // Fail silently on email error, but log it
+      }
+    }
+
+    return createdInstructor;
   }
 
   /**

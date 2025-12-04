@@ -9,6 +9,7 @@ import { RejectIdentityDto } from './dto/reject-identity.dto';
 import { EnrollmentsListResponseDto, EnrollmentStatus } from './dto/enrollment-detail.dto';
 import { CreateStudentDto } from './dto/create-student.dto';
 import { AdminRateCourseDto } from './dto/admin-add-review.dto';
+import { CreateInstructorDto } from './dto/create-instructor.dto';
 
 // Define allowed periods for validation
 enum StatsPeriod {
@@ -739,6 +740,27 @@ export class AdminController {
     return this.adminService.createStudent(
       createStudentDto,
     );
+  }
+
+  @Post('instructors')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:instructors:create')
+  @ApiOperation({ summary: 'Create a new instructor user' })
+  @ApiBody({ type: CreateInstructorDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Instructor user and profile created successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad request (e.g., email already in use)',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - insufficient permissions',
+  })
+  async createInstructor(@Body() createInstructorDto: CreateInstructorDto): Promise<any> {
+    return this.adminService.createInstructor(createInstructorDto);
   }
 
   // -----------------------------------------------------------------
