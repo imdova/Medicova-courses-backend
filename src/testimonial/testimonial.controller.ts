@@ -47,7 +47,7 @@ export class TestimonialController {
 
   @Get('/admin')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('testimonial:list')
+  @RequirePermissions('testimonial:list')
   @ApiOperation({ summary: 'Admin: Get a paginated list of ALL testimonials (including DRAFT/ARCHIVED).' })
   @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 20 })
@@ -65,7 +65,7 @@ export class TestimonialController {
 
   @Get('/admin/:id')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('testimonial:read')
+  @RequirePermissions('testimonial:read')
   @ApiOperation({ summary: 'Admin: Get a single testimonial by ID.' })
   @ApiResponse({ status: 200, type: Testimonial })
   findOne(@Param('id') id: string) {
@@ -74,7 +74,7 @@ export class TestimonialController {
 
   @Patch('/admin/:id')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('testimonial:update')
+  @RequirePermissions('testimonial:update')
   @ApiOperation({ summary: 'Admin: Update a testimonial (content, status, etc.).' })
   @ApiResponse({ status: 200, type: Testimonial })
   update(@Param('id') id: string, @Body() updateTestimonialDto: UpdateTestimonialDto) {
@@ -83,7 +83,7 @@ export class TestimonialController {
 
   @Delete('/admin/:id')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('testimonial:delete')
+  @RequirePermissions('testimonial:delete')
   @ApiOperation({ summary: 'Admin: Soft delete a testimonial.' })
   @ApiResponse({ status: 200, description: 'Testimonial successfully deleted.' })
   remove(@Param('id') id: string) {
