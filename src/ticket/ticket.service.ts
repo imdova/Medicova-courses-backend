@@ -67,6 +67,10 @@ export class TicketsService {
     // 1. Start a QueryBuilder, aliasing the table as 'ticket'
     const queryBuilder = this.ticketRepository.createQueryBuilder('ticket');
 
+    queryBuilder
+      .leftJoinAndSelect('ticket.user', 'user')
+      .leftJoinAndSelect('user.profile', 'profile');
+
     // 2. Apply Base WHERE Condition using QueryBuilder (Crucial Fix)
     if (!isAdmin) {
       // For clients, explicitly add the authorization WHERE clause
@@ -89,8 +93,7 @@ export class TicketsService {
   async findOneTicketByRole(userId: string, userRole: string, ticketId: string): Promise<Ticket> {
     const ticket = await this.ticketRepository.findOne({
       where: { id: ticketId },
-      // Optionally load the creator's details if needed
-      // relations: ['user'] 
+      relations: ['user.profile']
     });
 
     if (!ticket) {

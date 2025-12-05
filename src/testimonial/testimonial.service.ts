@@ -62,6 +62,8 @@ export class TestimonialService {
       ...TESTIMONIAL_PAGINATION_CONFIG,
       // Apply mandatory filter for PUBLISHED status
       where: { status: TestimonialStatus.PUBLISHED },
+      // 🔑 FIX: Load the 'user' relation and the nested 'profile' relation
+      relations: ['user.profile']
     });
   }
 
@@ -74,14 +76,18 @@ export class TestimonialService {
    */
   async findAllAdmin(query: PaginateQuery): Promise<any> {
     // Admin sees all testimonials regardless of status, using the base config
-    return paginate(query, this.testimonialRepository, TESTIMONIAL_PAGINATION_CONFIG);
+    return paginate(query, this.testimonialRepository, {
+      ...TESTIMONIAL_PAGINATION_CONFIG,
+      // 🔑 FIX: Load the 'user' relation and the nested 'profile' relation
+      relations: ['user.profile']
+    });
   }
 
   /**
    * Retrieves a single testimonial by ID.
    */
   async findOne(id: string): Promise<Testimonial> {
-    const testimonial = await this.testimonialRepository.findOne({ where: { id } });
+    const testimonial = await this.testimonialRepository.findOne({ where: { id }, relations: ['user.profile'] });
     if (!testimonial) {
       throw new NotFoundException(`Testimonial with ID ${id} not found.`);
     }
