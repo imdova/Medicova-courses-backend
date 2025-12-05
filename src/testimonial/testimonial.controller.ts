@@ -1,11 +1,11 @@
 // src/testimonials/testimonial.controller.ts
 
 import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, Req } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { Paginate, PaginateQuery } from 'nestjs-paginate';
 import { TestimonialService } from './testimonial.service';
-import { Testimonial } from './entities/testimonial.entity';
+import { Testimonial, TestimonialStatus } from './entities/testimonial.entity';
 import { CreateTestimonialDto } from './dto/create-testimonial.dto';
 import { PermissionsGuard } from 'src/auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
@@ -49,8 +49,17 @@ export class TestimonialController {
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   //@RequirePermissions('testimonial:list')
   @ApiOperation({ summary: 'Admin: Get a paginated list of ALL testimonials (including DRAFT/ARCHIVED).' })
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 20 })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({
+    name: 'filter.status',
+    required: false,
+    enum: TestimonialStatus,
+    example: TestimonialStatus.DRAFT
+  })
   @ApiResponse({ status: 200, type: Testimonial, isArray: true })
-  findAllAdmin(@Query() query: PaginateQuery) {
+  findAllAdmin(@Paginate() query: PaginateQuery) {
     return this.testimonialsService.findAllAdmin(query);
   }
 
