@@ -83,6 +83,10 @@ import { TicketModule } from './ticket/ticket.module';
 import { Ticket } from './ticket/entities/ticket.entity';
 import { TestimonialModule } from './testimonial/testimonial.module';
 import { Testimonial } from './testimonial/entities/testimonial.entity';
+import { InvoiceModule } from './invoice/invoice.module';
+import { Invoice } from './invoice/entities/invoice.entity';
+import { InvoiceItem } from './invoice/entities/invoice-item.entity';
+import { AdditionalCharge } from './invoice/entities/additional-charge.entity';
 
 @Module({
   imports: [
@@ -151,15 +155,18 @@ import { Testimonial } from './testimonial/entities/testimonial.entity';
         Department,
         Transaction,
         Ticket,
-        Testimonial
+        Testimonial,
+        Invoice,
+        InvoiceItem,
+        AdditionalCharge
       ],
       synchronize: true,
       extra: {
         max: 5
       },
-      ssl: {
-        rejectUnauthorized: false, // ✅ Allow self-signed certs from Cloud SQL
-      },
+      // ssl: {
+      //   rejectUnauthorized: false, // ✅ Allow self-signed certs from Cloud SQL
+      // },
     }),
     MailerModule.forRoot({
       transport: process.env.SMTP_TRANSPORT,
@@ -190,6 +197,7 @@ import { Testimonial } from './testimonial/entities/testimonial.entity';
     CertificateModule,
     TicketModule,
     TestimonialModule,
+    InvoiceModule,
   ],
   controllers: [AppController],
   providers: [AppService, DatabaseService],
