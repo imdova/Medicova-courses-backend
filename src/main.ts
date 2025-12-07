@@ -53,6 +53,7 @@ async function bootstrap(): Promise<NestExpressApplication> {
           'https://courses.medicova.net',
           'https://medicova-courses-git-test-cors-auth-imdovas-projects.vercel.app',
           'https://medicova-courses-git-preview-imdovas-projects.vercel.app',
+          'https://jobacademy.net/',
           'null' // for file:// protocol
         ];
 
