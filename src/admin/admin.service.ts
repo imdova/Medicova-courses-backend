@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Repository } from 'typeorm';
+import { Brackets, DataSource, In, Repository } from 'typeorm';
 import { User } from '../user/entities/user.entity';
 import { Course, CourseStatus } from '../course/entities/course.entity';
 import { Profile } from '../profile/entities/profile.entity';
@@ -23,6 +23,7 @@ import { EmailService } from '../common/email.service';
 import { CourseRating } from 'src/course/entities/course-rating.entity';
 import { Academy } from 'src/academy/entities/academy.entity';
 import { CreateInstructorDto } from './dto/create-instructor.dto';
+import { ProfileMetadataDto } from 'src/profile/dto/profile-metadata.dto';
 
 @Injectable()
 export class AdminService {
@@ -2860,5 +2861,303 @@ export class AdminService {
       console.error('Failed to fetch top academies:', error);
       return [];
     }
+  }
+
+  async publicSearch(
+    query?: string,
+    page?: any,
+    limit?: any,
+    type: 'all' | 'instructors' | 'academies' = 'all',
+    country?: string,
+    city?: string,
+    academyType?: string,
+    minExperience?: any, // New parameter
+    maxExperience?: any, // New parameter
+  ): Promise<any> {
+    // Parse and validate page parameter
+    let pageNum = 1;
+    if (page !== undefined && page !== null) {
+      if (typeof page === 'string') {
+        pageNum = parseInt(page, 10);
+      } else if (typeof page === 'number') {
+        pageNum = page;
+      }
+      if (isNaN(pageNum) || pageNum < 1) {
+        pageNum = 1;
+      }
+    }
+
+    // Parse and validate limit parameter
+    let limitNum = 10;
+    if (limit !== undefined && limit !== null) {
+      if (typeof limit === 'string') {
+        limitNum = parseInt(limit, 10);
+      } else if (typeof limit === 'number') {
+        limitNum = limit;
+      }
+      if (isNaN(limitNum) || limitNum < 1) {
+        limitNum = 10;
+      }
+      // Cap the limit for safety
+      if (limitNum > 100) {
+        limitNum = 100;
+      }
+    }
+
+    // Parse and validate experience parameters
+    let minExpNum: number | undefined;
+    if (minExperience !== undefined && minExperience !== null && minExperience !== '') {
+      if (typeof minExperience === 'string') {
+        minExpNum = parseFloat(minExperience);
+      } else if (typeof minExperience === 'number') {
+        minExpNum = minExperience;
+      }
+      if (isNaN(minExpNum) || minExpNum < 0) {
+        minExpNum = undefined;
+      }
+    }
+
+    let maxExpNum: number | undefined;
+    if (maxExperience !== undefined && maxExperience !== null && maxExperience !== '') {
+      if (typeof maxExperience === 'string') {
+        maxExpNum = parseFloat(maxExperience);
+      } else if (typeof maxExperience === 'number') {
+        maxExpNum = maxExperience;
+      }
+      if (isNaN(maxExpNum) || maxExpNum < 0) {
+        maxExpNum = undefined;
+      }
+    }
+
+    // Validate experience range
+    if (minExpNum !== undefined && maxExpNum !== undefined && minExpNum > maxExpNum) {
+      throw new BadRequestException('minExperience cannot be greater than maxExperience');
+    }
+
+    const skip = (pageNum - 1) * limitNum;
+
+    const results = {
+      instructors: [],
+      academies: [],
+      totalInstructors: 0,
+      totalAcademies: 0,
+      page: pageNum,
+      limit: limitNum,
+      totalInstructorPages: 0,
+      totalAcademyPages: 0,
+    };
+
+    // Helper function to calculate years of experience from metadata
+    const calculateYearsOfExperience = (metadata: ProfileMetadataDto): number => {
+      if (!metadata?.experience || metadata.experience.length === 0) {
+        return 0;
+      }
+
+      let totalMonths = 0;
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth() + 1; // JavaScript months are 0-indexed
+
+      for (const exp of metadata.experience) {
+        const startYear = exp.startYear;
+        const startMonth = exp.startMonth;
+
+        let endYear, endMonth;
+
+        if (exp.currentlyWorkHere) {
+          endYear = currentYear;
+          endMonth = currentMonth;
+        } else if (exp.endYear && exp.endMonth) {
+          endYear = exp.endYear;
+          endMonth = exp.endMonth;
+        } else {
+          continue; // Skip incomplete experience entries
+        }
+
+        // Calculate months of experience for this entry
+        const months = ((endYear - startYear) * 12) + (endMonth - startMonth);
+        totalMonths += months > 0 ? months : 0;
+      }
+
+      // Convert months to years (with one decimal place)
+      const years = totalMonths / 12;
+      return parseFloat(years.toFixed(1));
+    };
+
+    // Search for instructors if requested
+    if (type === 'all' || type === 'instructors') {
+      // First, get all instructors with their profiles
+      let instructorQuery = this.userRepository
+        .createQueryBuilder('user')
+        .leftJoinAndSelect('user.profile', 'profile')
+        .leftJoinAndSelect('user.academy', 'academy')
+        .leftJoinAndSelect('user.role', 'role')
+        .where('role.name = :roleName', { roleName: 'instructor' });
+
+      // Add search filter if query is provided
+      if (query && query.trim() !== '') {
+        instructorQuery.andWhere(
+          new Brackets(qb => {
+            qb.where('user.email ILIKE :query', { query: `%${query}%` })
+              .orWhere('profile.firstName ILIKE :query', { query: `%${query}%` })
+              .orWhere('profile.lastName ILIKE :query', { query: `%${query}%` })
+              .orWhere('profile.metadata::text ILIKE :query', { query: `%${query}%` });
+          })
+        );
+      }
+
+      // Add country filter
+      if (country && country.trim() !== '') {
+        instructorQuery.andWhere('profile.country->>\'name\' ILIKE :country', {
+          country: `%${country.trim()}%`
+        });
+      }
+
+      // Add city filter
+      if (city && city.trim() !== '') {
+        instructorQuery.andWhere('profile.state->>\'name\' ILIKE :city', {
+          city: `%${city.trim()}%`
+        });
+      }
+
+      // Get initial results
+      const allInstructors = await instructorQuery.getMany();
+
+      // Filter by experience if needed
+      let filteredInstructors = allInstructors;
+
+      if (minExpNum !== undefined || maxExpNum !== undefined) {
+        filteredInstructors = allInstructors.filter(instructor => {
+          const metadata = instructor.profile?.metadata as ProfileMetadataDto;
+          const yearsOfExperience = calculateYearsOfExperience(metadata);
+
+          if (minExpNum !== undefined && maxExpNum !== undefined) {
+            return yearsOfExperience >= minExpNum && yearsOfExperience <= maxExpNum;
+          } else if (minExpNum !== undefined) {
+            return yearsOfExperience >= minExpNum;
+          } else if (maxExpNum !== undefined) {
+            return yearsOfExperience <= maxExpNum;
+          }
+          return true;
+        });
+      }
+
+      // Update total count
+      results.totalInstructors = filteredInstructors.length;
+      results.totalInstructorPages = Math.ceil(results.totalInstructors / limitNum);
+
+      // Apply pagination
+      const paginatedInstructors = filteredInstructors
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(skip, skip + limitNum);
+
+      // Format instructor results
+      results.instructors = paginatedInstructors.map(instructor => {
+        const metadata = instructor.profile?.metadata as ProfileMetadataDto;
+        const yearsOfExperience = calculateYearsOfExperience(metadata);
+
+        return {
+          id: instructor.id,
+          email: instructor.email,
+          isVerified: instructor.isVerified,
+          role: instructor.role ? instructor.role.name : null,
+          yearsOfExperience: yearsOfExperience, // Add years of experience to response
+          profile: instructor.profile ? {
+            firstName: instructor.profile.firstName,
+            lastName: instructor.profile.lastName,
+            fullName: `${instructor.profile.firstName} ${instructor.profile.lastName}`,
+            bio: metadata?.bio,
+            photo: instructor.profile.photoUrl,
+            country: instructor.profile.country,
+            city: instructor.profile.city,
+            phone: instructor.profile.phoneNumber,
+            experience: metadata?.experience, // Include experience in response
+            skills: metadata?.skills, // Include skills in response
+            // Add other relevant fields
+          } : null,
+          academy: instructor.academy ? {
+            id: instructor.academy.id,
+            name: instructor.academy.name,
+            slug: instructor.academy.slug,
+            image: instructor.academy.image,
+          } : null,
+          createdAt: instructor.created_at,
+        };
+      });
+    }
+
+    // Search for academies if requested (remains the same)
+    if (type === 'all' || type === 'academies') {
+      const academyQuery = this.academyRepository
+        .createQueryBuilder('academy')
+        .where('academy.isVerified = :isVerified', { isVerified: true });
+
+      // Add search filter if query is provided
+      if (query && query.trim() !== '') {
+        academyQuery.andWhere(
+          new Brackets(qb => {
+            qb.where('academy.name ILIKE :query', { query: `%${query}%` })
+              .orWhere('academy.description ILIKE :query', { query: `%${query}%` })
+              .orWhere('academy.about ILIKE :query', { query: `%${query}%` })
+            //.orWhere('academy.keyWords::text ILIKE :query', { query: `%${query}%` });
+          })
+        );
+      }
+
+      // Add country filter
+      if (country && country.trim() !== '') {
+        academyQuery.andWhere('academy.country->>\'name\' ILIKE :country', {
+          country: `%${country.trim()}%`
+        });
+      }
+
+      // Add city filter
+      if (city && city.trim() !== '') {
+        academyQuery.andWhere('academy.city->>\'name\' ILIKE :city', {
+          city: `%${city.trim()}%`
+        });
+      }
+
+      // Add academy type filter
+      if (academyType && academyType.trim() !== '') {
+        academyQuery.andWhere('academy.type = :academyType', { academyType: academyType.trim() });
+      }
+
+      // Get total count
+      results.totalAcademies = await academyQuery.getCount();
+      results.totalAcademyPages = Math.ceil(results.totalAcademies / limitNum);
+
+      // Get paginated results
+      const academies = await academyQuery
+        .orderBy('academy.created_at', 'DESC')
+        .skip(skip)
+        .take(limitNum)
+        .getMany();
+
+      // Format academy results
+      results.academies = academies.map(academy => ({
+        id: academy.id,
+        name: academy.name,
+        slug: academy.slug,
+        image: academy.image,
+        cover: academy.cover,
+        description: academy.description,
+        type: academy.type,
+        size: academy.size,
+        foundedYear: academy.foundedYear,
+        address: academy.address,
+        city: academy.city,
+        country: academy.country,
+        email: academy.email,
+        phone: academy.phone,
+        socialLinks: academy.socialLinks,
+        studentsCount: academy.displayRealStudentsCount ? academy.studentsCount : academy.fakeStudentsCount,
+        isVerified: academy.isVerified,
+        completionPercentage: academy.completionPercentage,
+        createdAt: academy.created_at,
+      }));
+    }
+
+    return results;
   }
 }
