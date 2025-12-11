@@ -86,7 +86,6 @@ import { Testimonial } from './testimonial/entities/testimonial.entity';
 import { InvoiceModule } from './invoice/invoice.module';
 import { Invoice } from './invoice/entities/invoice.entity';
 import { InvoiceItem } from './invoice/entities/invoice-item.entity';
-import { AdditionalCharge } from './invoice/entities/additional-charge.entity';
 
 @Module({
   imports: [
@@ -158,7 +157,6 @@ import { AdditionalCharge } from './invoice/entities/additional-charge.entity';
         Testimonial,
         Invoice,
         InvoiceItem,
-        AdditionalCharge
       ],
       synchronize: true,
       extra: {

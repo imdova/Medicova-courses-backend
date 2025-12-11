@@ -1,6 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { InvoiceStatus, PaymentType } from '../entities/invoice.entity';
-import { AdditionalChargeType } from '../entities/additional-charge.entity';
 
 export class InvoiceItemResponseDto {
     @ApiProperty({ description: 'Item ID', format: 'uuid' })
@@ -29,29 +28,6 @@ export class InvoiceItemResponseDto {
 
     @ApiProperty({ description: 'Discount amount' })
     discountAmount: number;
-
-    @ApiProperty({ description: 'Created at' })
-    createdAt: Date;
-}
-
-export class AdditionalChargeResponseDto {
-    @ApiProperty({ description: 'Charge ID', format: 'uuid' })
-    id: string;
-
-    @ApiProperty({ description: 'Charge type', enum: AdditionalChargeType })
-    type: AdditionalChargeType;
-
-    @ApiProperty({ description: 'Description' })
-    description: string;
-
-    @ApiProperty({ description: 'Amount' })
-    amount: number;
-
-    @ApiProperty({ description: 'Percentage' })
-    percentage: number;
-
-    @ApiProperty({ description: 'Is percentage based' })
-    isPercentage: boolean;
 
     @ApiProperty({ description: 'Created at' })
     createdAt: Date;
@@ -128,8 +104,17 @@ export class InvoiceResponseDto {
     @ApiProperty({ description: 'Invoice items', type: [InvoiceItemResponseDto] })
     items: InvoiceItemResponseDto[];
 
-    @ApiProperty({ description: 'Additional charges', type: [AdditionalChargeResponseDto] })
-    additionalCharges: AdditionalChargeResponseDto[];
+    @ApiPropertyOptional({
+        description: 'Overall discount rate percentage for the invoice',
+        example: '5',
+    })
+    discountRate?: number;
+
+    @ApiPropertyOptional({
+        description: 'Overall tax rate percentage for the invoice',
+        example: '5',
+    })
+    taxRate?: number;
 
     @ApiPropertyOptional({ description: 'Notes' })
     notes?: string;

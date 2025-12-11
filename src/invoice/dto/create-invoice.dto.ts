@@ -11,128 +11,47 @@ import {
     ValidateNested,
     IsArray,
     IsPhoneNumber,
-    IsPositive
+    IsPositive,
+    IsInt
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PaymentType } from '../entities/invoice.entity';
-import { AdditionalChargeType } from '../entities/additional-charge.entity';
+import { InvoiceItemType } from '../entities/invoice-item.entity';
 
 export class InvoiceItemDto {
     @ApiProperty({
-        description: 'Item description',
-        example: 'Online Course: Advanced Web Development',
-        examples: [
-            'Online Course: React Masterclass',
-            'Monthly Subscription: Premium Plan',
-            'Consulting Services: 2 hours',
-            'E-book: TypeScript Fundamentals',
-            'Webinar: AI for Beginners'
-        ]
+        description: 'Type of item to add to cart',
+        enum: InvoiceItemType
     })
-    @IsString()
-    description: string;
+    @IsEnum(InvoiceItemType)
+    itemType: InvoiceItemType;
 
     @ApiProperty({
-        description: 'Unit price per item',
-        example: 99.99,
-        examples: [49.99, 199.99, 29.95, 499.00, 15.50]
+        description: 'ID of the course or bundle',
+        format: 'uuid'
     })
-    @IsNumber()
-    @Min(0)
-    unitPrice: number;
+    @IsUUID()
+    itemId: string;
+
+    @ApiProperty({
+        description: 'Currency code for the item',
+        enum: ['USD', 'EUR', 'EGP', 'SAR'],
+        example: 'USD'
+    })
+    @IsString()
+    currencyCode: string;
 
     @ApiProperty({
         description: 'Quantity of items',
-        example: 1,
-        examples: [1, 2, 5, 10, 100],
-        default: 1
+        default: 1,
+        minimum: 1
     })
-    @IsNumber()
+    @IsInt()
     @Min(1)
-    quantity: number = 1;
-
-    @ApiPropertyOptional({
-        description: 'Tax rate percentage (e.g., 15 for 15%)',
-        example: 15,
-        examples: [0, 5, 10, 15, 20],
-        default: 0
-    })
-    @IsNumber()
-    @Min(0)
     @IsOptional()
-    taxRate?: number = 0;
-
-    @ApiPropertyOptional({
-        description: 'Discount percentage applied to this item (e.g., 10 for 10%)',
-        example: 10,
-        examples: [0, 5, 10, 15, 25, 50],
-        default: 0
-    })
-    @IsNumber()
-    @Min(0)
-    @IsOptional()
-    discountRate?: number = 0;
+    quantity?: number = 1;
 }
 
-export class AdditionalChargeDto {
-    @ApiProperty({
-        description: 'Type of additional charge',
-        enum: AdditionalChargeType,
-        example: AdditionalChargeType.TAX,
-        examples: [
-            AdditionalChargeType.TAX,
-            AdditionalChargeType.DISCOUNT,
-            AdditionalChargeType.SHIPPING,
-            AdditionalChargeType.FEE,
-            AdditionalChargeType.OTHER
-        ]
-    })
-    @IsEnum(AdditionalChargeType)
-    type: AdditionalChargeType;
-
-    @ApiProperty({
-        description: 'Description of the charge',
-        example: 'VAT Tax',
-        examples: [
-            'Early Payment Discount',
-            'Shipping & Handling',
-            'Service Fee',
-            'Late Payment Penalty',
-            'Promotional Discount'
-        ]
-    })
-    @IsString()
-    description: string;
-
-    @ApiProperty({
-        description: 'Amount (positive for charges, negative for discounts)',
-        example: -50.00,
-        examples: [15.00, -20.00, 5.99, -100.00, 10.50],
-        type: Number
-    })
-    @IsNumber()
-    amount: number;
-
-    @ApiPropertyOptional({
-        description: 'Percentage if this is a percentage-based charge (e.g., 15 for 15%)',
-        example: 10,
-        examples: [5, 10, 15, 20, 25],
-        default: 0
-    })
-    @IsNumber()
-    @Min(0)
-    @IsOptional()
-    percentage?: number = 0;
-
-    @ApiPropertyOptional({
-        description: 'Whether this charge is calculated as a percentage of the subtotal',
-        example: true,
-        examples: [true, false],
-        default: false
-    })
-    @IsOptional()
-    isPercentage?: boolean = false;
-}
 
 export class CreateInvoiceDto {
     // General
@@ -280,73 +199,27 @@ export class CreateInvoiceDto {
     @ApiProperty({
         description: 'List of items/products/services included in the invoice',
         type: [InvoiceItemDto],
-        example: [
-            {
-                description: 'Online Course: Web Development Fundamentals',
-                unitPrice: 199.99,
-                quantity: 1,
-                taxRate: 15,
-                discountRate: 10
-            },
-            {
-                description: 'Monthly Platform Subscription',
-                unitPrice: 29.99,
-                quantity: 3,
-                taxRate: 15,
-                discountRate: 0
-            }
-        ],
-        examples: [
-            [
-                { description: 'Consulting Services', unitPrice: 150, quantity: 5, taxRate: 10 },
-                { description: 'Software License', unitPrice: 499, quantity: 1, discountRate: 15 }
-            ],
-            [
-                { description: 'Premium Support Package', unitPrice: 99.99, quantity: 1 }
-            ]
-        ]
     })
     @IsArray()
     @ValidateNested({ each: true })
     @Type(() => InvoiceItemDto)
     items: InvoiceItemDto[];
 
-    // Additional Charges (Discounts and Taxes)
     @ApiPropertyOptional({
-        description: 'Additional charges, discounts, or fees applied to the invoice',
-        type: [AdditionalChargeDto],
-        example: [
-            {
-                type: AdditionalChargeType.DISCOUNT,
-                description: 'Early Payment Discount',
-                amount: -50.00,
-                percentage: 10,
-                isPercentage: true
-            },
-            {
-                type: AdditionalChargeType.TAX,
-                description: 'VAT Tax',
-                amount: 75.00,
-                percentage: 15,
-                isPercentage: true
-            }
-        ],
-        examples: [
-            [
-                { type: 'DISCOUNT', description: 'Promo Code', amount: -25.00 },
-                { type: 'TAX', description: 'Sales Tax', amount: 19.99 }
-            ],
-            [
-                { type: 'SHIPPING', description: 'Express Shipping', amount: 15.99 }
-            ],
-            []  // No additional charges
-        ]
+        description: 'Overall discount rate percentage for the invoice',
+        example: '5',
     })
-    @IsArray()
-    @ValidateNested({ each: true })
-    @Type(() => AdditionalChargeDto)
+    @IsNumber()
     @IsOptional()
-    additionalCharges?: AdditionalChargeDto[];
+    discountRate?: number;
+
+    @ApiPropertyOptional({
+        description: 'Overall tax rate percentage for the invoice',
+        example: '5',
+    })
+    @IsNumber()
+    @IsOptional()
+    taxRate?: number;
 
     // Notes
     @ApiPropertyOptional({

@@ -1,14 +1,15 @@
 // invoice.service.ts
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, Between, Like, FindOptionsWhere } from 'typeorm';
+import { Repository, DataSource, FindOptionsWhere } from 'typeorm';
 import { Invoice, InvoiceStatus, PaymentType } from './entities/invoice.entity';
-import { InvoiceItem } from './entities/invoice-item.entity';
-import { AdditionalCharge, AdditionalChargeType } from './entities/additional-charge.entity';
+import { InvoiceItem, InvoiceItemType } from './entities/invoice-item.entity';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { InvoiceResponseDto } from './dto/invoice-response.dto';
 import { User } from '../user/entities/user.entity';
+import { Course } from '../course/entities/course.entity';
+import { Bundle } from '../bundle/entities/bundle.entity';
 
 @Injectable()
 export class InvoiceService {
@@ -17,10 +18,12 @@ export class InvoiceService {
     private invoiceRepository: Repository<Invoice>,
     @InjectRepository(InvoiceItem)
     private invoiceItemRepository: Repository<InvoiceItem>,
-    @InjectRepository(AdditionalCharge)
-    private additionalChargeRepository: Repository<AdditionalCharge>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @InjectRepository(Course)
+    private courseRepository: Repository<Course>,
+    @InjectRepository(Bundle)
+    private bundleRepository: Repository<Bundle>,
     private dataSource: DataSource,
   ) { }
 
@@ -49,7 +52,7 @@ export class InvoiceService {
   }
 
   async create(createInvoiceDto: CreateInvoiceDto, userId: string): Promise<InvoiceResponseDto> {
-    // Verify user exists BEFORE starting transaction
+    // Verify user exists
     const user = await this.userRepository.findOne({
       where: { id: userId }
     });
@@ -62,7 +65,6 @@ export class InvoiceService {
     await queryRunner.connect();
 
     try {
-      // START TRANSACTION
       await queryRunner.startTransaction();
 
       // Create invoice
@@ -84,60 +86,129 @@ export class InvoiceService {
       invoice.toPhone = createInvoiceDto.toPhone || null;
       invoice.toAddress = createInvoiceDto.toAddress || null;
 
+      // Invoice level rates
+      invoice.discountRate = createInvoiceDto.discountRate || 0;
+      invoice.taxRate = createInvoiceDto.taxRate || 0;
+
       invoice.notes = createInvoiceDto.notes || null;
-      invoice.status = InvoiceStatus.DRAFT;
+      invoice.status = InvoiceStatus.PENDING;
       invoice.createdBy = userId;
       invoice.createdByUser = user;
 
-      // First save the invoice to get an ID
+      // Save invoice first
       const savedInvoice = await queryRunner.manager.save(invoice);
 
       // Create invoice items
       if (createInvoiceDto.items && createInvoiceDto.items.length > 0) {
-        const invoiceItems = createInvoiceDto.items.map(itemDto => {
-          const invoiceItem = new InvoiceItem();
-          invoiceItem.invoiceId = savedInvoice.id;
-          invoiceItem.description = itemDto.description;
-          invoiceItem.unitPrice = itemDto.unitPrice;
-          invoiceItem.quantity = itemDto.quantity;
-          invoiceItem.taxRate = itemDto.taxRate || 0;
-          invoiceItem.discountRate = itemDto.discountRate || 0;
-          invoiceItem.calculateTotals();
-          return invoiceItem;
-        });
+        const invoiceItems = await Promise.all(
+          createInvoiceDto.items.map(async (itemDto) => {
+            const invoiceItem = new InvoiceItem();
+            invoiceItem.invoiceId = savedInvoice.id;
+            invoiceItem.itemType = itemDto.itemType;
+            invoiceItem.currencyCode = itemDto.currencyCode;
+            invoiceItem.quantity = itemDto.quantity || 1;
+
+            // Get item details and price based on type and currency
+            if (itemDto.itemType === InvoiceItemType.COURSE) {
+              // Fetch course with relations
+              const course = await this.courseRepository.findOne({
+                where: { id: itemDto.itemId },
+                relations: ['instructor', 'pricings']
+              });
+
+              if (!course) {
+                throw new NotFoundException(`Course with ID ${itemDto.itemId} not found`);
+              }
+
+              // Find the pricing for the requested currency
+              const pricing = course.pricings?.find(p =>
+                p.currencyCode === itemDto.currencyCode &&
+                p.isActive
+              );
+
+              if (!pricing) {
+                throw new BadRequestException(
+                  `Course ${course.name} is not available in ${itemDto.currencyCode} currency`
+                );
+              }
+
+              // Use sale price if available and discount is enabled, otherwise use regular price
+              const price = pricing.discountEnabled && pricing.salePrice
+                ? pricing.salePrice
+                : pricing.regularPrice;
+
+              invoiceItem.courseId = itemDto.itemId;
+              invoiceItem.course = course;
+              invoiceItem.itemTitle = course.name; // Use course.name instead of .title
+              invoiceItem.price = price;
+              invoiceItem.creatorId = course.createdBy; // This should be a string ID
+              invoiceItem.thumbnailUrl = course.courseImage; // Use courseImage field
+
+            } else if (itemDto.itemType === InvoiceItemType.BUNDLE) {
+              // Fetch bundle with relations
+              const bundle = await this.bundleRepository.findOne({
+                where: { id: itemDto.itemId },
+                relations: ['pricings', 'instructor']
+              });
+
+              if (!bundle) {
+                throw new NotFoundException(`Bundle with ID ${itemDto.itemId} not found`);
+              }
+
+              // Find the pricing for the requested currency
+              const pricing = bundle.pricings?.find(p =>
+                p.currency_code === itemDto.currencyCode &&
+                p.is_active
+              );
+
+              if (!pricing) {
+                throw new BadRequestException(
+                  `Bundle ${bundle.title} is not available in ${itemDto.currencyCode} currency`
+                );
+              }
+
+              // Use sale price if available and discount is enabled, otherwise use regular price
+              const price = pricing.discount_enabled && pricing.sale_price
+                ? pricing.sale_price
+                : pricing.regular_price;
+
+              invoiceItem.bundleId = itemDto.itemId;
+              invoiceItem.bundle = bundle;
+              invoiceItem.itemTitle = bundle.title;
+              invoiceItem.price = price;
+              invoiceItem.creatorId = bundle.created_by; // This is already a string
+              invoiceItem.thumbnailUrl = bundle.thumbnail_url;
+
+            } else {
+              throw new BadRequestException('Invalid item type');
+            }
+
+            return invoiceItem;
+          })
+        );
 
         await queryRunner.manager.save(InvoiceItem, invoiceItems);
         savedInvoice.items = invoiceItems;
       }
 
-      // Create additional charges
-      if (createInvoiceDto.additionalCharges && createInvoiceDto.additionalCharges.length > 0) {
-        const additionalCharges = createInvoiceDto.additionalCharges.map(chargeDto => {
-          const additionalCharge = new AdditionalCharge();
-          additionalCharge.invoiceId = savedInvoice.id;
-          additionalCharge.type = chargeDto.type;
-          additionalCharge.description = chargeDto.description;
-          additionalCharge.amount = chargeDto.amount;
-          additionalCharge.percentage = chargeDto.percentage || 0;
-          additionalCharge.isPercentage = chargeDto.isPercentage || false;
-          return additionalCharge;
-        });
-
-        await queryRunner.manager.save(AdditionalCharge, additionalCharges);
-        savedInvoice.additionalCharges = additionalCharges;
-      }
-
-      // Calculate and update totals
+      // Calculate totals
       savedInvoice.calculateTotals();
       await queryRunner.manager.save(Invoice, savedInvoice);
 
-      // COMMIT TRANSACTION
       await queryRunner.commitTransaction();
 
       // Reload the invoice with relations for response
       const finalInvoice = await this.invoiceRepository.findOne({
         where: { id: savedInvoice.id },
-        relations: ['items', 'additionalCharges', 'createdByUser']
+        relations: [
+          'items',
+          'items.course',
+          'items.bundle',
+          'items.creator',
+          'createdByUser',
+          'items.course.pricings',
+          'items.bundle.pricings'
+        ]
       });
 
       return this.mapToResponseDto(finalInvoice);
@@ -164,37 +235,70 @@ export class InvoiceService {
   ): Promise<{ data: InvoiceResponseDto[]; total: number; page: number; totalPages: number }> {
     const skip = (page - 1) * limit;
 
-    const query = this.invoiceRepository
+    // Debug logging
+    console.log('findAll params:', { userId, page, limit, status, search, startDate, endDate });
+
+    // First, let's check if there are any invoices for this user
+    const invoiceCount = await this.invoiceRepository.count({
+      where: { createdBy: userId }
+    });
+    console.log('Total invoices for user:', invoiceCount);
+
+    if (invoiceCount === 0) {
+      return {
+        data: [],
+        total: 0,
+        page,
+        totalPages: 0
+      };
+    }
+
+    // Build query
+    const queryBuilder = this.invoiceRepository
       .createQueryBuilder('invoice')
       .leftJoinAndSelect('invoice.items', 'items')
-      .leftJoinAndSelect('invoice.additionalCharges', 'additionalCharges')
       .leftJoinAndSelect('invoice.createdByUser', 'createdByUser')
       .where('invoice.createdBy = :userId', { userId })
       .orderBy('invoice.created_at', 'DESC');
 
     // Apply filters
     if (status) {
-      query.andWhere('invoice.status = :status', { status });
+      queryBuilder.andWhere('invoice.status = :status', { status });
     }
 
     if (search) {
-      query.andWhere(
+      queryBuilder.andWhere(
         '(invoice.invoiceNumber LIKE :search OR invoice.toName LIKE :search OR invoice.toEmail LIKE :search)',
         { search: `%${search}%` }
       );
     }
 
     if (startDate && endDate) {
-      query.andWhere('invoice.invoiceDate BETWEEN :startDate AND :endDate', {
-        startDate,
-        endDate
+      queryBuilder.andWhere('invoice.invoiceDate BETWEEN :startDate AND :endDate', {
+        startDate: new Date(startDate),
+        endDate: new Date(endDate)
       });
     }
 
-    const [invoices, total] = await query
+    // Get count first
+    const total = await queryBuilder.getCount();
+    console.log('Filtered total:', total);
+
+    // Get paginated results
+    const invoices = await queryBuilder
       .skip(skip)
       .take(limit)
-      .getManyAndCount();
+      .getMany();
+
+    console.log('Found invoices:', invoices.length);
+    if (invoices.length > 0) {
+      console.log('First invoice sample:', {
+        id: invoices[0].id,
+        invoiceNumber: invoices[0].invoiceNumber,
+        createdBy: invoices[0].createdBy,
+        itemsCount: invoices[0].items?.length || 0
+      });
+    }
 
     return {
       data: invoices.map(invoice => this.mapToResponseDto(invoice)),
@@ -212,14 +316,31 @@ export class InvoiceService {
       where.createdBy = userId;
     }
 
+    console.log('findOne looking for invoice with:', { id, userId });
+
     const invoice = await this.invoiceRepository.findOne({
       where,
-      relations: ['items', 'additionalCharges', 'createdByUser']
+      relations: [
+        'items',
+        'items.course',
+        'items.bundle',
+        'items.creator',
+        'createdByUser',
+        'items.course.pricings',
+        'items.bundle.pricings'
+      ]
     });
 
     if (!invoice) {
+      console.log('Invoice not found with params:', { id, userId });
       throw new NotFoundException('Invoice not found');
     }
+
+    console.log('Found invoice:', {
+      id: invoice.id,
+      invoiceNumber: invoice.invoiceNumber,
+      createdBy: invoice.createdBy
+    });
 
     return this.mapToResponseDto(invoice);
   }
@@ -233,7 +354,15 @@ export class InvoiceService {
 
     const invoice = await this.invoiceRepository.findOne({
       where,
-      relations: ['items', 'additionalCharges', 'createdByUser']
+      relations: [
+        'items',
+        'items.course',
+        'items.bundle',
+        'items.creator',
+        'createdByUser',
+        'items.course.pricings',
+        'items.bundle.pricings'
+      ]
     });
 
     if (!invoice) {
@@ -246,12 +375,13 @@ export class InvoiceService {
   async update(id: string, updateInvoiceDto: UpdateInvoiceDto, userId: string): Promise<InvoiceResponseDto> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
-    await queryRunner.startTransaction();
 
     try {
-      const invoice = await this.invoiceRepository.findOne({
+      await queryRunner.startTransaction();
+
+      const invoice = await queryRunner.manager.findOne(Invoice, {
         where: { id, createdBy: userId },
-        relations: ['items', 'additionalCharges']
+        relations: ['items']
       });
 
       if (!invoice) {
@@ -275,41 +405,21 @@ export class InvoiceService {
         invoice.status = updateInvoiceDto.status;
       }
 
-      if (updateInvoiceDto.fromName !== undefined) {
-        invoice.fromName = updateInvoiceDto.fromName;
-      }
+      // Update from/to information
+      if (updateInvoiceDto.fromName !== undefined) invoice.fromName = updateInvoiceDto.fromName;
+      if (updateInvoiceDto.fromEmail !== undefined) invoice.fromEmail = updateInvoiceDto.fromEmail;
+      if (updateInvoiceDto.fromPhone !== undefined) invoice.fromPhone = updateInvoiceDto.fromPhone;
+      if (updateInvoiceDto.fromAddress !== undefined) invoice.fromAddress = updateInvoiceDto.fromAddress;
+      if (updateInvoiceDto.toName !== undefined) invoice.toName = updateInvoiceDto.toName;
+      if (updateInvoiceDto.toEmail !== undefined) invoice.toEmail = updateInvoiceDto.toEmail;
+      if (updateInvoiceDto.toPhone !== undefined) invoice.toPhone = updateInvoiceDto.toPhone || null;
+      if (updateInvoiceDto.toAddress !== undefined) invoice.toAddress = updateInvoiceDto.toAddress || null;
 
-      if (updateInvoiceDto.fromEmail !== undefined) {
-        invoice.fromEmail = updateInvoiceDto.fromEmail;
-      }
+      // Update rates
+      if (updateInvoiceDto.discountRate !== undefined) invoice.discountRate = updateInvoiceDto.discountRate;
+      if (updateInvoiceDto.taxRate !== undefined) invoice.taxRate = updateInvoiceDto.taxRate;
 
-      if (updateInvoiceDto.fromPhone !== undefined) {
-        invoice.fromPhone = updateInvoiceDto.fromPhone;
-      }
-
-      if (updateInvoiceDto.fromAddress !== undefined) {
-        invoice.fromAddress = updateInvoiceDto.fromAddress;
-      }
-
-      if (updateInvoiceDto.toName !== undefined) {
-        invoice.toName = updateInvoiceDto.toName;
-      }
-
-      if (updateInvoiceDto.toEmail !== undefined) {
-        invoice.toEmail = updateInvoiceDto.toEmail;
-      }
-
-      if (updateInvoiceDto.toPhone !== undefined) {
-        invoice.toPhone = updateInvoiceDto.toPhone;
-      }
-
-      if (updateInvoiceDto.toAddress !== undefined) {
-        invoice.toAddress = updateInvoiceDto.toAddress;
-      }
-
-      if (updateInvoiceDto.notes !== undefined) {
-        invoice.notes = updateInvoiceDto.notes;
-      }
+      if (updateInvoiceDto.notes !== undefined) invoice.notes = updateInvoiceDto.notes || null;
 
       if (updateInvoiceDto.amountPaid !== undefined) {
         invoice.amountPaid = updateInvoiceDto.amountPaid;
@@ -321,48 +431,126 @@ export class InvoiceService {
         }
       }
 
-      // Update items if provided
-      if (updateInvoiceDto.items && updateInvoiceDto.items.length > 0) {
-        // Remove existing items and create new ones
-        await queryRunner.manager.delete(InvoiceItem, { invoiceId: id });
+      // Update items if provided (note: this completely replaces existing items)
+      if (updateInvoiceDto.items !== undefined) {
+        // Remove existing items
+        if (invoice.items && invoice.items.length > 0) {
+          await queryRunner.manager.delete(InvoiceItem, { invoiceId: id });
+        }
 
-        invoice.items = updateInvoiceDto.items.map(itemDto => {
-          const invoiceItem = new InvoiceItem();
-          invoiceItem.description = itemDto.description;
-          invoiceItem.unitPrice = itemDto.unitPrice;
-          invoiceItem.quantity = itemDto.quantity;
-          invoiceItem.taxRate = itemDto.taxRate || 0;
-          invoiceItem.discountRate = itemDto.discountRate || 0;
-          invoiceItem.calculateTotals();
-          return invoiceItem;
-        });
-      }
+        // Create new items if provided
+        if (updateInvoiceDto.items.length > 0) {
+          const invoiceItems = await Promise.all(
+            updateInvoiceDto.items.map(async (itemDto) => {
+              const invoiceItem = new InvoiceItem();
+              invoiceItem.invoiceId = id;
+              invoiceItem.itemType = itemDto.itemType;
+              invoiceItem.currencyCode = itemDto.currencyCode;
+              invoiceItem.quantity = itemDto.quantity || 1;
 
-      // Update additional charges if provided
-      if (updateInvoiceDto.additionalCharges !== undefined) {
-        // Remove existing charges and create new ones
-        await queryRunner.manager.delete(AdditionalCharge, { invoiceId: id });
+              // Get item details and price based on type and currency
+              if (itemDto.itemType === InvoiceItemType.COURSE && itemDto.itemId) {
+                const course = await this.courseRepository.findOne({
+                  where: { id: itemDto.itemId },
+                  relations: ['instructor', 'pricings']
+                });
 
-        invoice.additionalCharges = updateInvoiceDto.additionalCharges.map(chargeDto => {
-          const additionalCharge = new AdditionalCharge();
-          additionalCharge.type = chargeDto.type;
-          additionalCharge.description = chargeDto.description;
-          additionalCharge.amount = chargeDto.amount;
-          additionalCharge.percentage = chargeDto.percentage || 0;
-          additionalCharge.isPercentage = chargeDto.isPercentage || false;
-          return additionalCharge;
-        });
+                if (!course) {
+                  throw new NotFoundException(`Course with ID ${itemDto.itemId} not found`);
+                }
+
+                // Find the pricing for the requested currency
+                const pricing = course.pricings?.find(p =>
+                  p.currencyCode === itemDto.currencyCode &&
+                  p.isActive
+                );
+
+                if (!pricing) {
+                  throw new BadRequestException(
+                    `Course ${course.name} is not available in ${itemDto.currencyCode} currency`
+                  );
+                }
+
+                const price = pricing.discountEnabled && pricing.salePrice
+                  ? pricing.salePrice
+                  : pricing.regularPrice;
+
+                invoiceItem.courseId = itemDto.itemId;
+                invoiceItem.course = course;
+                invoiceItem.itemTitle = course.name;
+                invoiceItem.price = price;
+                invoiceItem.creatorId = course.createdBy; // This is a string
+                invoiceItem.thumbnailUrl = course.courseImage;
+
+              } else if (itemDto.itemType === InvoiceItemType.BUNDLE && itemDto.itemId) {
+                const bundle = await this.bundleRepository.findOne({
+                  where: { id: itemDto.itemId },
+                  relations: ['pricings', 'instructor']
+                });
+
+                if (!bundle) {
+                  throw new NotFoundException(`Bundle with ID ${itemDto.itemId} not found`);
+                }
+
+                const pricing = bundle.pricings?.find(p =>
+                  p.currency_code === itemDto.currencyCode &&
+                  p.is_active
+                );
+
+                if (!pricing) {
+                  throw new BadRequestException(
+                    `Bundle ${bundle.title} is not available in ${itemDto.currencyCode} currency`
+                  );
+                }
+
+                const price = pricing.discount_enabled && pricing.sale_price
+                  ? pricing.sale_price
+                  : pricing.regular_price;
+
+                invoiceItem.bundleId = itemDto.itemId;
+                invoiceItem.bundle = bundle;
+                invoiceItem.itemTitle = bundle.title;
+                invoiceItem.price = price;
+                invoiceItem.creatorId = bundle.created_by; // This is a string
+                invoiceItem.thumbnailUrl = bundle.thumbnail_url;
+              }
+
+              return invoiceItem;
+            })
+          );
+
+          await queryRunner.manager.save(InvoiceItem, invoiceItems);
+          invoice.items = invoiceItems;
+        } else {
+          invoice.items = [];
+        }
       }
 
       // Recalculate totals
       invoice.calculateTotals();
+      const updatedInvoice = await queryRunner.manager.save(Invoice, invoice);
 
-      const updatedInvoice = await queryRunner.manager.save(invoice);
       await queryRunner.commitTransaction();
 
-      return this.mapToResponseDto(updatedInvoice);
+      // Reload with relations
+      const finalInvoice = await this.invoiceRepository.findOne({
+        where: { id },
+        relations: [
+          'items',
+          'items.course',
+          'items.bundle',
+          'items.creator',
+          'createdByUser',
+          'items.course.pricings',
+          'items.bundle.pricings'
+        ]
+      });
+
+      return this.mapToResponseDto(finalInvoice);
     } catch (error) {
-      await queryRunner.rollbackTransaction();
+      if (queryRunner.isTransactionActive) {
+        await queryRunner.rollbackTransaction();
+      }
       throw error;
     } finally {
       await queryRunner.release();
@@ -399,13 +587,20 @@ export class InvoiceService {
     invoice.markAsPaid(paymentAmount);
 
     const updatedInvoice = await this.invoiceRepository.save(invoice);
-    return this.mapToResponseDto(updatedInvoice);
+
+    // Reload with relations
+    const finalInvoice = await this.invoiceRepository.findOne({
+      where: { id },
+      relations: ['items', 'items.course', 'items.bundle', 'items.creator', 'createdByUser']
+    });
+
+    return this.mapToResponseDto(finalInvoice);
   }
 
   async duplicate(id: string, userId: string): Promise<InvoiceResponseDto> {
     const original = await this.invoiceRepository.findOne({
       where: { id, createdBy: userId },
-      relations: ['items', 'additionalCharges']
+      relations: ['items']
     });
 
     if (!original) {
@@ -414,16 +609,17 @@ export class InvoiceService {
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
-    await queryRunner.startTransaction();
 
     try {
-      // Create new invoice with "-COPY" suffix
+      await queryRunner.startTransaction();
+
+      // Create new invoice
       const newInvoice = new Invoice();
       newInvoice.invoiceNumber = await this.generateInvoiceNumber();
       newInvoice.invoiceDate = new Date();
       newInvoice.dueDate = new Date(); // Default due date
       newInvoice.paymentType = original.paymentType;
-      newInvoice.status = InvoiceStatus.DRAFT;
+      newInvoice.status = InvoiceStatus.PENDING;
       newInvoice.createdBy = userId;
 
       // Copy from/to information
@@ -435,40 +631,54 @@ export class InvoiceService {
       newInvoice.toEmail = original.toEmail;
       newInvoice.toPhone = original.toPhone;
       newInvoice.toAddress = original.toAddress;
+
+      // Copy rates
+      newInvoice.discountRate = original.discountRate;
+      newInvoice.taxRate = original.taxRate;
+
       newInvoice.notes = `Copy of ${original.invoiceNumber}\n${original.notes || ''}`;
 
-      // Copy items
-      newInvoice.items = original.items.map(item => {
-        const newItem = new InvoiceItem();
-        newItem.description = item.description;
-        newItem.unitPrice = item.unitPrice;
-        newItem.quantity = item.quantity;
-        newItem.taxRate = item.taxRate;
-        newItem.discountRate = item.discountRate;
-        newItem.calculateTotals();
-        return newItem;
-      });
+      // Save the new invoice first
+      const savedInvoice = await queryRunner.manager.save(newInvoice);
 
-      // Copy additional charges
-      newInvoice.additionalCharges = original.additionalCharges.map(charge => {
-        const newCharge = new AdditionalCharge();
-        newCharge.type = charge.type;
-        newCharge.description = charge.description;
-        newCharge.amount = charge.amount;
-        newCharge.percentage = charge.percentage;
-        newCharge.isPercentage = charge.isPercentage;
-        return newCharge;
-      });
+      // Copy items
+      if (original.items && original.items.length > 0) {
+        const newItems = original.items.map(item => {
+          const newItem = new InvoiceItem();
+          newItem.invoiceId = savedInvoice.id;
+          newItem.itemType = item.itemType;
+          newItem.courseId = item.courseId;
+          newItem.bundleId = item.bundleId;
+          newItem.creatorId = item.creatorId;
+          newItem.itemTitle = item.itemTitle;
+          newItem.price = item.price;
+          newItem.quantity = item.quantity;
+          newItem.currencyCode = item.currencyCode;
+          newItem.thumbnailUrl = item.thumbnailUrl;
+          return newItem;
+        });
+
+        await queryRunner.manager.save(InvoiceItem, newItems);
+        savedInvoice.items = newItems;
+      }
 
       // Calculate totals
-      newInvoice.calculateTotals();
+      savedInvoice.calculateTotals();
+      await queryRunner.manager.save(Invoice, savedInvoice);
 
-      const savedInvoice = await queryRunner.manager.save(newInvoice);
       await queryRunner.commitTransaction();
 
-      return this.mapToResponseDto(savedInvoice);
+      // Reload with relations
+      const finalInvoice = await this.invoiceRepository.findOne({
+        where: { id: savedInvoice.id },
+        relations: ['items', 'items.course', 'items.bundle', 'items.creator', 'createdByUser']
+      });
+
+      return this.mapToResponseDto(finalInvoice);
     } catch (error) {
-      await queryRunner.rollbackTransaction();
+      if (queryRunner.isTransactionActive) {
+        await queryRunner.rollbackTransaction();
+      }
       throw error;
     } finally {
       await queryRunner.release();
@@ -476,39 +686,41 @@ export class InvoiceService {
   }
 
   async getStatistics(userId: string): Promise<any> {
-    const query = this.invoiceRepository
+    // Get all statistics in a more optimized way
+    const today = new Date();
+
+    // Single query for multiple aggregates
+    const stats = await this.invoiceRepository
       .createQueryBuilder('invoice')
-      .where('invoice.createdBy = :userId', { userId });
-
-    const [totalInvoices] = await query
-      .select('COUNT(*)', 'count')
+      .select([
+        'COUNT(*) as totalInvoices',
+        'SUM(CASE WHEN invoice.status = :paid THEN invoice.total ELSE 0 END) as totalAmount',
+        'SUM(CASE WHEN invoice.status = :pending THEN invoice.balanceDue ELSE 0 END) as pendingAmount',
+        'SUM(CASE WHEN invoice.status = :draft THEN 1 ELSE 0 END) as draftCount',
+        'SUM(CASE WHEN invoice.status = :pending THEN 1 ELSE 0 END) as pendingCount',
+        'SUM(CASE WHEN invoice.status = :paid THEN 1 ELSE 0 END) as paidCount',
+        'SUM(CASE WHEN invoice.status = :pending AND invoice.dueDate < :today THEN 1 ELSE 0 END) as overdueCount'
+      ])
+      .where('invoice.createdBy = :userId', { userId })
+      .setParameters({
+        userId,
+        paid: InvoiceStatus.PAID,
+        pending: InvoiceStatus.PENDING,
+        draft: InvoiceStatus.DRAFT,
+        today
+      })
       .getRawOne();
-
-    const [totalAmount] = await query
-      .select('SUM(invoice.total)', 'total')
-      .where('invoice.status = :status', { status: InvoiceStatus.PAID })
-      .getRawOne();
-
-    const [pendingAmount] = await query
-      .select('SUM(invoice.balanceDue)', 'total')
-      .where('invoice.status = :status', { status: InvoiceStatus.PENDING })
-      .getRawOne();
-
-    const overdueInvoices = await query
-      .andWhere('invoice.status = :status', { status: InvoiceStatus.PENDING })
-      .andWhere('invoice.dueDate < :today', { today: new Date() })
-      .getCount();
 
     return {
-      totalInvoices: parseInt(totalInvoices.count) || 0,
-      totalAmount: parseFloat(totalAmount.total) || 0,
-      pendingAmount: parseFloat(pendingAmount.total) || 0,
-      overdueInvoices,
+      totalInvoices: parseInt(stats?.totalinvoices || '0', 10) || 0,
+      totalAmount: parseFloat(stats?.totalamount || '0') || 0,
+      pendingAmount: parseFloat(stats?.pendingamount || '0') || 0,
+      overdueInvoices: parseInt(stats?.overduecount || '0', 10) || 0,
       statusDistribution: {
-        draft: await query.clone().andWhere('invoice.status = :status', { status: InvoiceStatus.DRAFT }).getCount(),
-        pending: await query.clone().andWhere('invoice.status = :status', { status: InvoiceStatus.PENDING }).getCount(),
-        paid: await query.clone().andWhere('invoice.status = :status', { status: InvoiceStatus.PAID }).getCount(),
-        overdue: overdueInvoices,
+        draft: parseInt(stats?.draftcount || '0', 10) || 0,
+        pending: parseInt(stats?.pendingcount || '0', 10) || 0,
+        paid: parseInt(stats?.paidcount || '0', 10) || 0,
+        overdue: parseInt(stats?.overduecount || '0', 10) || 0,
       }
     };
   }
@@ -517,6 +729,64 @@ export class InvoiceService {
     const today = new Date();
     const dueDate = new Date(invoice.dueDate);
     const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 3600 * 24));
+
+    // Transform items to match InvoiceItemResponseDto structure
+    const items = invoice.items ? invoice.items.map(item => {
+      const unitPrice = item.price;
+      const itemTotalPrice = unitPrice * item.quantity;
+
+      // Get item-specific pricing info
+      let pricingInfo = null;
+      if (item.itemType === InvoiceItemType.COURSE && item.course?.pricings) {
+        pricingInfo = item.course.pricings.find(p => p.currencyCode === item.currencyCode);
+      } else if (item.itemType === InvoiceItemType.BUNDLE && item.bundle?.pricings) {
+        pricingInfo = item.bundle.pricings.find(p => p.currency_code === item.currencyCode);
+      }
+
+      // Calculate proportional discount and tax for this item
+      // Only calculate if subtotal > 0 to avoid division by zero
+      let discountAmount = 0;
+      let taxAmount = 0;
+
+      if (invoice.subtotal > 0) {
+        // Calculate item's proportion of the invoice subtotal
+        const itemProportion = itemTotalPrice / invoice.subtotal;
+
+        // Distribute invoice-level discount proportionally to this item
+        discountAmount = invoice.totalDiscount * itemProportion;
+
+        // Calculate tax on item's price after its share of discount
+        const itemPriceAfterDiscount = itemTotalPrice - discountAmount;
+        taxAmount = itemPriceAfterDiscount * (invoice.taxRate / 100);
+      }
+
+      return {
+        id: item.id,
+        description: item.itemTitle,
+        unitPrice: unitPrice,
+        quantity: item.quantity,
+        totalPrice: itemTotalPrice,
+        taxRate: invoice.taxRate, // Invoice-level tax rate
+        taxAmount: taxAmount,
+        discountRate: invoice.discountRate, // Invoice-level discount rate
+        discountAmount: discountAmount,
+        createdAt: item.created_at,
+        // Additional metadata that might be useful
+        itemType: item.itemType,
+        currencyCode: item.currencyCode,
+        courseId: item.courseId,
+        bundleId: item.bundleId,
+        creatorId: item.creatorId,
+        thumbnailUrl: item.thumbnailUrl,
+        // Pricing info if needed
+        pricingInfo: pricingInfo ? {
+          regularPrice: pricingInfo.regularPrice || pricingInfo.regular_price,
+          salePrice: pricingInfo.salePrice || pricingInfo.sale_price,
+          discountEnabled: pricingInfo.discountEnabled || pricingInfo.discount_enabled,
+          discountAmount: pricingInfo.discountAmount || pricingInfo.discount_amount
+        } : undefined
+      };
+    }) : [];
 
     return {
       id: invoice.id,
@@ -534,39 +804,23 @@ export class InvoiceService {
       toPhone: invoice.toPhone,
       toAddress: invoice.toAddress,
       subtotal: invoice.subtotal,
+      discountRate: invoice.discountRate,
       totalDiscount: invoice.totalDiscount,
+      taxRate: invoice.taxRate,
       totalTax: invoice.totalTax,
       total: invoice.total,
       amountPaid: invoice.amountPaid,
       balanceDue: invoice.balanceDue,
       createdBy: invoice.createdBy,
-      items: invoice.items ? invoice.items.map(item => ({
-        id: item.id,
-        description: item.description,
-        unitPrice: item.unitPrice,
-        quantity: item.quantity,
-        totalPrice: item.totalPrice,
-        taxRate: item.taxRate,
-        taxAmount: item.taxAmount,
-        discountRate: item.discountRate,
-        discountAmount: item.discountAmount,
-        createdAt: item.created_at
-      })) : [],
-      additionalCharges: invoice.additionalCharges ? invoice.additionalCharges.map(charge => ({
-        id: charge.id,
-        type: charge.type,
-        description: charge.description,
-        amount: charge.amount,
-        percentage: charge.percentage,
-        isPercentage: charge.isPercentage,
-        createdAt: charge.created_at
-      })) : [],
+      items: items,
       notes: invoice.notes,
       createdAt: invoice.created_at,
       updatedAt: invoice.updated_at,
       isOverdue: invoice.isOverdue(),
       daysUntilDue: daysUntilDue,
-      creatorName: invoice.createdByUser?.email,
+      creatorName: invoice.createdByUser?.profile ?
+        `${invoice.createdByUser.profile.firstName} ${invoice.createdByUser.profile.lastName}` :
+        invoice.createdByUser?.email,
       creatorEmail: invoice.createdByUser?.email
     };
   }

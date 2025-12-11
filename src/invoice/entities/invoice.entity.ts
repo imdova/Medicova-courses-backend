@@ -3,7 +3,6 @@ import { Entity, Column, ManyToOne, OneToMany, JoinColumn, Index } from 'typeorm
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { User } from 'src/user/entities/user.entity';
 import { InvoiceItem } from './invoice-item.entity';
-import { AdditionalCharge, AdditionalChargeType } from './additional-charge.entity';
 
 export enum InvoiceStatus {
     DRAFT = 'DRAFT',
@@ -96,6 +95,13 @@ export class Invoice extends BasicEntity {
     @Column({ type: 'decimal', precision: 12, scale: 2, default: 0, name: 'total_discount' })
     totalDiscount: number;
 
+    // Totals
+    @Column({ type: 'decimal', precision: 5, scale: 2, default: 0 })
+    discountRate: number;  // percentage (0 – 100)
+
+    @Column({ type: 'decimal', precision: 5, scale: 2, default: 0 })
+    taxRate: number;       // percentage (0 – 100)
+
     @ApiProperty({ description: 'Total tax amount' })
     @Column({ type: 'decimal', precision: 12, scale: 2, default: 0, name: 'total_tax' })
     totalTax: number;
@@ -131,36 +137,22 @@ export class Invoice extends BasicEntity {
     @OneToMany(() => InvoiceItem, (item) => item.invoice, { cascade: true })
     items: InvoiceItem[];
 
-    @ApiProperty({ description: 'Additional charges', type: () => [AdditionalCharge] })
-    @OneToMany(() => AdditionalCharge, (charge) => charge.invoice, { cascade: true })
-    additionalCharges: AdditionalCharge[];
-
     // Helper methods
     calculateTotals(): void {
-        // Calculate items subtotal
-        this.subtotal = this.items?.reduce((total, item) => {
-            return total + (item.unitPrice * item.quantity);
-        }, 0) || 0;
+        // Items subtotal - Sum of (price × quantity) for each item
+        this.subtotal = this.items?.reduce((t, i) => t + (i.price * i.quantity), 0) || 0;
 
-        // Calculate additional charges
-        let discountTotal = 0;
-        let taxTotal = 0;
-        let otherCharges = 0;
+        // Apply invoice-level discount
+        this.totalDiscount = this.subtotal * (this.discountRate / 100);
+        const afterDiscount = this.subtotal - this.totalDiscount;
 
-        this.additionalCharges?.forEach(charge => {
-            if (charge.type === AdditionalChargeType.DISCOUNT) {
-                discountTotal += charge.amount;
-            } else if (charge.type === AdditionalChargeType.TAX) {
-                taxTotal += charge.amount;
-            } else {
-                otherCharges += charge.amount;
-            }
-        });
+        // Apply invoice-level tax
+        this.totalTax = afterDiscount * (this.taxRate / 100);
 
-        this.totalDiscount = Math.abs(discountTotal);
-        this.totalTax = taxTotal;
+        // Final total
+        this.total = afterDiscount + this.totalTax;
 
-        this.total = this.subtotal + otherCharges - Math.abs(discountTotal) + taxTotal;
+        // Balance due
         this.balanceDue = this.total - this.amountPaid;
     }
 

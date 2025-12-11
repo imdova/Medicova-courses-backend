@@ -8,68 +8,49 @@ import {
     IsDateString,
     Min,
     ValidateNested,
-    IsArray
+    IsArray,
+    IsInt,
+    IsUUID
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { InvoiceStatus, PaymentType } from '../entities/invoice.entity';
-import { AdditionalChargeType } from '../entities/additional-charge.entity';
+import { InvoiceItemType } from '../entities/invoice-item.entity';
 
 export class UpdateInvoiceItemDto {
-    @ApiPropertyOptional({ description: 'Item description' })
+    @ApiPropertyOptional({
+        description: 'Type of item to add to cart',
+        enum: InvoiceItemType
+    })
+    @IsEnum(InvoiceItemType)
+    @IsOptional()
+    itemType: InvoiceItemType;
+
+    @ApiPropertyOptional({
+        description: 'ID of the course or bundle',
+        format: 'uuid'
+    })
+    @IsUUID()
+    @IsOptional()
+    itemId: string;
+
+    @ApiPropertyOptional({
+        description: 'Currency code for the item',
+        enum: ['USD', 'EUR', 'EGP', 'SAR'],
+        example: 'USD'
+    })
     @IsString()
     @IsOptional()
-    description?: string;
+    currencyCode: string;
 
-    @ApiPropertyOptional({ description: 'Unit price' })
-    @IsNumber()
-    @Min(0)
-    @IsOptional()
-    unitPrice?: number;
-
-    @ApiPropertyOptional({ description: 'Quantity' })
-    @IsNumber()
+    @ApiPropertyOptional({
+        description: 'Quantity of items',
+        default: 1,
+        minimum: 1
+    })
+    @IsInt()
     @Min(1)
     @IsOptional()
-    quantity?: number;
-
-    @ApiPropertyOptional({ description: 'Tax rate percentage' })
-    @IsNumber()
-    @Min(0)
-    @IsOptional()
-    taxRate?: number;
-
-    @ApiPropertyOptional({ description: 'Discount percentage' })
-    @IsNumber()
-    @Min(0)
-    @IsOptional()
-    discountRate?: number;
-}
-
-export class UpdateAdditionalChargeDto {
-    @ApiPropertyOptional({ description: 'Charge type', enum: AdditionalChargeType })
-    @IsEnum(AdditionalChargeType)
-    @IsOptional()
-    type?: AdditionalChargeType;
-
-    @ApiPropertyOptional({ description: 'Description' })
-    @IsString()
-    @IsOptional()
-    description?: string;
-
-    @ApiPropertyOptional({ description: 'Amount' })
-    @IsNumber()
-    @IsOptional()
-    amount?: number;
-
-    @ApiPropertyOptional({ description: 'Percentage' })
-    @IsNumber()
-    @Min(0)
-    @IsOptional()
-    percentage?: number;
-
-    @ApiPropertyOptional({ description: 'Is percentage based?' })
-    @IsOptional()
-    isPercentage?: boolean;
+    quantity?: number = 1;
 }
 
 export class UpdateInvoiceDto {
@@ -143,12 +124,21 @@ export class UpdateInvoiceDto {
     @IsOptional()
     items?: UpdateInvoiceItemDto[];
 
-    @ApiPropertyOptional({ description: 'Additional charges', type: [UpdateAdditionalChargeDto] })
-    @IsArray()
-    @ValidateNested({ each: true })
-    @Type(() => UpdateAdditionalChargeDto)
+    @ApiPropertyOptional({
+        description: 'Overall discount rate percentage for the invoice',
+        example: '5',
+    })
+    @IsNumber()
     @IsOptional()
-    additionalCharges?: UpdateAdditionalChargeDto[];
+    discountRate?: number;
+
+    @ApiPropertyOptional({
+        description: 'Overall tax rate percentage for the invoice',
+        example: '5',
+    })
+    @IsNumber()
+    @IsOptional()
+    taxRate?: number;
 
     @ApiPropertyOptional({ description: 'Notes' })
     @IsString()
