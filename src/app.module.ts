@@ -83,6 +83,9 @@ import { TicketModule } from './ticket/ticket.module';
 import { Ticket } from './ticket/entities/ticket.entity';
 import { TestimonialModule } from './testimonial/testimonial.module';
 import { Testimonial } from './testimonial/entities/testimonial.entity';
+import { InvoiceModule } from './invoice/invoice.module';
+import { Invoice } from './invoice/entities/invoice.entity';
+import { InvoiceItem } from './invoice/entities/invoice-item.entity';
 
 @Module({
   imports: [
@@ -151,7 +154,9 @@ import { Testimonial } from './testimonial/entities/testimonial.entity';
         Department,
         Transaction,
         Ticket,
-        Testimonial
+        Testimonial,
+        Invoice,
+        InvoiceItem,
       ],
       synchronize: true,
       extra: {
@@ -190,6 +195,7 @@ import { Testimonial } from './testimonial/entities/testimonial.entity';
     CertificateModule,
     TicketModule,
     TestimonialModule,
+    InvoiceModule,
   ],
   controllers: [AppController],
   providers: [AppService, DatabaseService],
