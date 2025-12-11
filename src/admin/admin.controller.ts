@@ -901,7 +901,7 @@ export class AdminController {
   @Get('public/search')
   @ApiOperation({
     summary: 'Public search for instructors and academies',
-    description: 'Search for instructors and academies by name, description, or keywords. This endpoint is public and does not require authentication.'
+    description: 'Search for instructors and academies with filters including years of experience.'
   })
   @ApiQuery({
     name: 'query',
@@ -931,19 +931,31 @@ export class AdminController {
     name: 'country',
     required: false,
     type: String,
-    description: 'Filter academies by country name'
+    description: 'Filter by country name'
   })
   @ApiQuery({
     name: 'city',
     required: false,
     type: String,
-    description: 'Filter academies by city name'
+    description: 'Filter by city name'
   })
   @ApiQuery({
     name: 'academyType',
     required: false,
     enum: ['Training Center', 'Academy', 'College', 'University'],
     description: 'Filter academies by type'
+  })
+  @ApiQuery({
+    name: 'minExperience',
+    required: false,
+    type: Number,
+    description: 'Minimum years of experience for instructors (e.g., 2.5)'
+  })
+  @ApiQuery({
+    name: 'maxExperience',
+    required: false,
+    type: Number,
+    description: 'Maximum years of experience for instructors (e.g., 10)'
   })
   @ApiResponse({
     status: 200,
@@ -953,21 +965,17 @@ export class AdminController {
     status: 400,
     description: 'Invalid query parameters'
   })
-  @ApiProduces('application/json')
-  @ApiConsumes('application/json')
   async publicSearch(
     @Query('query') query?: string,
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
     @Query('type') type: 'all' | 'instructors' | 'academies' = 'all',
     @Query('country') country?: string,
     @Query('city') city?: string,
     @Query('academyType') academyType?: string,
+    @Query('minExperience') minExperience?: string,
+    @Query('maxExperience') maxExperience?: string,
   ): Promise<any> {
-    // Validate parameters
-    if (page < 1) throw new BadRequestException('Page must be greater than 0');
-    if (limit < 1 || limit > 100) throw new BadRequestException('Limit must be between 1 and 100');
-
     return this.adminService.publicSearch(
       query,
       page,
@@ -975,7 +983,9 @@ export class AdminController {
       type,
       country,
       city,
-      academyType
+      academyType,
+      minExperience,
+      maxExperience
     );
   }
 }
