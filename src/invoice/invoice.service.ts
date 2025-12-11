@@ -235,14 +235,10 @@ export class InvoiceService {
   ): Promise<{ data: InvoiceResponseDto[]; total: number; page: number; totalPages: number }> {
     const skip = (page - 1) * limit;
 
-    // Debug logging
-    console.log('findAll params:', { userId, page, limit, status, search, startDate, endDate });
-
     // First, let's check if there are any invoices for this user
     const invoiceCount = await this.invoiceRepository.count({
       where: { createdBy: userId }
     });
-    console.log('Total invoices for user:', invoiceCount);
 
     if (invoiceCount === 0) {
       return {
@@ -282,23 +278,12 @@ export class InvoiceService {
 
     // Get count first
     const total = await queryBuilder.getCount();
-    console.log('Filtered total:', total);
 
     // Get paginated results
     const invoices = await queryBuilder
       .skip(skip)
       .take(limit)
       .getMany();
-
-    console.log('Found invoices:', invoices.length);
-    if (invoices.length > 0) {
-      console.log('First invoice sample:', {
-        id: invoices[0].id,
-        invoiceNumber: invoices[0].invoiceNumber,
-        createdBy: invoices[0].createdBy,
-        itemsCount: invoices[0].items?.length || 0
-      });
-    }
 
     return {
       data: invoices.map(invoice => this.mapToResponseDto(invoice)),
@@ -316,8 +301,6 @@ export class InvoiceService {
       where.createdBy = userId;
     }
 
-    console.log('findOne looking for invoice with:', { id, userId });
-
     const invoice = await this.invoiceRepository.findOne({
       where,
       relations: [
@@ -332,15 +315,8 @@ export class InvoiceService {
     });
 
     if (!invoice) {
-      console.log('Invoice not found with params:', { id, userId });
       throw new NotFoundException('Invoice not found');
     }
-
-    console.log('Found invoice:', {
-      id: invoice.id,
-      invoiceNumber: invoice.invoiceNumber,
-      createdBy: invoice.createdBy
-    });
 
     return this.mapToResponseDto(invoice);
   }
