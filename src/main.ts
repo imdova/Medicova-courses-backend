@@ -54,6 +54,7 @@ async function bootstrap(): Promise<NestExpressApplication> {
           'https://medicova-courses-git-test-cors-auth-imdovas-projects.vercel.app',
           'https://medicova-courses-git-preview-imdovas-projects.vercel.app',
           'https://jobacademy.net',
+          'http://92.113.25.161:3000',
           'null' // for file:// protocol
         ];
 
@@ -144,24 +145,13 @@ async function bootstrap(): Promise<NestExpressApplication> {
   return app;
 }
 
-// --- Vercel entrypoint ---
-export default async function handler(req: any, res: any) {
+async function start() {
   const app = await bootstrap();
-  const expressApp = app.getHttpAdapter().getInstance();
-  expressApp(req, res);
+
+  const PORT = process.env.PORT || 3000;
+
+  await app.listen(PORT, '0.0.0.0');
+  console.log(`🚀 Medicova API running on port ${PORT}`);
 }
 
-// --- Local dev mode ---
-if (process.env.NODE_ENV !== 'production') {
-  bootstrap()
-    .then((localApp) => {
-      localApp.listen(3000).then(() => {
-        console.log(
-          `🚀 Medicova API running at http://localhost:3000/ (Swagger: http://localhost:3000/)`,
-        );
-      });
-    })
-    .catch((err) => {
-      console.error('Error starting NestJS app locally:', err);
-    });
-}
+start();
