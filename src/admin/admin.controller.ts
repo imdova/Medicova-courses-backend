@@ -1,6 +1,6 @@
 import { BadRequestException, Body, Controller, DefaultValuePipe, Get, Param, ParseIntPipe, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { AdminService } from './admin.service';
-import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiParam, ApiBody, ApiOkResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiParam, ApiBody, ApiOkResponse, ApiBearerAuth, ApiProduces, ApiConsumes } from '@nestjs/swagger';
 import { PermissionsGuard } from 'src/auth/permission.guard';
 import { AuthGuard } from '@nestjs/passport';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
@@ -896,5 +896,86 @@ export class AdminController {
     }
     await this.adminService.adminSetIsVerified(userId, isVerified);
     return { message: `User overall verification status manually set to ${isVerified}.` };
+  }
+
+  @Get('public/search')
+  @ApiOperation({
+    summary: 'Public search for instructors and academies',
+    description: 'Search for instructors and academies by name, description, or keywords. This endpoint is public and does not require authentication.'
+  })
+  @ApiQuery({
+    name: 'query',
+    required: false,
+    type: String,
+    description: 'Search query to filter instructors and academies by name, description, or keywords'
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number for pagination (default: 1)'
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of items per page for each category (default: 10)'
+  })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    enum: ['all', 'instructors', 'academies'],
+    description: 'Type of results to return (default: all)'
+  })
+  @ApiQuery({
+    name: 'country',
+    required: false,
+    type: String,
+    description: 'Filter academies by country name'
+  })
+  @ApiQuery({
+    name: 'city',
+    required: false,
+    type: String,
+    description: 'Filter academies by city name'
+  })
+  @ApiQuery({
+    name: 'academyType',
+    required: false,
+    enum: ['Training Center', 'Academy', 'College', 'University'],
+    description: 'Filter academies by type'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Search results retrieved successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid query parameters'
+  })
+  @ApiProduces('application/json')
+  @ApiConsumes('application/json')
+  async publicSearch(
+    @Query('query') query?: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('type') type: 'all' | 'instructors' | 'academies' = 'all',
+    @Query('country') country?: string,
+    @Query('city') city?: string,
+    @Query('academyType') academyType?: string,
+  ): Promise<any> {
+    // Validate parameters
+    if (page < 1) throw new BadRequestException('Page must be greater than 0');
+    if (limit < 1 || limit > 100) throw new BadRequestException('Limit must be between 1 and 100');
+
+    return this.adminService.publicSearch(
+      query,
+      page,
+      limit,
+      type,
+      country,
+      city,
+      academyType
+    );
   }
 }
