@@ -7,7 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, In, Repository } from 'typeorm';
+import { Brackets, DataSource, In, Repository } from 'typeorm';
 import { Course, CourseApprovalStatus } from './entities/course.entity';
 import { CreateCourseDto } from './dto/create-course.dto';
 import {
@@ -23,7 +23,7 @@ import { CourseSectionItem } from './course-section/entities/course-section-item
 import { CourseProgress } from './course-progress/entities/course-progress.entity';
 import { CourseStudent } from './entities/course-student.entity';
 import { CourseCategory } from 'src/course/course-category/entities/course-category.entity';
-import { CourseRating } from './entities/course-rating.entity';
+import { CourseRating, CourseRatingStatus } from './entities/course-rating.entity';
 import { RateCourseDto } from './dto/rate-course.dto';
 import { User } from 'src/user/entities/user.entity';
 import { AcademyInstructor } from 'src/academy/entities/academy-instructors.entity';
@@ -50,6 +50,16 @@ interface InstructorStats {
   studentsCount: number;
   averageRating: number;
   reviewsCount: number;
+}
+
+interface GetReviewsOptions {
+  page: number;
+  limit: number;
+  status?: CourseRatingStatus;
+  rating?: number;
+  search?: string;
+  startDate?: Date;
+  endDate?: Date;
 }
 
 @Injectable()
@@ -692,8 +702,10 @@ export class CourseService {
         user: { id: userId },
         rating: dto.rating,
         review: dto.review,
+        images: dto.images || [],
+        status: dto.status || CourseRatingStatus.DRAFT,
       },
-      ['course', 'user'],
+      ['course', 'user'], // Unique constraint fields
     );
 
     // Recalculate aggregate
@@ -1487,5 +1499,156 @@ export class CourseService {
 
     course.approvalStatus = status;
     return await this.courseRepository.save(course);
+  }
+
+  async getAllCoursesReviews(
+    userId: string,
+    academyId: string | undefined,
+    role: string,
+    options: GetReviewsOptions
+  ): Promise<any> {
+    const {
+      page,
+      limit,
+      status,
+      rating,
+      search,
+      startDate,
+      endDate,
+    } = options;
+
+    const skip = (page - 1) * limit;
+
+    // Start building the query
+    const queryBuilder = this.courseRatingRepository
+      .createQueryBuilder('review')
+      .leftJoinAndSelect('review.course', 'course')
+      .leftJoinAndSelect('course.instructor', 'instructor')
+      .leftJoinAndSelect('course.academy', 'academy')
+      .leftJoinAndSelect('review.user', 'student')
+      .leftJoinAndSelect('student.profile', 'studentProfile')
+      .leftJoinAndSelect('instructor.profile', 'instructorProfile')
+      .select([
+        'review.id',
+        'review.rating',
+        'review.review',
+        'review.status',
+        'review.images',
+        'review.created_at',
+        'review.updated_at',
+        'course.id',
+        'course.name',
+        'course.slug',
+        'instructor.id',
+        'instructor.email',
+        'academy.id',
+        'academy.name',
+        'student.id',
+        'student.email',
+        'studentProfile.firstName',
+        'studentProfile.lastName',
+        'instructorProfile.firstName',
+        'instructorProfile.lastName'
+      ]);
+
+    // Apply role-based access control
+    if (role === 'admin') {
+      // Admin can see all reviews - no restriction
+    } else if (role === 'academy_admin' && academyId) {
+      // Academy admin can only see reviews for courses in their academy
+      queryBuilder.andWhere('academy.id = :academyId', { academyId });
+    } else {
+      // Instructor or regular user can only see reviews for their own courses
+      queryBuilder.andWhere('course.createdBy = :userId', { userId });
+    }
+
+    // Apply filters
+    if (status) {
+      queryBuilder.andWhere('review.status = :status', { status });
+    }
+
+    // Apply rating filter - only if rating is defined and is a valid number
+    if (rating !== undefined && rating !== null && !isNaN(rating)) {
+      queryBuilder.andWhere('review.rating = :rating', { rating: Math.floor(rating) });
+    }
+
+    // Date range filter
+    if (startDate) {
+      queryBuilder.andWhere('review.created_at >= :startDate', {
+        startDate: startDate.toISOString().split('T')[0]
+      });
+    }
+
+    if (endDate) {
+      // Add one day to include the entire end date
+      const nextDay = new Date(endDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+      queryBuilder.andWhere('review.created_at < :endDate', {
+        endDate: nextDay.toISOString().split('T')[0]
+      });
+    }
+
+    // Search filter
+    if (search && search.trim() !== '') {
+      const searchTerm = `%${search.trim()}%`;
+      queryBuilder.andWhere(
+        new Brackets(qb => {
+          qb.where('review.review ILIKE :search', { search: searchTerm })
+            .orWhere('course.name ILIKE :search', { search: searchTerm })
+            .orWhere('student.email ILIKE :search', { search: searchTerm })
+            .orWhere('studentProfile.firstName ILIKE :search', { search: searchTerm })
+            .orWhere('studentProfile.lastName ILIKE :search', { search: searchTerm })
+            .orWhere("CONCAT(studentProfile.firstName, ' ', studentProfile.lastName) ILIKE :search", { search: searchTerm })
+            .orWhere('instructor.email ILIKE :search', { search: searchTerm })
+            .orWhere('instructorProfile.firstName ILIKE :search', { search: searchTerm })
+            .orWhere('instructorProfile.lastName ILIKE :search', { search: searchTerm })
+            .orWhere("CONCAT(instructorProfile.firstName, ' ', instructorProfile.lastName) ILIKE :search", { search: searchTerm });
+        })
+      );
+    }
+
+    // Get total count
+    const total = await queryBuilder.getCount();
+
+    // Apply pagination
+    const reviews = await queryBuilder
+      .orderBy('review.created_at', 'DESC')
+      .skip(skip)
+      .take(limit)
+      .getMany();
+
+    // Format the response
+    const formattedReviews = reviews.map(review => ({
+      id: review.id,
+      rating: review.rating,
+      review: review.review,
+      status: review.status,
+      images: review.images,
+      createdAt: review.created_at,
+      updatedAt: review.updated_at,
+      courseId: review.course.id,
+      courseName: review.course.name,
+      courseSlug: review.course.slug,
+      instructorId: review.course.instructor.id,
+      instructorName: review.course.instructor.profile
+        ? `${review.course.instructor.profile.firstName} ${review.course.instructor.profile.lastName}`
+        : review.course.instructor.email,
+      instructorEmail: review.course.instructor.email,
+      studentId: review.user.id,
+      studentName: review.user.profile
+        ? `${review.user.profile.firstName} ${review.user.profile.lastName}`
+        : review.user.email,
+      studentEmail: review.user.email,
+      academyId: review.course.academy?.id,
+      academyName: review.course.academy?.name
+    }));
+
+    return {
+      data: formattedReviews,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    };
   }
 }
