@@ -12,6 +12,8 @@ import {
   ForbiddenException,
   BadRequestException,
   Query,
+  DefaultValuePipe,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { CourseService } from './course.service';
 import { CreateCourseDto } from './dto/create-course.dto';
@@ -32,6 +34,7 @@ import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 import { UpdateCourseDto } from './dto/update-course.dto';
 import { RateCourseDto } from './dto/rate-course.dto';
 import { ApproveCourseDto } from './dto/approve-course.dto';
+import { CourseRatingStatus } from './entities/course-rating.entity';
 
 @ApiBearerAuth('access_token')
 @ApiTags('Courses')
@@ -268,6 +271,130 @@ export class CourseController {
       req.user.sub,
       req.user.academyId,
       req.user.role,
+    );
+  }
+
+  @Get('reviews/all')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiOperation({
+    summary: 'Get all course reviews with role-based access control',
+    description: 'Admin: all reviews, Academy Admin: reviews for courses in their academy, Instructor: reviews for their courses'
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number for pagination (default: 1)'
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of items per page (default: 10, max: 100)'
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: CourseRatingStatus,
+    description: 'Filter by review status'
+  })
+  @ApiQuery({
+    name: 'rating',
+    required: false,
+    type: Number,
+    description: 'Filter by specific rating (1-5)'
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Search in review text, course name, student name, or student email'
+  })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    type: String,
+    description: 'Filter reviews from this date (YYYY-MM-DD format)'
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    type: String,
+    description: 'Filter reviews until this date (YYYY-MM-DD format)'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Reviews retrieved successfully',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid query parameters'
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized'
+  })
+  async getAllCoursesReviews(
+    @Req() req,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number = 10,
+    @Query('status') status?: CourseRatingStatus,
+    @Query('rating') rating?: string, // Accept as string first
+    @Query('search') search?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ): Promise<any> {
+    // Validate date parameters
+    if (startDate && !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+      throw new BadRequestException('startDate must be in YYYY-MM-DD format');
+    }
+    if (endDate && !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+      throw new BadRequestException('endDate must be in YYYY-MM-DD format');
+    }
+
+    // Parse dates
+    const startDateObj = startDate ? new Date(startDate) : undefined;
+    const endDateObj = endDate ? new Date(endDate) : undefined;
+
+    // Validate date range
+    if (startDateObj && endDateObj && startDateObj > endDateObj) {
+      throw new BadRequestException('startDate cannot be after endDate');
+    }
+
+    // Parse and validate rating parameter
+    let ratingNum: number | undefined;
+    if (rating !== undefined && rating !== null && rating.trim() !== '') {
+      const parsed = parseFloat(rating);
+      if (!isNaN(parsed) && parsed >= 1 && parsed <= 5) {
+        ratingNum = Math.floor(parsed); // Use integer rating
+      } else {
+        throw new BadRequestException('Rating must be a number between 1 and 5');
+      }
+    }
+
+    // Validate limit range
+    if (limit < 1 || limit > 100) {
+      throw new BadRequestException('Limit must be between 1 and 100');
+    }
+
+    // Get user info from request
+    const userId = req.user.sub;
+    const academyId = req.user.academyId;
+    const role = req.user.role;
+
+    return this.courseService.getAllCoursesReviews(
+      userId,
+      academyId,
+      role,
+      {
+        page,
+        limit,
+        status,
+        rating: ratingNum, // Pass the parsed number
+        search,
+        startDate: startDateObj,
+        endDate: endDateObj,
+      }
     );
   }
 
