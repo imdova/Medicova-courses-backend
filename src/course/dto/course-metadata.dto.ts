@@ -63,6 +63,58 @@ export class CourseSeoDto {
   @IsOptional()
   @IsString()
   metaImage?: string;
+
+  // --------------------------------------------------------
+  //               NEW OG (OPEN GRAPH) FIELDS
+  // --------------------------------------------------------
+
+  @ApiPropertyOptional({
+    description: 'Open Graph Title (used for social sharing)',
+  })
+  @IsOptional()
+  @IsString()
+  ogTitle?: string;
+
+  @ApiPropertyOptional({
+    description: 'Open Graph Description (used for social sharing)',
+  })
+  @IsOptional()
+  @IsString()
+  ogDescription?: string;
+
+  @ApiPropertyOptional({
+    description: 'Open Graph Image URL (used for social preview)',
+    example: 'https://example.com/og-image.jpg',
+  })
+  @IsOptional()
+  @IsString()
+  ogImage?: string;
+
+  // --------------------------------------------------------
+  //               NEW TWITTER CARD FIELDS
+  // --------------------------------------------------------
+
+  @ApiPropertyOptional({
+    description: 'Twitter Card Title',
+  })
+  @IsOptional()
+  @IsString()
+  twitterTitle?: string;
+
+  @ApiPropertyOptional({
+    description: 'Twitter Card Description',
+  })
+  @IsOptional()
+  @IsString()
+  twitterDescription?: string;
+
+  @ApiPropertyOptional({
+    description: 'Twitter Card Image URL',
+    example: 'https://example.com/twitter-image.jpg',
+  })
+  @IsOptional()
+  @IsString()
+  twitterImage?: string;
 }
 
 export class CourseMetadataDto {

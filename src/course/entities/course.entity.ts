@@ -336,4 +336,19 @@ export class Course extends BasicEntity {
 
   @Column({ name: 'certificate_template_id', nullable: true })
   certificateTemplateId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Number of artificially added positive reviews',
+    example: 25,
+  })
+  @Column({ type: 'int', nullable: true, name: 'fake_reviews', default: 0 })
+  fakeReviews?: number;
+
+  @ApiPropertyOptional({
+    description: 'Number of artificially added enrolled students',
+    example: 100,
+  })
+  @Column({ type: 'int', nullable: true, name: 'fake_enrollments', default: 0 })
+  fakeEnrollments?: number;
+
 }

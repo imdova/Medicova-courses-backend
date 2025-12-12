@@ -61,6 +61,16 @@ export class CourseController {
         'You are not permitted to assign this course to another instructor.',
       );
     }
+    // Block non-admins from modifying fake stats
+    if (
+      req.user.role !== 'admin' &&
+      (createCourseDto.fakeReviews !== undefined ||
+        createCourseDto.fakeEnrollments !== undefined)
+    ) {
+      throw new ForbiddenException(
+        'Only admins can modify fake review or fake enrollment values.',
+      );
+    }
     // ✅ block if instructor is not verified
     if (
       req.user.role === 'instructor' &&
@@ -549,6 +559,16 @@ export class CourseController {
     if (updateData.instructorId && req.user.role !== 'admin') {
       throw new ForbiddenException(
         'You are not permitted to assign this course to another instructor.',
+      );
+    }
+    // Block non-admins from modifying fake stats
+    if (
+      req.user.role !== 'admin' &&
+      (updateData.fakeReviews !== undefined ||
+        updateData.fakeEnrollments !== undefined)
+    ) {
+      throw new ForbiddenException(
+        'Only admins can modify fake review or fake enrollment values.',
       );
     }
     if (
