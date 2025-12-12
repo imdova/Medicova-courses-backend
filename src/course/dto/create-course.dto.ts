@@ -261,6 +261,16 @@ export class CreateCourseDto {
         metaDescription:
           'A comprehensive course covering NestJS fundamentals, API design, TypeORM, and deployment. Start building modern, scalable backend applications today.',
         metaImage: 'https://cdn.example.com/course-images/nestjs-seo.png',
+
+        ogTitle: 'Become a NestJS Backend Expert — Full Course',
+        ogDescription:
+          'Learn how to build scalable backend applications using NestJS, TypeScript, and modern design patterns.',
+        ogImage: 'https://cdn.example.com/course-images/nestjs-og.png',
+
+        twitterTitle: 'NestJS Backend Development — Full Course',
+        twitterDescription:
+          'Master NestJS, TypeORM, and API design. Build production-grade backend systems.',
+        twitterImage: 'https://cdn.example.com/course-images/nestjs-twitter.png',
       },
     },
   })
@@ -314,4 +324,14 @@ export class CreateCourseDto {
   @IsOptional()
   @IsString()
   certificationText?: string;
+
+  @ApiHideProperty()
+  @IsOptional()
+  @IsNumber()
+  fakeReviews?: number;
+
+  @ApiHideProperty()
+  @IsOptional()
+  @IsNumber()
+  fakeEnrollments?: number;
 }
