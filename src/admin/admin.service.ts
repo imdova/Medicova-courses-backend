@@ -24,6 +24,8 @@ import { CourseRating } from 'src/course/entities/course-rating.entity';
 import { Academy } from 'src/academy/entities/academy.entity';
 import { CreateInstructorDto } from './dto/create-instructor.dto';
 import { ProfileMetadataDto } from 'src/profile/dto/profile-metadata.dto';
+import { Payment, PaymentStatus } from 'src/payment/entities/payment.entity';
+import { Transaction, TransactionStatus } from 'src/payment/entities/transaction.entity';
 
 @Injectable()
 export class AdminService {
@@ -59,6 +61,10 @@ export class AdminService {
     private ratingRepo: Repository<CourseRating>,
     @InjectRepository(Academy) // Replace 'Academy' with your actual academy entity
     private readonly academyRepository: Repository<Academy>,
+    @InjectRepository(Payment)
+    private paymentRepository: Repository<Payment>,
+    @InjectRepository(Transaction)
+    private transactionRepository: Repository<Transaction>,
     private readonly profileService: ProfileService,
     private readonly emailService: EmailService,
     private readonly dataSource: DataSource
@@ -671,9 +677,13 @@ export class AdminService {
         alias = 'enrollment';
         repo = this.courseStudentRepo; // Use the CourseStudent repository
         break;
-      case 'academies': // ✅ NEW CASE FOR ENROLLMENTS
+      case 'academies':
         alias = 'academy';
-        repo = this.academyRepository; // Use the CourseStudent repository
+        repo = this.academyRepository;
+        break;
+      case 'payments':
+        alias = 'payment';
+        repo = this.paymentRepository;
         break;
       default:
         return [];
@@ -717,6 +727,11 @@ export class AdminService {
       query = query
         .andWhere(`${alias}.status = :status`, { status: CourseStatus.PUBLISHED })
         .andWhere(`${alias}.isActive = :isActive`, { isActive: true });
+    }
+
+    if (type === 'payments') {
+      query = query
+        .andWhere(`${alias}.status = :status`, { status: PaymentStatus.SUCCESS });
     }
 
     // Execute the query
@@ -3159,5 +3174,41 @@ export class AdminService {
     }
 
     return results;
+  }
+
+  async getOptimizedFinancialStats(): Promise<any[]> {
+    // Single comprehensive query
+    const results = await this.transactionRepository
+      .createQueryBuilder('transaction')
+      .leftJoin('transaction.payment', 'payment')
+      .select([
+        'transaction.currency as currency',
+        'COALESCE(SUM(CASE WHEN transaction.status = :paidStatus THEN transaction.totalPrice ELSE 0 END), 0) as totalSales',
+        'COALESCE(SUM(CASE WHEN transaction.status = :paidStatus THEN transaction.amount ELSE 0 END), 0) as instructorRevenue',
+        'COALESCE(SUM(CASE WHEN transaction.status = :paidStatus THEN transaction.platformFeeAmount ELSE 0 END), 0) as platformFees',
+        'COUNT(DISTINCT CASE WHEN transaction.status = :paidStatus THEN transaction.id END) as transactionCount',
+        'COUNT(DISTINCT payment.id) as paymentCount',
+        'COUNT(DISTINCT CASE WHEN payment.status = :successPaymentStatus THEN payment.id END) as successfulPaymentCount',
+      ])
+      .where('payment.status IN (:...paymentStatuses) OR payment.id IS NULL', {
+        paidStatus: TransactionStatus.PAID,
+        successPaymentStatus: PaymentStatus.SUCCESS,
+        paymentStatuses: [PaymentStatus.SUCCESS, PaymentStatus.REFUNDED],
+      })
+      .andWhere('transaction.currency IS NOT NULL')
+      .groupBy('transaction.currency')
+      .orderBy('transaction.currency', 'ASC')
+      .getRawMany();
+
+    return results.map(row => ({
+      currency: row.currency,
+      totalSales: parseFloat(row.totalsales || '0'),
+      instructorRevenue: parseFloat(row.instructorrevenue || '0'),
+      totalTaxes: parseFloat(row.platformfees || '0'),
+      totalNetIncome: parseFloat(row.platformfees || '0'),
+      // transactionCount: parseInt(row.transactioncount || '0'),
+      // paymentCount: parseInt(row.paymentcount || '0'),
+      // successfulPaymentCount: parseInt(row.successfulpaymentcount || '0'),
+    }));
   }
 }

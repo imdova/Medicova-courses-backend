@@ -22,6 +22,7 @@ enum StatsType {
   STUDENTS = 'students',
   INSTRUCTORS = 'instructors',
   ACADEMIES = 'academies',
+  PAYMENTS = 'payments',
 }
 export enum GenderFilter {
   ALL = 'all',
@@ -987,5 +988,18 @@ export class AdminController {
       minExperience,
       maxExperience
     );
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  //@RequirePermissions('admin:finance')
+  @Get('financial-stats')
+  @ApiOperation({ summary: 'Get financial statistics grouped by currency' })
+  @ApiResponse({
+    status: 200,
+    description: 'Financial statistics retrieved successfully',
+    type: [Object], // You can create a proper DTO if needed
+  })
+  async getFinancialStats(): Promise<any> {
+    return this.adminService.getOptimizedFinancialStats();
   }
 }
