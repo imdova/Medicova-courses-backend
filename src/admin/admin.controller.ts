@@ -22,6 +22,7 @@ enum StatsType {
   STUDENTS = 'students',
   INSTRUCTORS = 'instructors',
   ACADEMIES = 'academies',
+  PAYMENTS = 'payments',
 }
 export enum GenderFilter {
   ALL = 'all',
@@ -987,5 +988,90 @@ export class AdminController {
       minExperience,
       maxExperience
     );
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:finance-stats')
+  @Get('financial-stats')
+  @ApiOperation({ summary: 'Get financial statistics grouped by currency' })
+  @ApiResponse({
+    status: 200,
+    description: 'Financial statistics retrieved successfully',
+    type: [Object], // You can create a proper DTO if needed
+  })
+  async getFinancialStats(): Promise<any> {
+    return this.adminService.getOptimizedFinancialStats();
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:recent-transactions:list')
+  @Get('recent-transactions')
+  @ApiOperation({ summary: 'Get all transactions (Admin only)' })
+  @ApiQuery({ name: 'creatorId', required: false, type: String })
+  @ApiQuery({ name: 'buyerId', required: false, type: String })
+  @ApiQuery({ name: 'status', required: false, enum: ['PENDING', 'PAID', 'REFUNDED', 'CANCELLED'] })
+  @ApiQuery({ name: 'startDate', required: false, type: String })
+  @ApiQuery({ name: 'endDate', required: false, type: String })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiResponse({ status: 200, description: 'Returns all transactions' })
+  async getAllTransactions(
+    @Query('creatorId') creatorId?: string,
+    @Query('buyerId') buyerId?: string,
+    @Query('status') status?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+  ) {
+    return this.adminService.getAllTransactions({
+      creatorId,
+      buyerId,
+      status,
+      startDate,
+      endDate,
+      page,
+      limit,
+    });
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:analytics')
+  @Get('financial-top-instructors')
+  @ApiOperation({ summary: 'Get top instructors by earnings' })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of top instructors to return (default: 10)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Top instructors retrieved successfully',
+  })
+  async getFinancialTopInstructors(
+    @Query('limit') limit = 10,
+  ): Promise<any> {
+    return this.adminService.getFinancialTopInstructors(parseInt(limit.toString()));
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:analytics')
+  @Get('financial-top-students')
+  @ApiOperation({ summary: 'Get top students by spending' })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of top students to return (default: 10)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Top students retrieved successfully',
+  })
+  async getFinancialTopStudents(
+    @Query('limit') limit = 10,
+  ): Promise<any> {
+    return this.adminService.getFinancialTopStudents(parseInt(limit.toString()));
   }
 }
