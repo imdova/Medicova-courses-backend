@@ -1032,4 +1032,44 @@ export class AdminController {
       limit,
     });
   }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  //@RequirePermissions('admin:analytics')
+  @Get('financial-top-instructors')
+  @ApiOperation({ summary: 'Get top instructors by earnings' })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of top instructors to return (default: 10)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Top instructors retrieved successfully',
+  })
+  async getFinancialTopInstructors(
+    @Query('limit') limit = 10,
+  ): Promise<any> {
+    return this.adminService.getFinancialTopInstructors(parseInt(limit.toString()));
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  //@RequirePermissions('admin:analytics')
+  @Get('financial-top-students')
+  @ApiOperation({ summary: 'Get top students by spending' })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of top students to return (default: 10)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Top students retrieved successfully',
+  })
+  async getFinancialTopStudents(
+    @Query('limit') limit = 10,
+  ): Promise<any> {
+    return this.adminService.getFinancialTopStudents(parseInt(limit.toString()));
+  }
 }

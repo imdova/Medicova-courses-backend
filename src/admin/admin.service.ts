@@ -3273,4 +3273,135 @@ export class AdminService {
       limit,
     };
   }
+
+  async getFinancialTopInstructors(limit = 10): Promise<any[]> {
+    const results = await this.transactionRepository
+      .createQueryBuilder('transaction')
+      .leftJoin('transaction.creator', 'instructor')
+      .leftJoin('instructor.profile', 'profile')
+      .select([
+        'instructor.id as instructorId',
+        'profile.firstName as firstName',
+        'profile.lastName as lastName',
+        'CONCAT(profile.firstName, \' \', profile.lastName) as instructorName',
+        'instructor.email as instructorEmail',
+        'transaction.currency as currency',
+        'COALESCE(SUM(transaction.amount), 0) as earnings',
+        'COUNT(DISTINCT transaction.id) as transactionCount',
+        'COUNT(DISTINCT transaction.itemId) as courseCount',
+      ])
+      .where('transaction.status = :status', { status: TransactionStatus.PAID })
+      .groupBy('instructor.id, profile.firstName, profile.lastName, instructor.email, transaction.currency')
+      .orderBy('earnings', 'DESC')
+      .getRawMany();
+
+    // Group by instructor
+    const instructorMap = new Map();
+
+    results.forEach(row => {
+      const instructorId = row.instructorid;
+
+      if (!instructorMap.has(instructorId)) {
+        instructorMap.set(instructorId, {
+          instructorId,
+          instructorName: row.instructorname,
+          //firstName: row.firstname,
+          //lastName: row.lastname,
+          instructorEmail: row.instructoremail,
+          //totalEarnings: 0,
+          earningsByCurrency: [],
+          totalTransactionCount: 0,
+          courseCount: parseInt(row.coursecount || '0'),
+        });
+      }
+
+      const instructor = instructorMap.get(instructorId);
+      const earnings = parseFloat(row.earnings || '0');
+
+      //instructor.totalEarnings += earnings;
+      instructor.totalTransactionCount += parseInt(row.transactioncount || '0');
+
+      instructor.earningsByCurrency.push({
+        currency: row.currency,
+        amount: earnings,
+        transactionCount: parseInt(row.transactioncount || '0'),
+      });
+    });
+
+    return Array.from(instructorMap.values())
+      .sort((a, b) => b.totalEarnings - a.totalEarnings)
+      .slice(0, limit);
+  }
+
+  async getFinancialTopStudents(limit = 10): Promise<any[]> {
+    const results = await this.paymentRepository
+      .createQueryBuilder('payment')
+      .leftJoin('payment.user', 'student')
+      .leftJoin('student.profile', 'profile')
+      .leftJoin('payment.transactions', 'transaction')
+      .select([
+        'student.id as studentId',
+        'profile.firstName as firstName',
+        'profile.lastName as lastName',
+        'CONCAT(profile.firstName, \' \', profile.lastName) as studentName',
+        'student.email as studentEmail',
+        'transaction.currency as currency',
+        'COALESCE(SUM(payment.amount), 0) as spentAmount',
+        'COUNT(DISTINCT payment.id) as paymentCount',
+        'COUNT(DISTINCT transaction.itemId) as courseCount',
+        'MAX(payment.created_at) as lastPurchaseDate',
+      ])
+      .where('payment.status = :status', { status: PaymentStatus.SUCCESS })
+      .groupBy('student.id, profile.firstName, profile.lastName, student.email, transaction.currency')
+      .orderBy('spentAmount', 'DESC')
+      .getRawMany();
+
+    // Group by student
+    const studentMap = new Map();
+
+    results.forEach(row => {
+      const studentId = row.studentid;
+
+      if (!studentMap.has(studentId)) {
+        studentMap.set(studentId, {
+          studentId,
+          studentName: row.studentname,
+          //firstName: row.firstname,
+          //lastName: row.lastname,
+          studentEmail: row.studentemail,
+          //totalSpent: 0,
+          spendingByCurrency: [],
+          totalPaymentCount: 0,
+          courseCount: parseInt(row.coursecount || '0'),
+          lastPurchaseDate: row.lastpurchasedate,
+        });
+      }
+
+      const student = studentMap.get(studentId);
+      const spentAmount = parseFloat(row.spentamount || '0');
+
+      //student.totalSpent += spentAmount;
+      student.totalPaymentCount += parseInt(row.paymentcount || '0');
+
+      student.spendingByCurrency.push({
+        currency: row.currency,
+        amount: spentAmount,
+        paymentCount: parseInt(row.paymentcount || '0'),
+      });
+
+      // Update last purchase date if this one is newer
+      if (row.lastpurchasedate) {
+        const currentDate = new Date(row.lastpurchasedate);
+        const existingDate = student.lastPurchaseDate ? new Date(student.lastPurchaseDate) : null;
+
+        if (!existingDate || currentDate > existingDate) {
+          student.lastPurchaseDate = row.lastpurchasedate;
+        }
+      }
+    });
+
+    return Array.from(studentMap.values())
+      .sort((a, b) => b.totalSpent - a.totalSpent)
+      .slice(0, limit);
+  }
 }
