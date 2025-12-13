@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, DataSource, In, Repository } from 'typeorm';
+import { Between, Brackets, DataSource, FindOptionsWhere, In, Repository } from 'typeorm';
 import { User } from '../user/entities/user.entity';
 import { Course, CourseStatus } from '../course/entities/course.entity';
 import { Profile } from '../profile/entities/profile.entity';
@@ -26,6 +26,16 @@ import { CreateInstructorDto } from './dto/create-instructor.dto';
 import { ProfileMetadataDto } from 'src/profile/dto/profile-metadata.dto';
 import { Payment, PaymentStatus } from 'src/payment/entities/payment.entity';
 import { Transaction, TransactionStatus } from 'src/payment/entities/transaction.entity';
+
+interface GetAllTransactionsFilters {
+  creatorId?: string;
+  buyerId?: string;
+  status?: string;
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  limit?: number;
+}
 
 @Injectable()
 export class AdminService {
@@ -3210,5 +3220,57 @@ export class AdminService {
       // paymentCount: parseInt(row.paymentcount || '0'),
       // successfulPaymentCount: parseInt(row.successfulpaymentcount || '0'),
     }));
+  }
+
+  async getAllTransactions(filters: GetAllTransactionsFilters): Promise<{
+    transactions: Transaction[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const {
+      creatorId,
+      buyerId,
+      status,
+      startDate,
+      endDate,
+      page = 1,
+      limit = 20,
+    } = filters;
+
+    const where: FindOptionsWhere<Transaction> = {};
+
+    if (creatorId) {
+      where.creatorId = creatorId;
+    }
+
+    if (buyerId) {
+      where.buyerId = buyerId;
+    }
+
+    if (status && Object.values(TransactionStatus).includes(status as TransactionStatus)) {
+      where.status = status as TransactionStatus;
+    }
+
+    if (startDate || endDate) {
+      const start = startDate ? new Date(startDate) : new Date(0);
+      const end = endDate ? new Date(endDate) : new Date();
+      where.created_at = Between(start, end);
+    }
+
+    const [transactions, total] = await this.transactionRepository.findAndCount({
+      where,
+      relations: ['creator', 'buyer', 'payment', 'cartItem'],
+      order: { created_at: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    return {
+      transactions,
+      total,
+      page,
+      limit,
+    };
   }
 }

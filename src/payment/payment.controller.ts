@@ -172,36 +172,6 @@ export class PaymentController {
     return this.paymentService.getPlatformStats();
   }
 
-  @Get('admin/transactions')
-  @ApiOperation({ summary: 'Get all transactions (Admin only)' })
-  @ApiQuery({ name: 'creatorId', required: false, type: String })
-  @ApiQuery({ name: 'buyerId', required: false, type: String })
-  @ApiQuery({ name: 'status', required: false, enum: ['PENDING', 'PAID', 'REFUNDED', 'CANCELLED'] })
-  @ApiQuery({ name: 'startDate', required: false, type: String })
-  @ApiQuery({ name: 'endDate', required: false, type: String })
-  @ApiQuery({ name: 'page', required: false, type: Number })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiResponse({ status: 200, description: 'Returns all transactions' })
-  async getAllTransactions(
-    @Query('creatorId') creatorId?: string,
-    @Query('buyerId') buyerId?: string,
-    @Query('status') status?: string,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-    @Query('page') page = 1,
-    @Query('limit') limit = 20,
-  ) {
-    return this.paymentService.getAllTransactions({
-      creatorId,
-      buyerId,
-      status,
-      startDate,
-      endDate,
-      page,
-      limit,
-    });
-  }
-
   @Get('admin/payments')
   @ApiOperation({ summary: 'Get all payments (Admin only)' })
   @ApiQuery({ name: 'method', required: false, enum: PaymentMethod })
