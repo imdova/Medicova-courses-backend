@@ -991,7 +991,7 @@ export class AdminController {
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('admin:finance')
+  @RequirePermissions('admin:finance-stats')
   @Get('financial-stats')
   @ApiOperation({ summary: 'Get financial statistics grouped by currency' })
   @ApiResponse({
@@ -1003,6 +1003,8 @@ export class AdminController {
     return this.adminService.getOptimizedFinancialStats();
   }
 
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:recent-transactions:list')
   @Get('recent-transactions')
   @ApiOperation({ summary: 'Get all transactions (Admin only)' })
   @ApiQuery({ name: 'creatorId', required: false, type: String })
@@ -1034,7 +1036,7 @@ export class AdminController {
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('admin:analytics')
+  @RequirePermissions('admin:analytics')
   @Get('financial-top-instructors')
   @ApiOperation({ summary: 'Get top instructors by earnings' })
   @ApiQuery({
@@ -1054,7 +1056,7 @@ export class AdminController {
   }
 
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  //@RequirePermissions('admin:analytics')
+  @RequirePermissions('admin:analytics')
   @Get('financial-top-students')
   @ApiOperation({ summary: 'Get top students by spending' })
   @ApiQuery({
