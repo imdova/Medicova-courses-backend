@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, DataSource, In, Repository } from 'typeorm';
+import { Between, Brackets, DataSource, FindOptionsWhere, In, Repository } from 'typeorm';
 import { User } from '../user/entities/user.entity';
 import { Course, CourseStatus } from '../course/entities/course.entity';
 import { Profile } from '../profile/entities/profile.entity';
@@ -24,6 +24,18 @@ import { CourseRating } from 'src/course/entities/course-rating.entity';
 import { Academy } from 'src/academy/entities/academy.entity';
 import { CreateInstructorDto } from './dto/create-instructor.dto';
 import { ProfileMetadataDto } from 'src/profile/dto/profile-metadata.dto';
+import { Payment, PaymentStatus } from 'src/payment/entities/payment.entity';
+import { Transaction, TransactionStatus } from 'src/payment/entities/transaction.entity';
+
+interface GetAllTransactionsFilters {
+  creatorId?: string;
+  buyerId?: string;
+  status?: string;
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  limit?: number;
+}
 
 @Injectable()
 export class AdminService {
@@ -59,6 +71,10 @@ export class AdminService {
     private ratingRepo: Repository<CourseRating>,
     @InjectRepository(Academy) // Replace 'Academy' with your actual academy entity
     private readonly academyRepository: Repository<Academy>,
+    @InjectRepository(Payment)
+    private paymentRepository: Repository<Payment>,
+    @InjectRepository(Transaction)
+    private transactionRepository: Repository<Transaction>,
     private readonly profileService: ProfileService,
     private readonly emailService: EmailService,
     private readonly dataSource: DataSource
@@ -671,9 +687,13 @@ export class AdminService {
         alias = 'enrollment';
         repo = this.courseStudentRepo; // Use the CourseStudent repository
         break;
-      case 'academies': // ✅ NEW CASE FOR ENROLLMENTS
+      case 'academies':
         alias = 'academy';
-        repo = this.academyRepository; // Use the CourseStudent repository
+        repo = this.academyRepository;
+        break;
+      case 'payments':
+        alias = 'payment';
+        repo = this.paymentRepository;
         break;
       default:
         return [];
@@ -717,6 +737,11 @@ export class AdminService {
       query = query
         .andWhere(`${alias}.status = :status`, { status: CourseStatus.PUBLISHED })
         .andWhere(`${alias}.isActive = :isActive`, { isActive: true });
+    }
+
+    if (type === 'payments') {
+      query = query
+        .andWhere(`${alias}.status = :status`, { status: PaymentStatus.SUCCESS });
     }
 
     // Execute the query
@@ -3159,5 +3184,224 @@ export class AdminService {
     }
 
     return results;
+  }
+
+  async getOptimizedFinancialStats(): Promise<any[]> {
+    // Single comprehensive query
+    const results = await this.transactionRepository
+      .createQueryBuilder('transaction')
+      .leftJoin('transaction.payment', 'payment')
+      .select([
+        'transaction.currency as currency',
+        'COALESCE(SUM(CASE WHEN transaction.status = :paidStatus THEN transaction.totalPrice ELSE 0 END), 0) as totalSales',
+        'COALESCE(SUM(CASE WHEN transaction.status = :paidStatus THEN transaction.amount ELSE 0 END), 0) as instructorRevenue',
+        'COALESCE(SUM(CASE WHEN transaction.status = :paidStatus THEN transaction.platformFeeAmount ELSE 0 END), 0) as platformFees',
+        'COUNT(DISTINCT CASE WHEN transaction.status = :paidStatus THEN transaction.id END) as transactionCount',
+        'COUNT(DISTINCT payment.id) as paymentCount',
+        'COUNT(DISTINCT CASE WHEN payment.status = :successPaymentStatus THEN payment.id END) as successfulPaymentCount',
+      ])
+      .where('payment.status IN (:...paymentStatuses) OR payment.id IS NULL', {
+        paidStatus: TransactionStatus.PAID,
+        successPaymentStatus: PaymentStatus.SUCCESS,
+        paymentStatuses: [PaymentStatus.SUCCESS, PaymentStatus.REFUNDED],
+      })
+      .andWhere('transaction.currency IS NOT NULL')
+      .groupBy('transaction.currency')
+      .orderBy('transaction.currency', 'ASC')
+      .getRawMany();
+
+    return results.map(row => ({
+      currency: row.currency,
+      totalSales: parseFloat(row.totalsales || '0'),
+      instructorRevenue: parseFloat(row.instructorrevenue || '0'),
+      totalTaxes: parseFloat(row.platformfees || '0'),
+      totalNetIncome: parseFloat(row.platformfees || '0'),
+      // transactionCount: parseInt(row.transactioncount || '0'),
+      // paymentCount: parseInt(row.paymentcount || '0'),
+      // successfulPaymentCount: parseInt(row.successfulpaymentcount || '0'),
+    }));
+  }
+
+  async getAllTransactions(filters: GetAllTransactionsFilters): Promise<{
+    transactions: Transaction[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const {
+      creatorId,
+      buyerId,
+      status,
+      startDate,
+      endDate,
+      page = 1,
+      limit = 20,
+    } = filters;
+
+    const where: FindOptionsWhere<Transaction> = {};
+
+    if (creatorId) {
+      where.creatorId = creatorId;
+    }
+
+    if (buyerId) {
+      where.buyerId = buyerId;
+    }
+
+    if (status && Object.values(TransactionStatus).includes(status as TransactionStatus)) {
+      where.status = status as TransactionStatus;
+    }
+
+    if (startDate || endDate) {
+      const start = startDate ? new Date(startDate) : new Date(0);
+      const end = endDate ? new Date(endDate) : new Date();
+      where.created_at = Between(start, end);
+    }
+
+    const [transactions, total] = await this.transactionRepository.findAndCount({
+      where,
+      relations: ['creator', 'buyer', 'payment', 'cartItem'],
+      order: { created_at: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    return {
+      transactions,
+      total,
+      page,
+      limit,
+    };
+  }
+
+  async getFinancialTopInstructors(limit = 10): Promise<any[]> {
+    const results = await this.transactionRepository
+      .createQueryBuilder('transaction')
+      .leftJoin('transaction.creator', 'instructor')
+      .leftJoin('instructor.profile', 'profile')
+      .select([
+        'instructor.id as instructorId',
+        'profile.firstName as firstName',
+        'profile.lastName as lastName',
+        'CONCAT(profile.firstName, \' \', profile.lastName) as instructorName',
+        'instructor.email as instructorEmail',
+        'transaction.currency as currency',
+        'COALESCE(SUM(transaction.amount), 0) as earnings',
+        'COUNT(DISTINCT transaction.id) as transactionCount',
+        'COUNT(DISTINCT transaction.itemId) as courseCount',
+      ])
+      .where('transaction.status = :status', { status: TransactionStatus.PAID })
+      .groupBy('instructor.id, profile.firstName, profile.lastName, instructor.email, transaction.currency')
+      .orderBy('earnings', 'DESC')
+      .getRawMany();
+
+    // Group by instructor
+    const instructorMap = new Map();
+
+    results.forEach(row => {
+      const instructorId = row.instructorid;
+
+      if (!instructorMap.has(instructorId)) {
+        instructorMap.set(instructorId, {
+          instructorId,
+          instructorName: row.instructorname,
+          //firstName: row.firstname,
+          //lastName: row.lastname,
+          instructorEmail: row.instructoremail,
+          //totalEarnings: 0,
+          earningsByCurrency: [],
+          totalTransactionCount: 0,
+          courseCount: parseInt(row.coursecount || '0'),
+        });
+      }
+
+      const instructor = instructorMap.get(instructorId);
+      const earnings = parseFloat(row.earnings || '0');
+
+      //instructor.totalEarnings += earnings;
+      instructor.totalTransactionCount += parseInt(row.transactioncount || '0');
+
+      instructor.earningsByCurrency.push({
+        currency: row.currency,
+        amount: earnings,
+        transactionCount: parseInt(row.transactioncount || '0'),
+      });
+    });
+
+    return Array.from(instructorMap.values())
+      .sort((a, b) => b.totalEarnings - a.totalEarnings)
+      .slice(0, limit);
+  }
+
+  async getFinancialTopStudents(limit = 10): Promise<any[]> {
+    const results = await this.paymentRepository
+      .createQueryBuilder('payment')
+      .leftJoin('payment.user', 'student')
+      .leftJoin('student.profile', 'profile')
+      .leftJoin('payment.transactions', 'transaction')
+      .select([
+        'student.id as studentId',
+        'profile.firstName as firstName',
+        'profile.lastName as lastName',
+        'CONCAT(profile.firstName, \' \', profile.lastName) as studentName',
+        'student.email as studentEmail',
+        'transaction.currency as currency',
+        'COALESCE(SUM(payment.amount), 0) as spentAmount',
+        'COUNT(DISTINCT payment.id) as paymentCount',
+        'COUNT(DISTINCT transaction.itemId) as courseCount',
+        'MAX(payment.created_at) as lastPurchaseDate',
+      ])
+      .where('payment.status = :status', { status: PaymentStatus.SUCCESS })
+      .groupBy('student.id, profile.firstName, profile.lastName, student.email, transaction.currency')
+      .orderBy('spentAmount', 'DESC')
+      .getRawMany();
+
+    // Group by student
+    const studentMap = new Map();
+
+    results.forEach(row => {
+      const studentId = row.studentid;
+
+      if (!studentMap.has(studentId)) {
+        studentMap.set(studentId, {
+          studentId,
+          studentName: row.studentname,
+          //firstName: row.firstname,
+          //lastName: row.lastname,
+          studentEmail: row.studentemail,
+          //totalSpent: 0,
+          spendingByCurrency: [],
+          totalPaymentCount: 0,
+          courseCount: parseInt(row.coursecount || '0'),
+          lastPurchaseDate: row.lastpurchasedate,
+        });
+      }
+
+      const student = studentMap.get(studentId);
+      const spentAmount = parseFloat(row.spentamount || '0');
+
+      //student.totalSpent += spentAmount;
+      student.totalPaymentCount += parseInt(row.paymentcount || '0');
+
+      student.spendingByCurrency.push({
+        currency: row.currency,
+        amount: spentAmount,
+        paymentCount: parseInt(row.paymentcount || '0'),
+      });
+
+      // Update last purchase date if this one is newer
+      if (row.lastpurchasedate) {
+        const currentDate = new Date(row.lastpurchasedate);
+        const existingDate = student.lastPurchaseDate ? new Date(student.lastPurchaseDate) : null;
+
+        if (!existingDate || currentDate > existingDate) {
+          student.lastPurchaseDate = row.lastpurchasedate;
+        }
+      }
+    });
+
+    return Array.from(studentMap.values())
+      .sort((a, b) => b.totalSpent - a.totalSpent)
+      .slice(0, limit);
   }
 }

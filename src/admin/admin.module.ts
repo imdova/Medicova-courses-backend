@@ -20,9 +20,11 @@ import { CourseRating } from 'src/course/entities/course-rating.entity';
 import { FaqModule } from './faq/faq.module';
 import { StudentSettingsModule } from './student-settings/student-settings.module';
 import { Academy } from 'src/academy/entities/academy.entity';
+import { Payment } from 'src/payment/entities/payment.entity';
+import { Transaction } from 'src/payment/entities/transaction.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Course, Profile, Role, CourseSectionItem, CourseProgress, CourseStudent, IdentityVerification, Quiz, QuizQuestion, QuizAttempt, Question, CourseRating, Academy]),
+  imports: [TypeOrmModule.forFeature([User, Course, Profile, Role, CourseSectionItem, CourseProgress, CourseStudent, IdentityVerification, Quiz, QuizQuestion, QuizAttempt, Question, CourseRating, Academy, Payment, Transaction]),
   forwardRef(() => ProfileModule),
     FaqModule,
     StudentSettingsModule],

@@ -8,16 +8,6 @@ import { CartItem } from '../cart/entities/cart-item.entity';
 import { Transaction, TransactionStatus } from './entities/transaction.entity';
 import { User } from 'src/user/entities/user.entity';
 
-interface GetAllTransactionsFilters {
-  creatorId?: string;
-  buyerId?: string;
-  status?: string;
-  startDate?: string;
-  endDate?: string;
-  page?: number;
-  limit?: number;
-}
-
 @Injectable()
 export class PaymentService {
   private readonly logger = new Logger(PaymentService.name);
@@ -633,58 +623,6 @@ export class PaymentService {
         averageSale: parseFloat(creator.averageSale),
       })),
       recentTransactions,
-    };
-  }
-
-  async getAllTransactions(filters: GetAllTransactionsFilters): Promise<{
-    transactions: Transaction[];
-    total: number;
-    page: number;
-    limit: number;
-  }> {
-    const {
-      creatorId,
-      buyerId,
-      status,
-      startDate,
-      endDate,
-      page = 1,
-      limit = 20,
-    } = filters;
-
-    const where: FindOptionsWhere<Transaction> = {};
-
-    if (creatorId) {
-      where.creatorId = creatorId;
-    }
-
-    if (buyerId) {
-      where.buyerId = buyerId;
-    }
-
-    if (status && Object.values(TransactionStatus).includes(status as TransactionStatus)) {
-      where.status = status as TransactionStatus;
-    }
-
-    if (startDate || endDate) {
-      const start = startDate ? new Date(startDate) : new Date(0);
-      const end = endDate ? new Date(endDate) : new Date();
-      where.created_at = Between(start, end);
-    }
-
-    const [transactions, total] = await this.transactionRepository.findAndCount({
-      where,
-      relations: ['creator', 'buyer', 'payment', 'cartItem'],
-      order: { created_at: 'DESC' },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
-
-    return {
-      transactions,
-      total,
-      page,
-      limit,
     };
   }
 
