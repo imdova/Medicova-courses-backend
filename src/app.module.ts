@@ -160,14 +160,31 @@ import { InvoiceItem } from './invoice/entities/invoice-item.entity';
       ],
       synchronize: true,
       extra: {
-        max: 5
+        max: 5,
       },
       ssl: {
         rejectUnauthorized: false, // ✅ Allow self-signed certs from Cloud SQL
       },
     }),
     MailerModule.forRoot({
-      transport: process.env.SMTP_TRANSPORT,
+      transport:
+        process.env.SMTP_TRANSPORT && process.env.SMTP_TRANSPORT.trim() !== ''
+          ? process.env.SMTP_TRANSPORT
+          : {
+              host: process.env.SMTP_HOST || 'localhost',
+              port: parseInt(process.env.SMTP_PORT || '587'),
+              secure: process.env.SMTP_SECURE === 'true',
+              auth:
+                process.env.SMTP_USER && process.env.SMTP_PASS
+                  ? {
+                      user: process.env.SMTP_USER,
+                      pass: process.env.SMTP_PASS,
+                    }
+                  : undefined,
+            },
+      defaults: {
+        from: process.env.SMTP_FROM || '"No Reply" <noreply@example.com>',
+      },
       template: {
         dir: join(__dirname, '..', 'src', 'templates'),
         adapter: new HandlebarsAdapter(),
@@ -200,4 +217,4 @@ import { InvoiceItem } from './invoice/entities/invoice-item.entity';
   controllers: [AppController],
   providers: [AppService, DatabaseService],
 })
-export class AppModule { }
+export class AppModule {}
