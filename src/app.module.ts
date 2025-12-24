@@ -192,7 +192,9 @@ import { InvoiceItem } from './invoice/entities/invoice-item.entity';
         from: process.env.SMTP_FROM || '"No Reply" <noreply@example.com>',
       },
       template: {
-        dir: join(__dirname, '..', 'src', 'templates'),
+        dir: process.env.NODE_ENV === 'production'
+          ? join(process.cwd(), 'dist', 'src', 'templates')
+          : join(process.cwd(), 'src', 'templates'),
         adapter: new HandlebarsAdapter(),
         options: {
           strict: true,

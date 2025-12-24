@@ -67,13 +67,38 @@ export class UserService {
     const normalizedEmail = email.trim().toLowerCase();
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    //Get role entity
-    const roleEntity = await this.roleRepository.findOne({
-      where: { name: createUserDto.role }, // or whatever role name
+    // Determine role name (default to 'student' if not provided)
+    const roleName = createUserDto.role || 'student';
+
+    // Get or create role entity
+    let roleEntity = await this.roleRepository.findOne({
+      where: { name: roleName },
     });
 
+    // Auto-create common roles if they don't exist
     if (!roleEntity) {
-      throw new NotFoundException('Role academy_admin not found');
+      const commonRoles: Record<string, string> = {
+        student: 'Student role for course enrollment',
+        instructor: 'Instructor role for teaching courses',
+        admin: 'Administrator with full system access',
+        academy_admin: 'Academy administrator role',
+        academy_user: 'Academy user role',
+      };
+
+      const roleDescription = commonRoles[roleName] || `Role: ${roleName}`;
+
+      // Only auto-create if it's a common role
+      if (commonRoles[roleName]) {
+        roleEntity = this.roleRepository.create({
+          name: roleName,
+          description: roleDescription,
+        });
+        roleEntity = await this.roleRepository.save(roleEntity);
+      } else {
+        throw new NotFoundException(
+          `Role "${roleName}" not found. Please ensure the role exists in the database.`,
+        );
+      }
     }
 
     const verificationToken = uuidv4();
