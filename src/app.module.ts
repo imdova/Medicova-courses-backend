@@ -176,8 +176,11 @@ import { InvoiceItem } from './invoice/entities/invoice-item.entity';
       transport:
         process.env.SMTP_TRANSPORT && process.env.SMTP_TRANSPORT.trim() !== ''
           ? process.env.SMTP_TRANSPORT
-          : {
-              host: process.env.SMTP_HOST || 'localhost',
+          : process.env.SMTP_HOST && 
+            process.env.SMTP_HOST !== 'smtp.example.com' &&
+            process.env.SMTP_HOST !== 'localhost'
+          ? {
+              host: process.env.SMTP_HOST,
               port: parseInt(process.env.SMTP_PORT || '587'),
               secure: process.env.SMTP_SECURE === 'true',
               auth:
@@ -187,9 +190,13 @@ import { InvoiceItem } from './invoice/entities/invoice-item.entity';
                       pass: process.env.SMTP_PASS,
                     }
                   : undefined,
+            }
+          : {
+              // Use a dummy transport that logs instead of sending
+              jsonTransport: true,
             },
       defaults: {
-        from: process.env.SMTP_FROM || '"No Reply" <noreply@example.com>',
+        from: process.env.SMTP_FROM || process.env.SMTP_DEMO_EMAIL || '"No Reply" <noreply@example.com>',
       },
       template: {
         dir: process.env.NODE_ENV === 'production'
