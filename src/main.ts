@@ -55,6 +55,7 @@ async function bootstrap(): Promise<NestExpressApplication> {
           'https://medicova-courses-git-preview-imdovas-projects.vercel.app',
           'https://jobacademy.net',
           'http://92.113.25.161:3000',
+          'https://courses.medicova.net/',
           'null' // for file:// protocol
         ];
 
