@@ -97,6 +97,17 @@ import { InvoiceItem } from './invoice/entities/invoice-item.entity';
       username: process.env.DB_USERNAME,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
+      ssl: {
+        rejectUnauthorized: false, // ✅ Allow self-signed certs from RDS
+      },
+      connectTimeoutMS: 30000, // 30 seconds connection timeout
+      extra: {
+        max: 5,
+        connectionTimeoutMillis: 30000,
+        idleTimeoutMillis: 30000,
+      },
+      retryAttempts: 5,
+      retryDelay: 3000, // 3 seconds between retries
       entities: [
         User,
         Profile,
@@ -159,12 +170,6 @@ import { InvoiceItem } from './invoice/entities/invoice-item.entity';
         InvoiceItem,
       ],
       synchronize: true,
-      extra: {
-        max: 5,
-      },
-      ssl: {
-        rejectUnauthorized: false, // ✅ Allow self-signed certs from Cloud SQL
-      },
     }),
     MailerModule.forRoot({
       transport:
