@@ -1,9 +1,15 @@
-import { Injectable, OnModuleDestroy, BeforeApplicationShutdown } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy, BeforeApplicationShutdown } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
 @Injectable()
-export class DatabaseService implements OnModuleDestroy, BeforeApplicationShutdown {
+export class DatabaseService implements OnModuleInit, OnModuleDestroy, BeforeApplicationShutdown {
     constructor(private readonly dataSource: DataSource) { }
+
+    async onModuleInit() {
+        if (this.dataSource.isInitialized) {
+            console.log('✅ Connected to database');
+        }
+    }
 
     async beforeApplicationShutdown(signal?: string) {
         console.log(`App is shutting down due to: ${signal}`);
