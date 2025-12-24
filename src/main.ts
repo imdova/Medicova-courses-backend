@@ -119,12 +119,15 @@ async function bootstrap(): Promise<NestExpressApplication> {
 
     const document = SwaggerModule.createDocument(app, config);
 
-    const swaggerPath = 'docs'; // Swagger will be at /api/docs
+    // Swagger path - SwaggerModule.setup bypasses global prefix, so use full path
+    const swaggerPath = 'api/docs';
 
     if (process.env.NODE_ENV === 'production') {
       app.use(`/${swaggerPath}`, swaggerBasicAuth);
+      app.use(`/${swaggerPath}/*`, swaggerBasicAuth);
     }
 
+    // Setup Swagger with full path (bypasses global prefix)
     SwaggerModule.setup(swaggerPath, app, document, {
       swaggerOptions: {
         persistAuthorization: true,
@@ -141,10 +144,10 @@ async function bootstrap(): Promise<NestExpressApplication> {
 
     await app.init(); // ✅ init once
 
-    // Root endpoint handler (bypasses global prefix)
+    // Root endpoint handler (registered after init to bypass global prefix)
+    const PORT = process.env.PORT || 3000;
     const expressApp = app.getHttpAdapter().getInstance();
     expressApp.get('/', (req: Request, res: Response) => {
-      const PORT = process.env.PORT || 3000;
       res.json({
         message: `🚀 Medicova API running on port ${PORT}`,
       });
