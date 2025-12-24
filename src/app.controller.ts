@@ -5,8 +5,11 @@ import { AppService } from './app.service';
 export class AppController {
   constructor(private readonly appService: AppService) {}
 
-  // @Get()
-  // getHello(): string {
-  //   return this.appService.getHello();
-  // }
+  @Get()
+  getStatus(): { message: string } {
+    const PORT = process.env.PORT || 3000;
+    return {
+      message: `🚀 Medicova API running on port ${PORT}`,
+    };
+  }
 }

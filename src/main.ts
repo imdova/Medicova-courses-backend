@@ -6,6 +6,7 @@ import basicAuth from 'basic-auth';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
 import cookieParser from 'cookie-parser';
+import { Request, Response } from 'express';
 
 // --- Swagger Auth ---
 const SWAGGER_USERNAME = process.env.SWAGGER_USERNAME;
@@ -39,7 +40,6 @@ async function bootstrap(): Promise<NestExpressApplication> {
     // ✅ Improved CORS configuration
     app.enableCors({
       origin: function (origin, callback) {
-
         // Allow requests with no origin (mobile apps, postman, etc.)
         if (!origin) return callback(null, true);
 
@@ -55,7 +55,7 @@ async function bootstrap(): Promise<NestExpressApplication> {
           'https://medicova-courses-git-preview-imdovas-projects.vercel.app',
           'https://jobacademy.net',
           'http://92.113.25.161:3000',
-          'null' // for file:// protocol
+          'null', // for file:// protocol
         ];
 
         if (allowedOrigins.includes(origin)) {
@@ -68,7 +68,7 @@ async function bootstrap(): Promise<NestExpressApplication> {
       allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
       credentials: true, // ✅ This is crucial for cookies
       preflightContinue: false,
-      optionsSuccessStatus: 204
+      optionsSuccessStatus: 204,
     });
 
     // ✅ Add ClassSerializerInterceptor globally
@@ -119,9 +119,9 @@ async function bootstrap(): Promise<NestExpressApplication> {
 
     const document = SwaggerModule.createDocument(app, config);
 
-    const swaggerPath = process.env.NODE_ENV === 'production' ? 'swagger' : '';
+    const swaggerPath = 'docs'; // Swagger will be at /api/docs
 
-    if (process.env.NODE_ENV === 'production' && swaggerPath) {
+    if (process.env.NODE_ENV === 'production') {
       app.use(`/${swaggerPath}`, swaggerBasicAuth);
     }
 
@@ -139,7 +139,16 @@ async function bootstrap(): Promise<NestExpressApplication> {
           : undefined,
     });
 
-    await app.init(); // ✅ init only once
+    await app.init(); // ✅ init once
+
+    // Root endpoint handler (bypasses global prefix)
+    const expressApp = app.getHttpAdapter().getInstance();
+    expressApp.get('/', (req: Request, res: Response) => {
+      const PORT = process.env.PORT || 3000;
+      res.json({
+        message: `🚀 Medicova API running on port ${PORT}`,
+      });
+    });
   }
 
   return app;
