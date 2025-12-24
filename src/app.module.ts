@@ -97,17 +97,18 @@ import { InvoiceItem } from './invoice/entities/invoice-item.entity';
       username: process.env.DB_USERNAME,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
-      ssl: {
+      ssl: process.env.DB_SSL === 'true' || process.env.DB_SSL === undefined ? {
         rejectUnauthorized: false, // ✅ Allow self-signed certs from RDS
-      },
-      connectTimeoutMS: 30000, // 30 seconds connection timeout
+      } : false,
       extra: {
-        max: 5,
-        connectionTimeoutMillis: 30000,
-        idleTimeoutMillis: 30000,
+        max: 5, // Maximum number of clients in the pool
+        connectionTimeoutMillis: 20000, // 20 seconds connection timeout
+        idleTimeoutMillis: 30000, // 30 seconds idle timeout
+        statement_timeout: 30000, // 30 seconds query timeout
       },
       retryAttempts: 5,
       retryDelay: 3000, // 3 seconds between retries
+      logging: process.env.NODE_ENV === 'development' ? ['error', 'warn', 'migration'] : ['error'],
       entities: [
         User,
         Profile,
