@@ -2,7 +2,7 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { FileUpload } from './entities/file-upload.entity';
-import { GcpStorageService } from './gcp-storage.service';
+import { AwsS3StorageService } from './aws-s3-storage.service';
 import { UploadResponseDto } from './dto/upload-response.dto';
 
 @Injectable()
@@ -10,7 +10,7 @@ export class FileUploadService {
   constructor(
     @InjectRepository(FileUpload)
     private readonly fileRepository: Repository<FileUpload>,
-    private readonly gcpStorage: GcpStorageService,
+    private readonly s3Storage: AwsS3StorageService,
   ) { }
 
   async uploadFile(
@@ -19,8 +19,8 @@ export class FileUploadService {
     folder: string = 'general'
   ): Promise<UploadResponseDto> {
     try {
-      // Upload to Google Cloud Storage
-      const uploadResult = await this.gcpStorage.uploadFile(file, folder);
+      // Upload to AWS S3
+      const uploadResult = await this.s3Storage.uploadFile(file, folder);
 
       // Save file metadata to database
       const fileEntity = this.fileRepository.create({
@@ -29,7 +29,7 @@ export class FileUploadService {
         mimeType: file.mimetype,
         size: file.size,
         url: uploadResult.url,
-        bucket: process.env.GCP_STORAGE_BUCKET || 'medicova-courses-files',
+        bucket: process.env.AWS_BUCKET_NAME || 'medicova-shop',
         path: uploadResult.path,
         createdBy: userId,
       });
@@ -95,8 +95,8 @@ export class FileUploadService {
     // }
 
     try {
-      // Delete from Google Cloud Storage
-      await this.gcpStorage.deleteFile(file.path);
+      // Delete from AWS S3
+      await this.s3Storage.deleteFile(file.path);
 
       // Delete from database
       await this.fileRepository.remove(file);
@@ -111,7 +111,7 @@ export class FileUploadService {
     const file = await this.findOne(id);
 
     try {
-      return await this.gcpStorage.getSignedUrl(file.path, expiresInMinutes);
+      return await this.s3Storage.getSignedUrl(file.path, expiresInMinutes);
     } catch (error) {
       throw new BadRequestException(`Signed URL generation failed: ${error.message}`);
     }
