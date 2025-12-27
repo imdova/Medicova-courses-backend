@@ -1905,6 +1905,7 @@ export class AdminService {
       this.userRepository
         .createQueryBuilder('user')
         .leftJoinAndSelect('user.profile', 'profile')
+        .leftJoinAndSelect('user.identityVerification', 'identityVerification')
         .select([
           'user.id',
           'user.email',
@@ -1915,7 +1916,8 @@ export class AdminService {
           'profile.photoUrl',
           'profile.metadata',
           'profile.country',
-          'profile.city'
+          'profile.city',
+          'identityVerification.status', // Add this
         ])
         .where('user.id IN (:...instructorIds)', { instructorIds })
         .orderBy('user.created_at', 'DESC')
@@ -1959,6 +1961,7 @@ export class AdminService {
       id: instructor.id,
       name: `${instructor.profile?.firstName || ''} ${instructor.profile?.lastName || ''}`.trim() || 'N/A',
       email: instructor.email,
+      approval: instructor.identityVerification?.status || 'pending',
       phone: instructor.profile?.phoneNumber || 'N/A',
       photoUrl: instructor.profile?.photoUrl || null,
       metaData: instructor.profile?.metadata || null,
@@ -3403,5 +3406,81 @@ export class AdminService {
     return Array.from(studentMap.values())
       .sort((a, b) => b.totalSpent - a.totalSpent)
       .slice(0, limit);
+  }
+
+  async approveInstructorIdentity(instructorId: string, adminId: string): Promise<void> {
+    // 1. Find the instructor
+    const instructor = await this.userRepository.findOne({
+      where: { id: instructorId },
+      relations: ['identityVerification']
+    });
+
+    if (!instructor) {
+      throw new NotFoundException('Instructor not found');
+    }
+
+    // 2. Check if there's an identity verification submission
+    if (!instructor.identityVerification) {
+      throw new NotFoundException('No identity verification submission found for this instructor');
+    }
+
+    // 3. Update the identity verification status
+    await this.identityRepository.update(
+      { userId: instructorId },
+      {
+        status: IdentityVerificationStatus.APPROVED,
+        reviewedBy: { id: adminId } as User,
+        rejectionReason: null // Clear any previous rejection reason
+      }
+    );
+
+    // 4. Update user's verification status
+    await this.userRepository.update(
+      { id: instructorId },
+      {
+        isIdentityVerified: true,
+        isVerified: true // Also set overall verification status
+      }
+    );
+  }
+
+  async rejectInstructorIdentity(
+    instructorId: string,
+    rejectionReason: string,
+    adminId: string
+  ): Promise<void> {
+    // 1. Find the instructor
+    const instructor = await this.userRepository.findOne({
+      where: { id: instructorId },
+      relations: ['identityVerification']
+    });
+
+    if (!instructor) {
+      throw new NotFoundException('Instructor not found');
+    }
+
+    // 2. Check if there's an identity verification submission
+    if (!instructor.identityVerification) {
+      throw new NotFoundException('No identity verification submission found for this instructor');
+    }
+
+    // 3. Update the identity verification status
+    await this.identityRepository.update(
+      { userId: instructorId },
+      {
+        status: IdentityVerificationStatus.REJECTED,
+        rejectionReason,
+        reviewedBy: { id: adminId } as User
+      }
+    );
+
+    // 4. Update user's verification status
+    await this.userRepository.update(
+      { id: instructorId },
+      {
+        isIdentityVerified: false,
+        isVerified: false // Also set overall verification status to false
+      }
+    );
   }
 }
