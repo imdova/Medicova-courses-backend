@@ -51,6 +51,7 @@ export class AuthService {
         'role.rolePermissions.permission',
         'profile',
         'academy',
+        'department',
       ],
     });
 
@@ -63,6 +64,7 @@ export class AuthService {
       email: fullUser.email,
       role: fullUser.role?.name ?? null,
       academyId: fullUser.academy?.id ?? null,
+      departmentId: fullUser.department?.id ?? null,
       isEmailVerified: fullUser.isEmailVerified ?? null,
       permissions: fullUser.role?.rolePermissions?.map(
         (rp) => rp.permission.name,
@@ -95,6 +97,7 @@ export class AuthService {
         lastName: fullUser.profile?.lastName ?? null,
         userName: fullUser.profile?.userName ?? null,
         photo: fullUser.profile?.photoUrl ?? null,
+        department: fullUser.department?.id ?? null,
       },
       academy: {
         id: fullUser.academy?.id ?? null,
