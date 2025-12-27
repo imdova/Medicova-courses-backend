@@ -176,22 +176,22 @@ import { InvoiceItem } from './invoice/entities/invoice-item.entity';
       transport:
         process.env.SMTP_TRANSPORT && process.env.SMTP_TRANSPORT.trim() !== ''
           ? process.env.SMTP_TRANSPORT
-          : process.env.SMTP_HOST && 
+          : process.env.SMTP_HOST &&
             process.env.SMTP_HOST !== 'smtp.example.com' &&
             process.env.SMTP_HOST !== 'localhost'
-          ? {
+            ? {
               host: process.env.SMTP_HOST,
               port: parseInt(process.env.SMTP_PORT || '587'),
               secure: process.env.SMTP_SECURE === 'true',
               auth:
                 process.env.SMTP_USER && process.env.SMTP_PASS
                   ? {
-                      user: process.env.SMTP_USER,
-                      pass: process.env.SMTP_PASS,
-                    }
+                    user: process.env.SMTP_USER,
+                    pass: process.env.SMTP_PASS,
+                  }
                   : undefined,
             }
-          : {
+            : {
               // Use a dummy transport that logs instead of sending
               jsonTransport: true,
             },
@@ -232,4 +232,4 @@ import { InvoiceItem } from './invoice/entities/invoice-item.entity';
   controllers: [AppController],
   providers: [AppService, DatabaseService],
 })
-export class AppModule {}
+export class AppModule { }
