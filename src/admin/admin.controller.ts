@@ -1074,4 +1074,97 @@ export class AdminController {
   ): Promise<any> {
     return this.adminService.getFinancialTopStudents(parseInt(limit.toString()));
   }
+
+  // -----------------------------------------------------------------
+  // 🟢 NEW: INSTRUCTOR VERIFICATION ENDPOINTS
+  // -----------------------------------------------------------------
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:instructors:approve')
+  @Post('instructors/:instructorId/approve')
+  @ApiOperation({
+    summary: 'Approve an instructor',
+    description: 'Approves the instructor',
+  })
+  @ApiParam({
+    name: 'instructorId',
+    type: String,
+    description: 'UUID of the Instructor (User)'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Instructor identity verification approved successfully.'
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Instructor not found or no identity verification submission exists.',
+  })
+  async approveInstructorIdentity(
+    @Param('instructorId', ParseUUIDPipe) instructorId: string,
+    @Req() req
+  ) {
+    await this.adminService.approveInstructorIdentity(instructorId, req.user.sub);
+    return {
+      message: 'Instructor identity verification approved successfully.',
+      instructorId
+    };
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:instructors:reject')
+  @Post('instructors/:instructorId/reject')
+  @ApiOperation({
+    summary: 'Reject an instructor',
+    description: 'Rejects the instructor',
+  })
+  @ApiParam({
+    name: 'instructorId',
+    type: String,
+    description: 'UUID of the Instructor (User)'
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        rejectionReason: {
+          type: 'string',
+          example: 'Document is blurry or expired.',
+          description: 'The reason for rejection.'
+        },
+      },
+      required: ['rejectionReason'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Instructor identity verification rejected successfully.'
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Instructor not found or no identity verification submission exists.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Rejection reason is required.',
+  })
+  async rejectInstructorIdentity(
+    @Param('instructorId', ParseUUIDPipe) instructorId: string,
+    @Body() rejectIdentityDto: RejectIdentityDto,
+    @Req() req
+  ) {
+    if (!rejectIdentityDto.rejectionReason || rejectIdentityDto.rejectionReason.trim() === '') {
+      throw new BadRequestException('Rejection reason is required.');
+    }
+
+    await this.adminService.rejectInstructorIdentity(
+      instructorId,
+      rejectIdentityDto.rejectionReason,
+      req.user.sub
+    );
+
+    return {
+      message: 'Instructor identity verification rejected successfully.',
+      instructorId
+    };
+  }
 }
