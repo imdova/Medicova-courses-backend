@@ -97,9 +97,9 @@ import { InvoiceItem } from './invoice/entities/invoice-item.entity';
       username: process.env.DB_USERNAME,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
-      // ssl: process.env.DB_SSL === 'true' || process.env.DB_SSL === undefined ? {
-      //   rejectUnauthorized: false, // ✅ Allow self-signed certs from RDS
-      // } : false,
+      ssl: process.env.DB_SSL === 'true' || process.env.DB_SSL === undefined ? {
+        rejectUnauthorized: false, // ✅ Allow self-signed certs from RDS
+      } : false,
       extra: {
         max: 5, // Maximum number of clients in the pool
         connectionTimeoutMillis: 20000, // 20 seconds connection timeout
