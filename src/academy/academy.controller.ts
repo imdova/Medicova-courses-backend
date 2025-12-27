@@ -79,17 +79,36 @@ export class AcademyController {
   }
 
   // ---------- Admin: List all academies ----------
-  // @Get()
-  // @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  // @RequirePermissions('academy:list')
-  // @ApiOperation({ summary: 'List all academies (admin only)' })
-  // @ApiResponse({ status: HttpStatus.OK, description: 'List of all academies' })
-  // findAll() {
-  //   return this.academyService.findAll();
-  // }
+  @Get()
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('academy:list')
+  @ApiOperation({
+    summary: 'Get paginated list of academies with search, filtering and sorting'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated list of academies retrieved successfully.'
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Global search across name, description, city, country, email',
+  })
+  @ApiQuery({
+    name: 'filter.type',
+    required: false,
+    enum: AcademyType,
+    description: `Filter by academy type`,
+  })
+  async findAll(
+    @Paginate() query: PaginateQuery,
+  ): Promise<Paginated<Academy>> {
+    return this.academyService.findAllPaginated(query);
+  }
 
   // ---------- Admin: Paginated, filtered, sorted list of academies ----------
-  @Get()
+  @Get('paginated')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('academy:list')
   @ApiOperation({
