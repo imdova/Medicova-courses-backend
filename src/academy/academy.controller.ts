@@ -79,17 +79,17 @@ export class AcademyController {
   }
 
   // ---------- Admin: List all academies ----------
-  @Get()
-  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
-  @RequirePermissions('academy:list')
-  @ApiOperation({ summary: 'List all academies (admin only)' })
-  @ApiResponse({ status: HttpStatus.OK, description: 'List of all academies' })
-  findAll() {
-    return this.academyService.findAll();
-  }
+  // @Get()
+  // @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  // @RequirePermissions('academy:list')
+  // @ApiOperation({ summary: 'List all academies (admin only)' })
+  // @ApiResponse({ status: HttpStatus.OK, description: 'List of all academies' })
+  // findAll() {
+  //   return this.academyService.findAll();
+  // }
 
   // ---------- Admin: Paginated, filtered, sorted list of academies ----------
-  @Get('paginated')
+  @Get()
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('academy:list')
   @ApiOperation({
