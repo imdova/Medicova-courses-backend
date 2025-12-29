@@ -349,7 +349,7 @@ export class AcademyService {
   async remove(id: string) {
     const academy = await this.findOne(id);
     if (!academy) return;
-    await this.academyRepository.remove(academy);
+    await this.academyRepository.softDelete(id);
   }
 
   async addUserToAcademy(

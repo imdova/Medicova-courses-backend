@@ -74,11 +74,11 @@ export class CourseController {
     // ✅ block if instructor is not verified
     if (
       req.user.role === 'instructor' &&
-      !req.user.isEmailVerified &&
+      !req.user.isVerified &&
       createCourseDto.status === 'published'
     ) {
       throw new ForbiddenException(
-        'You must verify your email before publishing a course.',
+        'You must be verified before publishing a course.',
       );
     }
     return this.courseService.create(createCourseDto, userId, academyId);
@@ -573,11 +573,11 @@ export class CourseController {
     }
     if (
       req.user.role === 'instructor' &&
-      !req.user.isEmailVerified &&
+      !req.user.isVerified &&
       updateData.status === 'published'
     ) {
       throw new ForbiddenException(
-        'You must verify your email before publishing a course.',
+        'You must be verified before publishing a course.',
       );
     }
     return this.courseService.update(

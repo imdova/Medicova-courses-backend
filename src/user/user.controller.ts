@@ -19,6 +19,7 @@ import {
   ApiResponse,
   ApiBody,
   ApiParam,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -211,6 +212,7 @@ export class UserController {
     return this.userService.update(userId, updateUserDto);
   }
 
+  @ApiBearerAuth('access_token')
   @UseGuards(AuthGuard('jwt'), PermissionsGuard)
   @RequirePermissions('user:delete')
   @Delete(':userId')
