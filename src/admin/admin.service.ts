@@ -3483,4 +3483,44 @@ export class AdminService {
       }
     );
   }
+
+  async approveAcademy(
+    academyId: string,
+  ): Promise<void> {
+    const academy = await this.academyRepository.findOne({
+      where: { id: academyId },
+    });
+
+    if (!academy) {
+      throw new NotFoundException('Academy not found');
+    }
+
+    await this.academyRepository.update(
+      { id: academyId },
+      {
+        isVerified: true,
+        isIdentityVerified: true,
+      },
+    );
+  }
+
+  async rejectAcademy(
+    academyId: string,
+  ): Promise<void> {
+    const academy = await this.academyRepository.findOne({
+      where: { id: academyId },
+    });
+
+    if (!academy) {
+      throw new NotFoundException('Academy not found');
+    }
+
+    await this.academyRepository.update(
+      { id: academyId },
+      {
+        isVerified: false,
+        isIdentityVerified: false,
+      },
+    );
+  }
 }

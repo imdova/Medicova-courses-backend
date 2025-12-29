@@ -1167,4 +1167,73 @@ export class AdminController {
       instructorId
     };
   }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:academies:approve')
+  @Post('academies/:academyId/approve')
+  @ApiOperation({
+    summary: 'Approve an academy',
+    description: 'Approves an academy account',
+  })
+  @ApiParam({
+    name: 'academyId',
+    type: String,
+    description: 'UUID of the Academy',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Academy approved successfully.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Academy not found.',
+  })
+  async approveAcademy(
+    @Param('academyId', ParseUUIDPipe) academyId: string,
+  ) {
+    await this.adminService.approveAcademy(academyId);
+
+    return {
+      message: 'Academy approved successfully.',
+      academyId,
+    };
+  }
+
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  @RequirePermissions('admin:academies:reject')
+  @Post('academies/:academyId/reject')
+  @ApiOperation({
+    summary: 'Reject an academy',
+    description: 'Rejects an academy account',
+  })
+  @ApiParam({
+    name: 'academyId',
+    type: String,
+    description: 'UUID of the Academy',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Academy rejected successfully.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Academy not found.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Rejection reason is required.',
+  })
+  async rejectAcademy(
+    @Param('academyId', ParseUUIDPipe) academyId: string,
+  ) {
+
+    await this.adminService.rejectAcademy(
+      academyId,
+    );
+
+    return {
+      message: 'Academy rejected successfully.',
+      academyId,
+    };
+  }
 }
