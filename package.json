@@ -33,11 +33,7 @@
     "@nestjs/mapped-types": "*",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.1.8",
-<<<<<<< HEAD
-    "@nestjs/schedule": "^4.0.0",
-=======
     "@nestjs/schedule": "^6.1.0",
->>>>>>> 10d2f7902e397f7f3701f41972e0e18841c608b5
     "@nestjs/swagger": "^11.2.0",
     "@nestjs/typeorm": "^11.0.0",
     "@supabase/supabase-js": "^2.84.0",
