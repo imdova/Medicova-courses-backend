@@ -1,5 +1,5 @@
 import { BasicEntity } from '../../common/entities/basic.entity';
-import { Entity, Column, OneToMany, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, OneToMany, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CoursePricing } from '../course-pricing/entities/course-pricing.entity';
 import { CourseMetadataDto } from '../dto/course-metadata.dto';
@@ -78,6 +78,7 @@ export class Course extends BasicEntity {
     description: 'User ID of the teacher/admin who created the course',
     format: 'uuid',
   })
+  @Index()
   @Column({ type: 'uuid', name: 'created_by' })
   createdBy: string;
 
@@ -106,6 +107,7 @@ export class Course extends BasicEntity {
     enum: CourseStatus,
     default: CourseStatus.DRAFT,
   })
+  @Index()
   @Column({ type: 'enum', enum: CourseStatus, default: CourseStatus.DRAFT })
   status: CourseStatus;
 
@@ -211,6 +213,7 @@ export class Course extends BasicEntity {
   totalHours?: number;
 
   @ApiProperty({ description: 'Is the course free?', default: false })
+  @Index()
   @Column({ default: false, name: 'is_course_free' })
   isCourseFree: boolean;
 
@@ -252,13 +255,25 @@ export class Course extends BasicEntity {
   @JoinColumn({ name: 'category_id' })
   category: CourseCategory;
 
+  @Index()
+  @Column({ name: 'category_id', type: 'uuid', nullable: true })
+  categoryId: string;
+
   @ManyToOne(() => CourseCategory, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'subcategory_id' })
   subCategory?: CourseCategory;
 
+  @Index()
+  @Column({ name: 'subcategory_id', type: 'uuid', nullable: true })
+  subCategoryId?: string;
+
   @ManyToOne(() => Academy, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'academy_id' })
   academy: Academy;
+
+  @Index()
+  @Column({ name: 'academy_id', type: 'uuid', nullable: true })
+  academyId: string;
 
   @ApiPropertyOptional({
     description: 'List of academy instructor IDs associated with the course',
@@ -322,6 +337,7 @@ export class Course extends BasicEntity {
     enum: CourseApprovalStatus,
     default: CourseApprovalStatus.PENDING,
   })
+  @Index()
   @Column({
     type: 'enum',
     enum: CourseApprovalStatus,
@@ -350,5 +366,4 @@ export class Course extends BasicEntity {
   })
   @Column({ type: 'int', nullable: true, name: 'fake_enrollments', default: 0 })
   fakeEnrollments?: number;
-
 }

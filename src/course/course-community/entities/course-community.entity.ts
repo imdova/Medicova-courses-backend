@@ -4,6 +4,7 @@ import {
     ManyToOne,
     OneToMany,
     JoinColumn,
+    Index,
 } from 'typeorm';
 import { BasicEntity } from 'src/common/entities/basic.entity';
 import { Course } from '../../entities/course.entity';
@@ -24,9 +25,17 @@ export class CourseCommunity extends BasicEntity {
     @JoinColumn({ name: 'user_id' })
     user: User;
 
+    @Index()
+    @Column({ name: 'user_id', type: 'uuid' })
+    userId: string;
+
     @ManyToOne(() => Course, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'course_id' })
     course: Course;
+
+    @Index()
+    @Column({ name: 'course_id', type: 'uuid' })
+    courseId: string;
 
     @ManyToOne(() => CourseCommunity, (c) => c.replies, {
         nullable: true,
@@ -34,6 +43,10 @@ export class CourseCommunity extends BasicEntity {
     })
     @JoinColumn({ name: 'parent_id' })
     parent?: CourseCommunity;
+
+    @Index()
+    @Column({ name: 'parent_id', type: 'uuid', nullable: true })
+    parentId?: string;
 
     @OneToMany(() => CourseCommunity, (c) => c.parent)
     replies: CourseCommunity[];

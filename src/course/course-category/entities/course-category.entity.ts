@@ -1,4 +1,4 @@
-import { Entity, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, OneToMany, JoinColumn, Index } from 'typeorm';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BasicEntity } from '../../../common/entities/basic.entity';
 import { Course } from '../../entities/course.entity';
@@ -22,6 +22,7 @@ export class CourseCategory extends BasicEntity {
     description: 'User ID of the admin who created the course-category',
     format: 'uuid',
   })
+  @Index()
   @Column({ type: 'uuid', name: 'created_by' })
   createdBy: string;
 
@@ -42,6 +43,7 @@ export class CourseCategory extends BasicEntity {
     description: 'Priority of the category (higher number = higher priority)',
     default: 0,
   })
+  @Index()
   @Column({ type: 'int', default: 0 })
   priority: number;
 
@@ -50,6 +52,7 @@ export class CourseCategory extends BasicEntity {
     description: 'Whether the category is visible and active',
     default: true,
   })
+  @Index()
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
 
@@ -72,6 +75,10 @@ export class CourseCategory extends BasicEntity {
   })
   @JoinColumn({ name: 'parent_id' })
   parent?: CourseCategory;
+
+  @Index()
+  @Column({ name: 'parent_id', type: 'uuid', nullable: true })
+  parentId?: string;
 
   @OneToMany(() => CourseCategory, (category) => category.parent)
   subcategories?: CourseCategory[];

@@ -1,4 +1,4 @@
-import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { BasicEntity } from 'src/common/entities/basic.entity';
 import { CourseStudent } from 'src/course/entities/course-student.entity';
 import { ApiProperty } from '@nestjs/swagger';
@@ -16,4 +16,8 @@ export class CourseNote extends BasicEntity {
     @ManyToOne(() => CourseStudent, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'course_student_id' })
     courseStudent: CourseStudent;
+
+    @Index()
+    @Column({ name: 'course_student_id', type: 'uuid' })
+    courseStudentId: string;
 }

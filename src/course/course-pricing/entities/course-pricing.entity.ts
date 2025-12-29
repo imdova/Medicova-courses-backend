@@ -1,5 +1,5 @@
 import { BasicEntity } from '../../../common/entities/basic.entity';
-import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { Course } from '../../entities/course.entity';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -16,6 +16,10 @@ export class CoursePricing extends BasicEntity {
   @ManyToOne(() => Course, (course) => course.pricings, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'course_id' })
   course: Course;
+
+  @Index()
+  @Column({ name: 'course_id', type: 'uuid' })
+  courseId: string;
 
   @ApiProperty({ enum: CurrencyCode, description: 'Currency code' })
   @Column({ type: 'enum', enum: CurrencyCode })
@@ -48,6 +52,7 @@ export class CoursePricing extends BasicEntity {
   discountEnabled: boolean;
 
   @ApiProperty({ type: Boolean, description: 'Whether this pricing is active' })
+  @Index()
   @Column({ default: true })
   isActive: boolean;
 }

@@ -1,5 +1,5 @@
 import { BasicEntity } from "src/common/entities/basic.entity";
-import { Column, Entity, JoinColumn, ManyToOne, Unique } from "typeorm";
+import { Column, Entity, Index, JoinColumn, ManyToOne, Unique } from "typeorm";
 import { Course } from "./course.entity";
 import { User } from "src/user/entities/user.entity";
 
@@ -21,6 +21,7 @@ export class CourseRating extends BasicEntity {
     @Column({ type: 'simple-array', nullable: true })
     images?: string[]; // optional array of image URLs or paths
 
+    @Index()
     @Column({
         type: 'enum',
         enum: CourseRatingStatus,
@@ -28,11 +29,21 @@ export class CourseRating extends BasicEntity {
     })
     status: CourseRatingStatus;
 
-    @ManyToOne(() => Course, (course) => course.ratings, { onDelete: 'CASCADE' })
+    @ManyToOne(() => User, (user) => user.enrollments, { onDelete: 'CASCADE' })
+    @JoinColumn({ name: 'user_id' })
+    user: User;
+
+    @Index()
+    @Column({ name: 'user_id', type: 'uuid' })
+    userId: string;
+
+    @ManyToOne(() => Course, (course) => course.enrollments, {
+        onDelete: 'CASCADE',
+    })
     @JoinColumn({ name: 'course_id' })
     course: Course;
 
-    @ManyToOne(() => User, { onDelete: 'CASCADE' })
-    @JoinColumn({ name: 'user_id' })
-    user: User;
+    @Index()
+    @Column({ name: 'course_id', type: 'uuid' })
+    courseId: string;
 }
