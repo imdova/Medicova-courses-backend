@@ -88,6 +88,8 @@ import { Invoice } from './invoice/entities/invoice.entity';
 import { InvoiceItem } from './invoice/entities/invoice-item.entity';
 import { ScheduleModule } from '@nestjs/schedule';
 import { DatabaseBackupModule } from './database/database-backup.module';
+import { Notification } from './notification/entities/notification.entity';
+import { NotificationModule } from './notification/notification.module';
 
 @Module({
   imports: [
@@ -100,9 +102,12 @@ import { DatabaseBackupModule } from './database/database-backup.module';
       username: process.env.DB_USERNAME,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
-      ssl: process.env.DB_SSL === 'true' || process.env.DB_SSL === undefined ? {
-        rejectUnauthorized: false, // ✅ Allow self-signed certs from RDS
-      } : false,
+      ssl:
+        process.env.DB_SSL === 'true' || process.env.DB_SSL === undefined
+          ? {
+              rejectUnauthorized: false, // ✅ Allow self-signed certs from RDS
+            }
+          : false,
       extra: {
         max: 5, // Maximum number of clients in the pool
         connectionTimeoutMillis: 20000, // 20 seconds connection timeout
@@ -111,7 +116,10 @@ import { DatabaseBackupModule } from './database/database-backup.module';
       },
       retryAttempts: 5,
       retryDelay: 3000, // 3 seconds between retries
-      logging: process.env.NODE_ENV === 'development' ? ['error', 'warn', 'migration'] : ['error'],
+      logging:
+        process.env.NODE_ENV === 'development'
+          ? ['error', 'warn', 'migration']
+          : ['error'],
       entities: [
         User,
         Profile,
@@ -172,6 +180,7 @@ import { DatabaseBackupModule } from './database/database-backup.module';
         Testimonial,
         Invoice,
         InvoiceItem,
+        Notification,
       ],
       synchronize: true,
     }),
@@ -182,29 +191,33 @@ import { DatabaseBackupModule } from './database/database-backup.module';
           : process.env.SMTP_HOST &&
             process.env.SMTP_HOST !== 'smtp.example.com' &&
             process.env.SMTP_HOST !== 'localhost'
-            ? {
+          ? {
               host: process.env.SMTP_HOST,
               port: parseInt(process.env.SMTP_PORT || '587'),
               secure: process.env.SMTP_SECURE === 'true',
               auth:
                 process.env.SMTP_USER && process.env.SMTP_PASS
                   ? {
-                    user: process.env.SMTP_USER,
-                    pass: process.env.SMTP_PASS,
-                  }
+                      user: process.env.SMTP_USER,
+                      pass: process.env.SMTP_PASS,
+                    }
                   : undefined,
             }
-            : {
+          : {
               // Use a dummy transport that logs instead of sending
               jsonTransport: true,
             },
       defaults: {
-        from: process.env.SMTP_FROM || process.env.SMTP_DEMO_EMAIL || '"No Reply" <noreply@example.com>',
+        from:
+          process.env.SMTP_FROM ||
+          process.env.SMTP_DEMO_EMAIL ||
+          '"No Reply" <noreply@example.com>',
       },
       template: {
-        dir: process.env.NODE_ENV === 'production'
-          ? join(process.cwd(), 'dist', 'src', 'templates')
-          : join(process.cwd(), 'src', 'templates'),
+        dir:
+          process.env.NODE_ENV === 'production'
+            ? join(process.cwd(), 'dist', 'src', 'templates')
+            : join(process.cwd(), 'src', 'templates'),
         adapter: new HandlebarsAdapter(),
         options: {
           strict: true,
@@ -232,8 +245,9 @@ import { DatabaseBackupModule } from './database/database-backup.module';
     TestimonialModule,
     InvoiceModule,
     DatabaseBackupModule,
+    NotificationModule,
   ],
   controllers: [AppController],
   providers: [AppService, DatabaseService],
 })
-export class AppModule { }
+export class AppModule {}

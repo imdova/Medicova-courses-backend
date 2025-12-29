@@ -104,7 +104,22 @@ export class DatabaseBackupService {
 
       return backupFilePath;
     } catch (error) {
-      this.logger.error(`❌ Database backup failed: ${error.message}`, error.stack);
+      const errorMessage = error.message || '';
+      
+      // Check for version mismatch error
+      if (errorMessage.includes('server version mismatch') || errorMessage.includes('pg_dump version')) {
+        this.logger.error(
+          `❌ Database backup failed: PostgreSQL version mismatch. ` +
+          `Server version is newer than pg_dump client. ` +
+          `Please install PostgreSQL 17 client tools or use Docker.`,
+        );
+        throw new Error(
+          `PostgreSQL version mismatch: Server requires pg_dump 17.x or newer. ` +
+          `Current pg_dump version is too old. Please install postgresql-client-17.`,
+        );
+      }
+      
+      this.logger.error(`❌ Database backup failed: ${errorMessage}`, error.stack);
       throw error;
     }
   }

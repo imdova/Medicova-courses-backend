@@ -110,8 +110,28 @@ async function backupDatabase() {
 
     process.exit(0);
   } catch (error) {
-    console.error(`❌ Database backup failed: ${error.message}`);
-    if (error.stack) {
+    const errorMessage = error.message || '';
+    
+    // Check for version mismatch error
+    if (errorMessage.includes('server version mismatch') || errorMessage.includes('pg_dump version')) {
+      console.error(`❌ Database backup failed: PostgreSQL version mismatch`);
+      console.error(`\n📋 Issue: Your pg_dump client version is older than the PostgreSQL server version.`);
+      console.error(`\n💡 Solution: Install PostgreSQL 17 client tools:`);
+      console.error(`\n   For Ubuntu/Debian:`);
+      console.error(`   1. Add PostgreSQL APT repository:`);
+      console.error(`      sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'`);
+      console.error(`      wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -`);
+      console.error(`   2. Update and install:`);
+      console.error(`      sudo apt-get update`);
+      console.error(`      sudo apt-get install postgresql-client-17`);
+      console.error(`\n   Or use Docker (if available):`);
+      console.error(`      docker run --rm -e PGPASSWORD="${dbPassword}" postgres:17 pg_dump -h ${dbHost} -p ${dbPort} -U ${dbUsername} -d ${dbName} > ${backupFilePath}`);
+      console.error(`\n   Alternative: Use a TypeORM-based backup (slower but works with any version)`);
+    } else {
+      console.error(`❌ Database backup failed: ${errorMessage}`);
+    }
+    
+    if (error.stack && !errorMessage.includes('server version mismatch')) {
       console.error(error.stack);
     }
     process.exit(1);
