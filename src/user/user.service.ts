@@ -237,7 +237,7 @@ export class UserService {
     if (!user) {
       throw new NotFoundException(`User with id ${userId} not found`);
     }
-    await this.userRepository.remove(user);
+    await this.userRepository.softDelete(userId);
   }
 
   async findByAcademy(academyId: string) {
