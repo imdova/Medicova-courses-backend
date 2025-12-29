@@ -17,6 +17,7 @@ import {
   ApiBody,
   ApiParam,
   ApiOkResponse,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 import { CreateProfileDto } from './dto/create-profile.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -28,6 +29,7 @@ import { PermissionsGuard } from '../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Profile')
+@ApiBearerAuth('access_token')
 @Controller('users/:userId/profile')
 @UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class ProfileController {
@@ -147,7 +149,7 @@ export class ProfileController {
     if (userId === currentUserId) return true;
 
     // ✅ allow if user is ADMIN
-    if (role === 'academy_admin') return true;
+    if (role === 'admin') return true;
 
     // ✅ allow if user is ACCOUNT_ADMIN but only within same academy
     if (role === 'academy_admin') {
