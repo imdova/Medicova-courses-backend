@@ -86,10 +86,13 @@ import { Testimonial } from './testimonial/entities/testimonial.entity';
 import { InvoiceModule } from './invoice/invoice.module';
 import { Invoice } from './invoice/entities/invoice.entity';
 import { InvoiceItem } from './invoice/entities/invoice-item.entity';
+import { ScheduleModule } from '@nestjs/schedule';
+import { DatabaseBackupModule } from './database/database-backup.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }), // <-- This is required
+    ScheduleModule.forRoot(), // Enable scheduling for cron jobs
     TypeOrmModule.forRoot({
       type: 'postgres',
       host: process.env.DB_HOST,
@@ -228,6 +231,7 @@ import { InvoiceItem } from './invoice/entities/invoice-item.entity';
     TicketModule,
     TestimonialModule,
     InvoiceModule,
+    DatabaseBackupModule,
   ],
   controllers: [AppController],
   providers: [AppService, DatabaseService],
