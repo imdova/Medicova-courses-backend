@@ -1,4 +1,4 @@
-import { Entity, Column, ManyToOne, JoinColumn, OneToMany } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, OneToMany, Index } from 'typeorm';
 import { BasicEntity } from '../../common/entities/basic.entity';
 import { ApiProperty } from '@nestjs/swagger';
 import { AssignmentSubmission } from './assignment-submission.entity';
@@ -14,10 +14,12 @@ export class Assignment extends BasicEntity {
   name: string;
 
   @ApiProperty({ description: 'Start date of assignment', type: String, format: 'date-time' })
+  @Index()
   @Column({ type: 'timestamptz', nullable: true }) // ✅ stores full timestamp with timezone
   start_date: Date;
 
   @ApiProperty({ description: 'End date of assignment', type: String, format: 'date-time' })
+  @Index()
   @Column({ type: 'timestamptz', nullable: true }) // ✅ same here
   end_date: Date;
 
@@ -54,6 +56,7 @@ export class Assignment extends BasicEntity {
     description: 'User ID of the teacher/admin who created the assignment',
     format: 'uuid',
   })
+  @Index()
   @Column({ type: 'uuid', name: 'created_by' })
   createdBy: string;
 
@@ -63,4 +66,8 @@ export class Assignment extends BasicEntity {
   @ManyToOne(() => Academy, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'academy_id' })
   academy: Academy;
+
+  @Index()
+  @Column({ name: 'academy_id', type: 'uuid', nullable: true })
+  academyId: string;
 }

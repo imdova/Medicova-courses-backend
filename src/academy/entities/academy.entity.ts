@@ -1,5 +1,5 @@
 import { BasicEntity } from '../../common/entities/basic.entity';
-import { Entity, Column, OneToMany } from 'typeorm';
+import { Entity, Column, OneToMany, Index } from 'typeorm';
 import { User } from 'src/user/entities/user.entity';
 import { ApiProperty } from '@nestjs/swagger';
 import { AcademyInstructor } from './academy-instructors.entity';
@@ -37,6 +37,7 @@ export class Academy extends BasicEntity {
     description: 'User ID of the academy_admin who created the academy',
     format: 'uuid',
   })
+  @Index()
   @Column({ type: 'uuid' })
   created_by: string;
 
@@ -72,9 +73,11 @@ export class Academy extends BasicEntity {
   keyWords?: string[];
 
   @Column({ type: 'enum', enum: AcademyType, nullable: true })
+  @Index()
   type?: AcademyType;
 
   @Column({ type: 'enum', enum: AcademySize, nullable: true })
+  @Index()
   size?: AcademySize;
 
   @ApiProperty({ description: 'Year the academy was founded', example: 2010, nullable: true })
@@ -145,6 +148,7 @@ export class Academy extends BasicEntity {
   displayRealStudentsCount?: boolean;
 
   @ApiProperty({ description: 'Whether academy is verified', nullable: true })
+  @Index()
   @Column({ default: false })
   isVerified?: boolean;
 

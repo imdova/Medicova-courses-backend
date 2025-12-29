@@ -1,4 +1,4 @@
-import { Entity, ManyToOne, JoinColumn, Column } from 'typeorm';
+import { Entity, ManyToOne, JoinColumn, Column, Index } from 'typeorm';
 import { BasicEntity } from 'src/common/entities/basic.entity';
 import { User } from 'src/user/entities/user.entity';
 import { Course } from './course.entity';
@@ -9,9 +9,17 @@ export class CourseStudent extends BasicEntity {
   @JoinColumn({ name: 'student_id' })
   student: User;
 
+  @Index()
+  @Column({ name: 'student_id', type: 'uuid' })
+  studentId: string;
+
   @ManyToOne(() => Course, (course) => course.enrollments, {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'course_id' })
   course: Course;
+
+  @Index()
+  @Column({ name: 'course_id', type: 'uuid' })
+  courseId: string;
 }

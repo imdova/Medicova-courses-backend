@@ -1,4 +1,4 @@
-import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { BasicEntity } from '../../common/entities/basic.entity';
 import { Assignment } from './assignment.entity';
 import { CourseStudent } from '../../course/entities/course-student.entity';
@@ -6,21 +6,21 @@ import { ApiProperty } from '@nestjs/swagger';
 
 @Entity('assignment_submission')
 export class AssignmentSubmission extends BasicEntity {
-  @ApiProperty({
-    description: 'The assignment being submitted',
-    type: () => Assignment,
-  })
   @ManyToOne(() => Assignment, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'assignment_id' })
   assignment: Assignment;
 
-  @ApiProperty({
-    description: 'The student submitting this assignment',
-    type: () => CourseStudent,
-  })
+  @Index()
+  @Column({ name: 'assignment_id', type: 'uuid' })
+  assignmentId: string;
+
   @ManyToOne(() => CourseStudent, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'course_student_id' })
   courseStudent: CourseStudent;
+
+  @Index()
+  @Column({ name: 'course_student_id', type: 'uuid' })
+  courseStudentId: string;
 
   @ApiProperty({
     description: 'Optional file uploaded by student',
@@ -48,6 +48,7 @@ export class AssignmentSubmission extends BasicEntity {
     description: 'Whether this submission has been graded',
     example: false,
   })
+  @Index()
   @Column({ type: 'boolean', default: false })
   graded: boolean;
 }

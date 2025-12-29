@@ -5,6 +5,7 @@ import {
   JoinColumn,
   OneToOne,
   OneToMany,
+  Index,
 } from 'typeorm';
 import { CourseSection } from './course-section.entity';
 import { Lecture } from './lecture.entity';
@@ -27,6 +28,10 @@ export class CourseSectionItem extends BasicEntity {
   })
   @JoinColumn({ name: 'section_id' })
   section: CourseSection;
+
+  @Index()
+  @Column({ name: 'section_id', type: 'uuid' })
+  sectionId: string;
 
   @ApiProperty({
     description: 'Type of curriculum item (lecture or quiz)',

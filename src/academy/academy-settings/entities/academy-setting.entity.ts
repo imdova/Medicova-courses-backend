@@ -19,6 +19,7 @@ export class AcademySetting extends BasicEntity {
         enum: SettingType,
         example: SettingType.NATIONALITY,
     })
+    @Index()
     @Column({ type: 'enum', enum: SettingType })
     type: SettingType; // Variable Type *
 
@@ -26,6 +27,7 @@ export class AcademySetting extends BasicEntity {
         description: 'A numeric value determining the display order/priority of the setting.',
         example: 1,
     })
+    @Index()
     @Column({ type: 'int' })
     priority: number; // Priority *
 
@@ -51,6 +53,7 @@ export class AcademySetting extends BasicEntity {
         description: 'Whether the course setting is active and available for use.',
         default: true,
     })
+    @Index()
     @Column({ type: 'boolean', default: true, name: 'isActive' })
     isActive: boolean; // Status (Active/Inactive)
 
@@ -69,6 +72,7 @@ export class AcademySetting extends BasicEntity {
         example: '550e8400-e29b-41d4-a716-446655440000',
         required: false,
     })
+    @Index()
     @Column({ type: 'uuid', nullable: true, name: 'parent_id' })
     parentId?: string;
 }
