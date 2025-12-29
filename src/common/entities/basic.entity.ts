@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   DeleteDateColumn,
+  Index,
 } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -21,6 +22,7 @@ export class BasicEntity {
     description: 'When the record was created',
     example: '2025-08-11T09:00:00.000Z',
   })
+  @Index()
   @CreateDateColumn({ name: 'created_at' })
   created_at: Date;
 
@@ -36,6 +38,7 @@ export class BasicEntity {
     example: null,
     nullable: true,
   })
+  @Index()
   @DeleteDateColumn({ name: 'deleted_at', nullable: true })
   deleted_at: Date | null;
 }
