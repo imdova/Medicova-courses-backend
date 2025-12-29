@@ -911,7 +911,7 @@ export class AdminService {
       instructors: instructors.map((i) => ({
         ...i,
         profile: i.profile ? { ...i.profile } : null,
-        identityVerificationStatus: i.identityVerification?.status ?? null,
+        verificationStatus: i.identityVerification?.status ?? null,
       })),
       pagination: this.paginationMeta(pageNum, limitNum, total),
     };
