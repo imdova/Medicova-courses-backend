@@ -885,8 +885,8 @@ export class AdminService {
 
     let query = this.userRepository
       .createQueryBuilder('user')
-      // Use leftJoinAndSelect to fetch all fields from User and Profile
       .leftJoinAndSelect('user.profile', 'profile')
+      .leftJoinAndSelect('user.identityVerification', 'identityVerification')
       .where('user.roleId = :roleId', { roleId: instructorRoleId });
 
     // 🔍 Apply search filter if a term is provided
@@ -908,12 +908,10 @@ export class AdminService {
 
     // Return the full entity data and pagination metadata
     return {
-      // Map to ensure the 'profile' is cleanly attached and add a 'fullName' for convenience
       instructors: instructors.map((i) => ({
-        ...i, // Spread all fields from the User entity
-        profile: i.profile ? { // Spread all fields from the Profile entity
-          ...i.profile,
-        } : null,
+        ...i,
+        profile: i.profile ? { ...i.profile } : null,
+        verificationStatus: i.identityVerification?.status ?? null,
       })),
       pagination: this.paginationMeta(pageNum, limitNum, total),
     };
@@ -3481,6 +3479,46 @@ export class AdminService {
         isIdentityVerified: false,
         isVerified: false // Also set overall verification status to false
       }
+    );
+  }
+
+  async approveAcademy(
+    academyId: string,
+  ): Promise<void> {
+    const academy = await this.academyRepository.findOne({
+      where: { id: academyId },
+    });
+
+    if (!academy) {
+      throw new NotFoundException('Academy not found');
+    }
+
+    await this.academyRepository.update(
+      { id: academyId },
+      {
+        isVerified: true,
+        isIdentityVerified: true,
+      },
+    );
+  }
+
+  async rejectAcademy(
+    academyId: string,
+  ): Promise<void> {
+    const academy = await this.academyRepository.findOne({
+      where: { id: academyId },
+    });
+
+    if (!academy) {
+      throw new NotFoundException('Academy not found');
+    }
+
+    await this.academyRepository.update(
+      { id: academyId },
+      {
+        isVerified: false,
+        isIdentityVerified: false,
+      },
     );
   }
 }
