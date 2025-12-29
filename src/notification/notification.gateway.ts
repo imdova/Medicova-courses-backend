@@ -13,9 +13,15 @@ import { JwtService } from '@nestjs/jwt';
 import { NotificationService } from './notification.service';
 import { Notification } from './entities/notification.entity';
 
+// Extend Socket interface to include custom properties
 interface AuthenticatedSocket extends Socket {
   userId?: string;
   user?: any;
+  handshake: Socket['handshake'] & {
+    auth?: { token?: string };
+    query?: { token?: string };
+    headers?: { authorization?: string };
+  };
 }
 
 @WebSocketGateway({
