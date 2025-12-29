@@ -885,8 +885,8 @@ export class AdminService {
 
     let query = this.userRepository
       .createQueryBuilder('user')
-      // Use leftJoinAndSelect to fetch all fields from User and Profile
       .leftJoinAndSelect('user.profile', 'profile')
+      .leftJoinAndSelect('user.identityVerification', 'identityVerification')
       .where('user.roleId = :roleId', { roleId: instructorRoleId });
 
     // 🔍 Apply search filter if a term is provided
@@ -908,12 +908,10 @@ export class AdminService {
 
     // Return the full entity data and pagination metadata
     return {
-      // Map to ensure the 'profile' is cleanly attached and add a 'fullName' for convenience
       instructors: instructors.map((i) => ({
-        ...i, // Spread all fields from the User entity
-        profile: i.profile ? { // Spread all fields from the Profile entity
-          ...i.profile,
-        } : null,
+        ...i,
+        profile: i.profile ? { ...i.profile } : null,
+        identityVerificationStatus: i.identityVerification?.status ?? null,
       })),
       pagination: this.paginationMeta(pageNum, limitNum, total),
     };
