@@ -1,4 +1,4 @@
-import { Entity, Column, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, OneToMany, JoinColumn, Index } from 'typeorm';
 import { Course } from '../../entities/course.entity';
 import { CourseSectionItem } from './course-section-item.entity';
 import { BasicEntity } from '../../../common/entities/basic.entity';
@@ -9,6 +9,10 @@ export class CourseSection extends BasicEntity {
   @ManyToOne(() => Course, (course) => course.sections, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'course_id' })
   course: Course;
+
+  @Index()
+  @Column({ name: 'course_id', type: 'uuid' })
+  courseId: string;
 
   @ApiProperty({ description: 'Name of the section', example: 'Introduction' })
   @Column()

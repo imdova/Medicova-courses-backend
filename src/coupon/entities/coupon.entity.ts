@@ -1,5 +1,5 @@
 import { BasicEntity } from '../../common/entities/basic.entity';
-import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CourseCategory } from 'src/course/course-category/entities/course-category.entity';
 
@@ -35,6 +35,7 @@ export class Coupon extends BasicEntity {
     description: 'User ID of the teacher/admin who created the coupon',
     format: 'uuid',
   })
+  @Index()
   @Column({ type: 'uuid' })
   created_by: string;
 
@@ -95,6 +96,7 @@ export class Coupon extends BasicEntity {
     example: CouponStatus.ACTIVE,
     default: CouponStatus.INACTIVE,
   })
+  @Index()
   @Column({ type: 'enum', enum: CouponStatus, default: CouponStatus.INACTIVE })
   status: CouponStatus;
 
@@ -103,6 +105,7 @@ export class Coupon extends BasicEntity {
     enum: CouponApplicability,
     example: CouponApplicability.MULTIPLE_COURSES,
   })
+  @Index()
   @Column({
     type: 'enum',
     enum: CouponApplicability,
@@ -118,6 +121,7 @@ export class Coupon extends BasicEntity {
     description: 'ID of the Academy this coupon belongs to (if created by an Academy Admin/User)',
     format: 'uuid',
   })
+  @Index()
   @Column({ type: 'uuid', nullable: true })
   academy_id: string | null;
 
@@ -125,6 +129,7 @@ export class Coupon extends BasicEntity {
     description: 'Category ID for category-based coupons',
     format: 'uuid',
   })
+  @Index()
   @Column({ type: 'uuid', name: 'category_id', nullable: true })
   category_id: string | null;
 
@@ -132,6 +137,7 @@ export class Coupon extends BasicEntity {
     description: 'Subcategory ID for subcategory-based coupons',
     format: 'uuid',
   })
+  @Index()
   @Column({ type: 'uuid', name: 'subcategory_id', nullable: true })
   subcategory_id: string | null;
 

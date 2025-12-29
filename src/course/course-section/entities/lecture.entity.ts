@@ -1,5 +1,5 @@
 import { BasicEntity } from '../../../common/entities/basic.entity';
-import { Entity, Column, OneToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, OneToOne, JoinColumn, Index } from 'typeorm';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CourseSectionItem } from './course-section-item.entity';
 
@@ -49,4 +49,9 @@ export class Lecture extends BasicEntity {
   })
   @JoinColumn({ name: 'item_id' })
   item: CourseSectionItem;
+
+  @Index()
+  @Column({ name: 'item_id', type: 'uuid' })
+  itemId: string;
+
 }

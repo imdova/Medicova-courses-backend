@@ -1,4 +1,4 @@
-import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { Bundle } from './bundle.entity';
 import { BasicEntity } from '../../common/entities/basic.entity';
 
@@ -16,6 +16,11 @@ export class BundlePricing extends BasicEntity {
   @JoinColumn({ name: 'bundle_id' })
   bundle: Bundle;
 
+  @Index()
+  @Column({ name: 'bundle_id', type: 'uuid' })
+  bundleId: string;
+
+  @Index()
   @Column({ type: 'enum', enum: CurrencyCode })
   currency_code: CurrencyCode;
 
@@ -28,9 +33,11 @@ export class BundlePricing extends BasicEntity {
   @Column({ type: 'float', nullable: true })
   discount_amount?: number;
 
+  @Index()
   @Column({ type: 'boolean', default: false })
   discount_enabled: boolean;
 
+  @Index()
   @Column({ type: 'boolean', default: true })
   is_active: boolean;
 }

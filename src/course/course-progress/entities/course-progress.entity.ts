@@ -1,4 +1,4 @@
-import { Entity, Column, ManyToOne, JoinColumn, Unique } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, Unique, Index } from 'typeorm';
 import { BasicEntity } from 'src/common/entities/basic.entity';
 import { CourseStudent } from '../../entities/course-student.entity';
 import { CourseSectionItem } from '../../course-section/entities/course-section-item.entity';
@@ -15,6 +15,10 @@ export class CourseProgress extends BasicEntity {
   @JoinColumn({ name: 'course_student_id' })
   courseStudent: CourseStudent;
 
+  @Index()
+  @Column({ name: 'course_student_id', type: 'uuid' })
+  courseStudentId: string;
+
   @ApiProperty({
     description: 'The course section item (lecture, quiz, assignment)',
     type: () => CourseSectionItem,
@@ -22,6 +26,10 @@ export class CourseProgress extends BasicEntity {
   @ManyToOne(() => CourseSectionItem, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'item_id' })
   item: CourseSectionItem;
+
+  @Index()
+  @Column({ name: 'item_id', type: 'uuid' })
+  itemId: string;
 
   @ApiProperty({
     description: 'Whether the item has been completed by the student',

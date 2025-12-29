@@ -1,5 +1,5 @@
 import { BasicEntity } from '../../common/entities/basic.entity';
-import { Entity, Column, ManyToOne } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 import { Academy } from 'src/academy/entities/academy.entity';
 
@@ -21,5 +21,10 @@ export class AcademyInstructor extends BasicEntity {
     nullable: false,
     onDelete: 'CASCADE',
   })
+  @JoinColumn({ name: 'academy_id' })
   academy: Academy;
+
+  @Index()
+  @Column({ name: 'academy_id' })
+  academyId: string;
 }

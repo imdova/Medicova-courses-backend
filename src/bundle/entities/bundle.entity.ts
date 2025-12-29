@@ -1,4 +1,4 @@
-import { Entity, Column, OneToMany, JoinColumn, ManyToOne } from 'typeorm';
+import { Entity, Column, OneToMany, JoinColumn, ManyToOne, Index } from 'typeorm';
 import { CourseBundle } from './course-bundle.entity';
 import { BundlePricing } from './bundle-pricing.entity';
 import { BasicEntity } from '../../common/entities/basic.entity';
@@ -27,9 +27,11 @@ export class Bundle extends BasicEntity {
   @Column({ type: 'varchar', length: 500, nullable: true })
   thumbnail_url?: string;
 
+  @Index()
   @Column({ type: 'boolean', default: false })
   is_free: boolean;
 
+  @Index()
   @Column({ type: 'uuid' })
   created_by: string;
 
@@ -37,9 +39,11 @@ export class Bundle extends BasicEntity {
   @JoinColumn({ name: 'created_by' })
   instructor: User;
 
+  @Index()
   @Column({ type: 'enum', enum: BundleStatus, default: BundleStatus.DRAFT })
   status: BundleStatus;
 
+  @Index()
   @Column({ type: 'boolean', default: true })
   active: boolean;
 
@@ -52,6 +56,10 @@ export class Bundle extends BasicEntity {
   @ManyToOne(() => Academy, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'academy_id' })
   academy: Academy;
+
+  @Index()
+  @Column({ name: 'academy_id', type: 'uuid', nullable: true })
+  academyId: string;
 
   @ApiPropertyOptional({
     description: 'Number of purchases for the bundle',
