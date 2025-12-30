@@ -30,6 +30,7 @@ import { WithdrawalStatus } from './entities/withdrawal.entity';
 import { UpdateWithdrawalStatusDto } from './dto/update-withdrawal-status.dto';
 import { CreateWithdrawalMethodDto } from './dto/create-withdrawal-method.dto';
 import { UpdateWithdrawalMethodDto } from './dto/update-withdrawal-method.dto';
+import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Withdrawals')
 @ApiBearerAuth('access_token')
@@ -282,6 +283,7 @@ export class WithdrawalController {
   // ========== ADMIN ENDPOINTS ==========
 
   @Get('admin/all')
+  @RequirePermissions('withdrawal:admin:list')
   @ApiOperation({
     summary: 'Get all withdrawals (Admin only)',
     description: 'Admin endpoint to retrieve all withdrawal requests with filtering and pagination.'
@@ -365,6 +367,7 @@ export class WithdrawalController {
   }
 
   @Get('admin/:id')
+  @RequirePermissions('withdrawal:admin:read')
   @ApiOperation({
     summary: 'Get withdrawal details (Admin only)',
     description: 'Retrieves detailed information about a specific withdrawal request including creator and processing details.'
@@ -387,6 +390,7 @@ export class WithdrawalController {
   }
 
   @Put('admin/:id/status')
+  @RequirePermissions('withdrawal:admin:status_update')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Update withdrawal status (Admin only)',
@@ -438,6 +442,7 @@ export class WithdrawalController {
   }
 
   @Get('admin/stats')
+  @RequirePermissions('withdrawal:admin:stats')
   @ApiOperation({
     summary: 'Get withdrawal statistics (Admin only)',
     description: 'Retrieves comprehensive statistics about withdrawals including totals, fees, and method breakdowns.'
@@ -472,6 +477,7 @@ export class WithdrawalController {
   // ========== ADMIN WITHDRAWAL METHOD MANAGEMENT ==========
 
   @Post('admin/methods')
+  @RequirePermissions('withdrawal:admin:method_create')
   @ApiOperation({
     summary: 'Create a new withdrawal method (Admin only)',
     description: 'Creates a new withdrawal method with specified limits, fees, and processing times.'
@@ -510,6 +516,7 @@ export class WithdrawalController {
   }
 
   @Put('admin/methods/:id')
+  @RequirePermissions('withdrawal:admin:method_update')
   @ApiOperation({
     summary: 'Update withdrawal method (Admin only)',
     description: 'Updates an existing withdrawal method configuration.'
