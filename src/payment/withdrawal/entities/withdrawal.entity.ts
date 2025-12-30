@@ -95,10 +95,6 @@ export class Withdrawal extends BasicEntity {
     @Column({ type: 'uuid', nullable: true, name: 'processed_by' })
     processedById?: string;
 
-    @ApiProperty({ description: 'Processing notes', nullable: true })
-    @Column({ type: 'text', nullable: true })
-    processingNotes?: string;
-
     @ApiProperty({ description: 'Rejection reason', nullable: true })
     @Column({ type: 'text', nullable: true })
     rejectionReason?: string;
@@ -106,16 +102,4 @@ export class Withdrawal extends BasicEntity {
     @ApiProperty({ description: 'Processed date', nullable: true })
     @Column({ type: 'timestamp', nullable: true })
     processedAt?: Date;
-
-    @ApiProperty({ description: 'Gateway transaction ID', nullable: true })
-    @Column({ nullable: true })
-    gatewayTransactionId?: string;
-
-    @ApiProperty({ description: 'Gateway response', nullable: true })
-    @Column({ type: 'json', nullable: true })
-    gatewayResponse?: Record<string, any>;
-
-    @ApiProperty({ description: 'Admin can add internal notes', nullable: true })
-    @Column({ type: 'text', nullable: true })
-    adminInternalNotes?: string;
 }

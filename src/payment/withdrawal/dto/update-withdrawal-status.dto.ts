@@ -11,19 +11,4 @@ export class UpdateWithdrawalStatusDto {
     @IsOptional()
     @IsString()
     rejectionReason?: string;
-
-    @ApiProperty({ description: 'Processing notes', required: false })
-    @IsOptional()
-    @IsString()
-    processingNotes?: string;
-
-    @ApiProperty({ description: 'Gateway transaction ID', required: false })
-    @IsOptional()
-    @IsString()
-    gatewayTransactionId?: string;
-
-    @ApiProperty({ description: 'Gateway response', required: false })
-    @IsOptional()
-    @IsObject()
-    gatewayResponse?: Record<string, any>;
 }

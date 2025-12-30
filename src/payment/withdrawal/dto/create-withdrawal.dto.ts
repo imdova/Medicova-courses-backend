@@ -9,7 +9,8 @@ export class CreateWithdrawalDto {
 
     @ApiProperty({ description: 'Withdrawal amount' })
     @IsNumber()
-    @Min(100, { message: 'Minimum withdrawal amount is 100' })
+    @Min(1, { message: 'Amount must be greater than 0' })
+    @Type(() => Number)
     amount: number;
 
     @ApiProperty({

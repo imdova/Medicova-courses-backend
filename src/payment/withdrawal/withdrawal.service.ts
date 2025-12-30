@@ -47,7 +47,7 @@ export class WithdrawalService {
 
   // ========== GET AVAILABLE METHODS ==========
 
-  async getAvailableMethods(currency: string = 'EGP'): Promise<GetAvailableMethodsResponse[]> {
+  async getAvailableMethods(): Promise<GetAvailableMethodsResponse[]> {
     const methods = await this.withdrawalMethodRepository.find({
       where: { isActive: true },
     });
@@ -253,23 +253,46 @@ export class WithdrawalService {
   async getCreatorWallet(creatorId: string) {
     const earnings = await this.paymentService.getCreatorEarnings(creatorId);
 
-    // Fix: Use createQueryBuilder for sum with conditions
-    const pendingWithdrawalsResult = await this.withdrawalRepository
-      .createQueryBuilder('withdrawal')
-      .select('SUM(withdrawal.amount)', 'total')
-      .where('withdrawal.creatorId = :creatorId', { creatorId })
-      .andWhere('withdrawal.status IN (:...statuses)', {
-        statuses: [WithdrawalStatus.PENDING, WithdrawalStatus.UNDER_REVIEW, WithdrawalStatus.PROCESSING],
-      })
-      .getRawOne();
+    // Using raw SQL query for better control
+    const query = `
+    SELECT
+      COALESCE(SUM(CASE 
+        WHEN status IN ('PENDING', 'UNDER_REVIEW', 'PROCESSING') 
+        THEN amount 
+        ELSE 0 
+      END), 0) as "pendingWithdrawals",
+      COALESCE(SUM(CASE 
+        WHEN status = 'COMPLETED' 
+        THEN amount 
+        ELSE 0 
+      END), 0) as "totalWithdrawn",
+      COALESCE(SUM(CASE 
+        WHEN status IN ('FAILED', 'REJECTED', 'CANCELLED') 
+        THEN amount 
+        ELSE 0 
+      END), 0) as "refundedAmount"
+    FROM withdrawals
+    WHERE creator_id = $1
+  `;
 
-    const pendingWithdrawals = parseFloat(pendingWithdrawalsResult?.total || '0');
-    const availableBalance = Math.max(earnings.totalEarnings - pendingWithdrawals, 0);
+    const statsResult = await this.withdrawalRepository.query(query, [creatorId]);
+    const stats = statsResult[0];
+
+    const pendingWithdrawals = parseFloat(stats.pendingWithdrawals);
+    const totalWithdrawn = parseFloat(stats.totalWithdrawn);
+    const refundedAmount = parseFloat(stats.refundedAmount);
+
+    const availableBalance = Math.max(
+      earnings.totalEarnings - pendingWithdrawals - totalWithdrawn,
+      0
+    );
 
     return {
       totalEarnings: earnings.totalEarnings,
       availableBalance,
       pendingWithdrawals,
+      totalWithdrawn,
+      refundedAmount,
       currency: 'EGP',
       lastUpdated: new Date(),
     };
@@ -354,10 +377,6 @@ export class WithdrawalService {
 
       if (dto.status === WithdrawalStatus.COMPLETED) {
         withdrawal.processedAt = new Date();
-        const createdDate = new Date(withdrawal.created_at);
-        const hoursDiff = Math.ceil(
-          (withdrawal.processedAt.getTime() - createdDate.getTime()) / (1000 * 60 * 60)
-        );
 
         // Process payment (implement gateway integration here)
         await this.processPayment(withdrawal, dto);
@@ -367,18 +386,6 @@ export class WithdrawalService {
         withdrawal.rejectionReason = dto.rejectionReason;
         // Refund amount back to creator's available balance
         await this.refundToWallet(withdrawal.creatorId, withdrawal.amount);
-      }
-
-      if (dto.processingNotes) {
-        withdrawal.processingNotes = dto.processingNotes;
-      }
-
-      if (dto.gatewayTransactionId) {
-        withdrawal.gatewayTransactionId = dto.gatewayTransactionId;
-      }
-
-      if (dto.gatewayResponse) {
-        withdrawal.gatewayResponse = dto.gatewayResponse;
       }
 
       const updatedWithdrawal = await queryRunner.manager.save(withdrawal);
@@ -405,7 +412,8 @@ export class WithdrawalService {
 
   private validateStatusTransition(current: WithdrawalStatus, next: WithdrawalStatus): void {
     const allowedTransitions = {
-      [WithdrawalStatus.PENDING]: [WithdrawalStatus.UNDER_REVIEW, WithdrawalStatus.CANCELLED],
+      //[WithdrawalStatus.PENDING]: [WithdrawalStatus.UNDER_REVIEW, WithdrawalStatus.CANCELLED],
+      [WithdrawalStatus.PENDING]: [WithdrawalStatus.COMPLETED, WithdrawalStatus.FAILED],
       [WithdrawalStatus.UNDER_REVIEW]: [WithdrawalStatus.PROCESSING, WithdrawalStatus.REJECTED],
       [WithdrawalStatus.PROCESSING]: [WithdrawalStatus.COMPLETED, WithdrawalStatus.FAILED],
       [WithdrawalStatus.COMPLETED]: [],
@@ -440,11 +448,6 @@ export class WithdrawalService {
     // - PayPal API
     // - E-wallet providers
     // - Crypto transfer
-
-    // For now, just log and save gateway response if provided
-    if (dto.gatewayResponse) {
-      withdrawal.gatewayResponse = dto.gatewayResponse;
-    }
   }
 
   private async refundToWallet(creatorId: string, amount: number): Promise<void> {
