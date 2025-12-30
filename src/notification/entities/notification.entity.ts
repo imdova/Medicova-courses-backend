@@ -99,7 +99,7 @@ export class Notification extends BasicEntity {
     },
   })
   @Column({ type: 'jsonb', nullable: true })
-  metadata: Record<string, any>;
+  metadata?: Record<string, any>;
 
   @ApiProperty({
     description: 'The user who will receive this notification',
@@ -115,15 +115,6 @@ export class Notification extends BasicEntity {
   @Index()
   @Column({ type: 'uuid', name: 'user_id' })
   userId: string;
-
-  @ApiProperty({
-    description: 'Optional: The user who created/sent this notification',
-    type: () => User,
-    nullable: true,
-  })
-  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
-  @JoinColumn({ name: 'created_by' })
-  createdByUser?: User;
 
   @ApiProperty({
     description: 'Optional: ID of the user who created/sent this notification',
