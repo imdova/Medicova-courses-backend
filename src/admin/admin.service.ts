@@ -21,7 +21,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { ProfileService } from 'src/profile/profile.service';
 import { EmailService } from '../common/email.service';
 import { CourseRating } from 'src/course/entities/course-rating.entity';
-import { Academy } from 'src/academy/entities/academy.entity';
+import { Academy, AcademyVerificationStatus } from 'src/academy/entities/academy.entity';
 import { CreateInstructorDto } from './dto/create-instructor.dto';
 import { ProfileMetadataDto } from 'src/profile/dto/profile-metadata.dto';
 import { Payment, PaymentStatus } from 'src/payment/entities/payment.entity';
@@ -3496,6 +3496,7 @@ export class AdminService {
     await this.academyRepository.update(
       { id: academyId },
       {
+        verificationStatus: AcademyVerificationStatus.APPROVED,
         isVerified: true,
         isIdentityVerified: true,
       },
@@ -3516,6 +3517,7 @@ export class AdminService {
     await this.academyRepository.update(
       { id: academyId },
       {
+        verificationStatus: AcademyVerificationStatus.REJECTED,
         isVerified: false,
         isIdentityVerified: false,
       },
