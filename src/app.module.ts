@@ -90,6 +90,8 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { DatabaseBackupModule } from './database/database-backup.module';
 import { Notification } from './notification/entities/notification.entity';
 import { NotificationModule } from './notification/notification.module';
+import { Withdrawal } from './payment/withdrawal/entities/withdrawal.entity';
+import { WithdrawalMethod } from './payment/withdrawal/entities/withdrawal-method.entity';
 
 @Module({
   imports: [
@@ -181,6 +183,8 @@ import { NotificationModule } from './notification/notification.module';
         Invoice,
         InvoiceItem,
         Notification,
+        Withdrawal,
+        WithdrawalMethod
       ],
       synchronize: true,
     }),
