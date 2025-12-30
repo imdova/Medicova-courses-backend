@@ -26,6 +26,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { CheckoutCartDto } from './dto/checkout-cart.dto';
 import { ConfirmPaymentDto } from './dto/confirm-payment.dto';
 import { PaymentMethod } from './entities/payment.entity';
+import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Payments')
 @ApiBearerAuth('access_token')
@@ -166,6 +167,7 @@ export class PaymentController {
   // ========== ADMIN ENDPOINTS ==========
 
   @Get('admin/stats')
+  @RequirePermissions('payments:admin:stats')
   @ApiOperation({ summary: 'Get platform payment statistics (Admin only)' })
   @ApiResponse({ status: 200, description: 'Returns platform stats' })
   async getPlatformStats() {
@@ -173,6 +175,7 @@ export class PaymentController {
   }
 
   @Get('admin/payments')
+  @RequirePermissions('payments:admin:list')
   @ApiOperation({ summary: 'Get all payments (Admin only)' })
   @ApiQuery({ name: 'method', required: false, enum: PaymentMethod })
   @ApiQuery({ name: 'status', required: false, enum: ['PENDING', 'SUCCESS', 'FAILED', 'REFUNDED'] })
