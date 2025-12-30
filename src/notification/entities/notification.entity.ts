@@ -103,6 +103,15 @@ export class Notification extends BasicEntity {
   userId: string;
 
   @ApiProperty({
+    description: 'Optional: The user who created/sent this notification',
+    type: () => User,
+    nullable: true,
+  })
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'created_by' })
+  createdByUser?: User;
+
+  @ApiProperty({
     description: 'Optional: ID of the user who created/sent this notification',
     nullable: true,
   })
