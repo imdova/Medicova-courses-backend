@@ -102,12 +102,12 @@ import { NotificationModule } from './notification/notification.module';
       username: process.env.DB_USERNAME,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
-      ssl:
-        process.env.DB_SSL === 'true' || process.env.DB_SSL === undefined
-          ? {
-              rejectUnauthorized: false, // ✅ Allow self-signed certs from RDS
-            }
-          : false,
+      // ssl:
+      //   process.env.DB_SSL === 'true' || process.env.DB_SSL === undefined
+      //     ? {
+      //         rejectUnauthorized: false, // ✅ Allow self-signed certs from RDS
+      //       }
+      //     : false,
       extra: {
         max: 5, // Maximum number of clients in the pool
         connectionTimeoutMillis: 20000, // 20 seconds connection timeout
@@ -191,19 +191,19 @@ import { NotificationModule } from './notification/notification.module';
           : process.env.SMTP_HOST &&
             process.env.SMTP_HOST !== 'smtp.example.com' &&
             process.env.SMTP_HOST !== 'localhost'
-          ? {
+            ? {
               host: process.env.SMTP_HOST,
               port: parseInt(process.env.SMTP_PORT || '587'),
               secure: process.env.SMTP_SECURE === 'true',
               auth:
                 process.env.SMTP_USER && process.env.SMTP_PASS
                   ? {
-                      user: process.env.SMTP_USER,
-                      pass: process.env.SMTP_PASS,
-                    }
+                    user: process.env.SMTP_USER,
+                    pass: process.env.SMTP_PASS,
+                  }
                   : undefined,
             }
-          : {
+            : {
               // Use a dummy transport that logs instead of sending
               jsonTransport: true,
             },
@@ -250,4 +250,4 @@ import { NotificationModule } from './notification/notification.module';
   controllers: [AppController],
   providers: [AppService, DatabaseService],
 })
-export class AppModule {}
+export class AppModule { }
