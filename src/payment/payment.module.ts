@@ -7,9 +7,10 @@ import { User } from 'src/user/entities/user.entity';
 import { Cart } from 'src/cart/entities/cart.entity';
 import { CartItem } from 'src/cart/entities/cart-item.entity';
 import { Transaction } from './entities/transaction.entity';
+import { WithdrawalModule } from './withdrawal/withdrawal.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Payment, User, Cart, CartItem, Transaction])],
+  imports: [TypeOrmModule.forFeature([Payment, User, Cart, CartItem, Transaction]), WithdrawalModule],
   controllers: [PaymentController],
   providers: [PaymentService],
   exports: [PaymentService],

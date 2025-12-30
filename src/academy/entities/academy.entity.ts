@@ -31,6 +31,12 @@ export interface ContactPerson {
   [key: string]: any; // 🟢 CRITICAL: Add index signature for TypeORM compatibility
 }
 
+export enum AcademyVerificationStatus {
+  PENDING = 'pending',
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
+}
+
 @Entity('academies')
 export class Academy extends BasicEntity {
   @ApiProperty({
@@ -176,4 +182,8 @@ export class Academy extends BasicEntity {
 
   @OneToMany(() => AcademyInstructor, (instructor) => instructor.academy)
   instructors: AcademyInstructor[];
+
+  @ApiProperty({ description: 'The status of the academy verification' })
+  @Column({ type: 'enum', enum: AcademyVerificationStatus, default: AcademyVerificationStatus.PENDING })
+  verificationStatus: AcademyVerificationStatus;
 }
