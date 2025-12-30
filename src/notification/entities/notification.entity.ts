@@ -42,7 +42,8 @@ export class Notification extends BasicEntity {
 
   @ApiProperty({
     description: 'Description or body of the notification',
-    example: 'You have a new message from Sarah Williams regarding your course inquiry.',
+    example:
+      'You have a new message from Sarah Williams regarding your course inquiry.',
   })
   @Column({ type: 'text' })
   description: string;
@@ -52,7 +53,11 @@ export class Notification extends BasicEntity {
     enum: NotificationType,
     example: NotificationType.MESSAGES,
   })
-  @Column({ type: 'enum', enum: NotificationType, default: NotificationType.MESSAGES })
+  @Column({
+    type: 'enum',
+    enum: NotificationType,
+    default: NotificationType.MESSAGES,
+  })
   type: NotificationType;
 
   @ApiProperty({
@@ -60,7 +65,11 @@ export class Notification extends BasicEntity {
     enum: NotificationIcon,
     example: NotificationIcon.MESSAGE,
   })
-  @Column({ type: 'enum', enum: NotificationIcon, default: NotificationIcon.INFO })
+  @Column({
+    type: 'enum',
+    enum: NotificationIcon,
+    default: NotificationIcon.INFO,
+  })
   icon: NotificationIcon;
 
   @ApiProperty({
@@ -80,9 +89,14 @@ export class Notification extends BasicEntity {
   isArchived: boolean;
 
   @ApiProperty({
-    description: 'Additional metadata as JSON (e.g., tags, action buttons, related entity IDs)',
+    description:
+      'Additional metadata as JSON (e.g., tags, action buttons, related entity IDs)',
     nullable: true,
-    example: { tags: ['Course Name'], actionButton: 'REPLY', relatedEntityId: 'uuid' },
+    example: {
+      tags: ['Course Name'],
+      actionButton: 'REPLY',
+      relatedEntityId: 'uuid',
+    },
   })
   @Column({ type: 'jsonb', nullable: true })
   metadata: Record<string, any>;
@@ -115,11 +129,13 @@ export class Notification extends BasicEntity {
     description: 'Optional: ID of the user who created/sent this notification',
     nullable: true,
   })
+  @Index()
   @Column({ type: 'uuid', nullable: true, name: 'created_by' })
   createdBy?: string;
 
   @ApiProperty({
-    description: 'Optional: Related entity type (e.g., "course", "enrollment", "message")',
+    description:
+      'Optional: Related entity type (e.g., "course", "enrollment", "message")',
     nullable: true,
   })
   @Column({ length: 100, nullable: true, name: 'related_entity_type' })
@@ -132,4 +148,3 @@ export class Notification extends BasicEntity {
   @Column({ type: 'uuid', nullable: true, name: 'related_entity_id' })
   relatedEntityId?: string;
 }
-
