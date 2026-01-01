@@ -89,8 +89,17 @@ export class WithdrawalService {
     await queryRunner.startTransaction();
 
     try {
-      // 1. Get wallet balance
-      const wallet = await this.getCreatorWallet(creatorId);
+      // 1. Get wallet balance for the specific currency
+      const walletArray = await this.getCreatorWallet(creatorId);
+
+      // Find the wallet balance for the requested currency
+      const walletForCurrency = walletArray.find(w => w.currency === dto.currency);
+
+      if (!walletForCurrency) {
+        throw new BadRequestException(
+          `No earnings available in ${dto.currency} currency. Please check your wallet balance.`
+        );
+      }
 
       // 2. Get withdrawal method
       const method = await this.withdrawalMethodRepository.findOne({
@@ -101,7 +110,7 @@ export class WithdrawalService {
         throw new NotFoundException('Withdrawal method not found or inactive');
       }
 
-      // 4. Validate amount against method limits
+      // 3. Validate amount against method limits
       if (dto.amount < parseFloat(method.minAmount as any)) {
         throw new BadRequestException(
           `Minimum withdrawal amount for ${method.name} is ${method.minAmount} ${dto.currency}`
@@ -114,18 +123,18 @@ export class WithdrawalService {
         );
       }
 
-      // 5. Validate amount against wallet
-      if (dto.amount > wallet.availableBalance) {
+      // 4. Validate amount against wallet
+      if (dto.amount > walletForCurrency.availableBalance) {
         throw new BadRequestException(
-          `Insufficient balance. Available: ${wallet.availableBalance} ${dto.currency}, Requested: ${dto.amount} ${dto.currency}`
+          `Insufficient balance in ${dto.currency}. Available: ${walletForCurrency.availableBalance} ${dto.currency}, Requested: ${dto.amount} ${dto.currency}`
         );
       }
 
-      // 7. Calculate fees
+      // 5. Calculate fees
       const processingFee = this.calculateFee(dto.amount, method);
       const netAmount = dto.amount - processingFee;
 
-      // 8. Create withdrawal record
+      // 6. Create withdrawal record
       const withdrawal = this.withdrawalRepository.create({
         creator: { id: creatorId },
         creatorId,
@@ -251,11 +260,12 @@ export class WithdrawalService {
 
   // Update the getCreatorWallet method
   async getCreatorWallet(creatorId: string) {
-    const earnings = await this.paymentService.getCreatorEarnings(creatorId);
+    const earningsArray = await this.paymentService.getCreatorEarnings(creatorId);
 
     // Using raw SQL query for better control
     const query = `
     SELECT
+      currency,
       COALESCE(SUM(CASE 
         WHEN status IN ('PENDING', 'UNDER_REVIEW', 'PROCESSING') 
         THEN amount 
@@ -273,29 +283,44 @@ export class WithdrawalService {
       END), 0) as "refundedAmount"
     FROM withdrawals
     WHERE creator_id = $1
+    GROUP BY currency
   `;
 
-    const statsResult = await this.withdrawalRepository.query(query, [creatorId]);
-    const stats = statsResult[0];
+    const withdrawalStats = await this.withdrawalRepository.query(query, [creatorId]);
 
-    const pendingWithdrawals = parseFloat(stats.pendingWithdrawals);
-    const totalWithdrawn = parseFloat(stats.totalWithdrawn);
-    const refundedAmount = parseFloat(stats.refundedAmount);
+    // Convert to map for easier lookup
+    const withdrawalStatsMap = new Map();
+    withdrawalStats.forEach(stat => {
+      withdrawalStatsMap.set(stat.currency, {
+        pendingWithdrawals: parseFloat(stat.pendingWithdrawals),
+        totalWithdrawn: parseFloat(stat.totalWithdrawn),
+        refundedAmount: parseFloat(stat.refundedAmount)
+      });
+    });
 
-    const availableBalance = Math.max(
-      earnings.totalEarnings - pendingWithdrawals - totalWithdrawn,
-      0
-    );
+    // Return array per currency
+    return earningsArray.map(earnings => {
+      const currencyStats = withdrawalStatsMap.get(earnings.currency) || {
+        pendingWithdrawals: 0,
+        totalWithdrawn: 0,
+        refundedAmount: 0
+      };
 
-    return {
-      totalEarnings: earnings.totalEarnings,
-      availableBalance,
-      pendingWithdrawals,
-      totalWithdrawn,
-      refundedAmount,
-      currency: 'EGP',
-      lastUpdated: new Date(),
-    };
+      const availableBalance = Math.max(
+        earnings.totalEarnings - currencyStats.pendingWithdrawals - currencyStats.totalWithdrawn,
+        0
+      );
+
+      return {
+        currency: earnings.currency,
+        totalEarnings: earnings.totalEarnings,
+        availableBalance,
+        pendingWithdrawals: currencyStats.pendingWithdrawals,
+        totalWithdrawn: currencyStats.totalWithdrawn,
+        refundedAmount: currencyStats.refundedAmount,
+        lastUpdated: new Date(),
+      };
+    });
   }
 
   // ========== ADMIN METHODS ==========
