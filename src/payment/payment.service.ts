@@ -504,35 +504,82 @@ export class PaymentService {
     itemId: string;
     itemTitle: string;
     itemType: string;
-    sales: number;
-    revenue: number;
-    averagePrice: number;
+    statsByCurrency: Array<{
+      currency: string;
+      revenue: number;
+      salesCount: number;
+      averagePrice: number;
+    }>;
   }>> {
-    const topItems = await this.transactionRepository
+    // Get aggregated data grouped by item and currency
+    const itemsByCurrency = await this.transactionRepository
       .createQueryBuilder('t')
       .select([
         't.itemId',
         't.itemTitle',
         't.itemType',
-        'COUNT(t.id) as sales',
+        't.currency',
+        'COUNT(t.id) as sales_count',
         'SUM(t.amount) as revenue',
-        'AVG(t.totalPrice / t.quantity) as averagePrice',
+        'AVG(t.totalPrice / t.quantity) as average_price',
       ])
       .where('t.creatorId = :creatorId', { creatorId })
       .andWhere('t.status = :status', { status: TransactionStatus.PAID })
-      .groupBy('t.itemId, t.itemTitle, t.itemType')
-      .orderBy('sales', 'DESC')
-      .limit(limit)
+      .groupBy('t.itemId, t.itemTitle, t.itemType, t.currency')
+      .orderBy('revenue', 'DESC') // Order by revenue within each currency group
       .getRawMany();
 
-    return topItems.map(item => ({
-      itemId: item.t_itemId,
-      itemTitle: item.t_itemTitle,
-      itemType: item.t_itemType,
-      sales: parseInt(item.sales),
-      revenue: parseFloat(item.revenue),
-      averagePrice: parseFloat(item.averagePrice),
-    }));
+    // Group by item
+    const itemsMap = new Map<string, {
+      itemId: string;
+      itemTitle: string;
+      itemType: string;
+      statsByCurrency: Array<{
+        currency: string;
+        revenue: number;
+        salesCount: number;
+        averagePrice: number;
+      }>;
+    }>();
+
+    itemsByCurrency.forEach(row => {
+      const itemKey = `${row.t_itemId}-${row.t_itemTitle}-${row.t_itemType}`;
+
+      if (!itemsMap.has(itemKey)) {
+        itemsMap.set(itemKey, {
+          itemId: row.t_itemId,
+          itemTitle: row.t_itemTitle,
+          itemType: row.t_itemType,
+          statsByCurrency: [],
+        });
+      }
+
+      const item = itemsMap.get(itemKey)!;
+
+      item.statsByCurrency.push({
+        currency: row.t_currency,
+        revenue: parseFloat(row.revenue || '0'),
+        salesCount: parseInt(row.sales_count || '0'),
+        averagePrice: parseFloat(row.average_price || '0'),
+      });
+    });
+
+    // Convert map to array and sort items by total revenue across all currencies
+    const itemsArray = Array.from(itemsMap.values())
+      .map(item => {
+        // Sort currency stats within each item by revenue (highest first)
+        item.statsByCurrency.sort((a, b) => b.revenue - a.revenue);
+        return item;
+      })
+      .sort((a, b) => {
+        // Sort items by total revenue across all currencies (highest first)
+        const totalRevenueA = a.statsByCurrency.reduce((sum, curr) => sum + curr.revenue, 0);
+        const totalRevenueB = b.statsByCurrency.reduce((sum, curr) => sum + curr.revenue, 0);
+        return totalRevenueB - totalRevenueA;
+      })
+      .slice(0, limit);
+
+    return itemsArray;
   }
 
   // ========== ADMIN ANALYTICS ==========
