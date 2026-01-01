@@ -27,6 +27,7 @@ import { CheckoutCartDto } from './dto/checkout-cart.dto';
 import { ConfirmPaymentDto } from './dto/confirm-payment.dto';
 import { PaymentMethod } from './entities/payment.entity';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
+import { RevenuePeriod } from './dto/revenue-growth.dto';
 
 @ApiTags('Payments')
 @ApiBearerAuth('access_token')
@@ -162,6 +163,55 @@ export class PaymentController {
     @Query('limit') limit = 10,
   ) {
     return this.paymentService.getCreatorTopSellingItems(req.user.sub, limit);
+  }
+
+  @Get('creator/revenue-growth')
+  @ApiOperation({
+    summary: 'Get creator revenue growth over time',
+    description: 'Returns revenue growth statistics over weekly, monthly, or yearly periods. Optional currency filter.'
+  })
+  @ApiQuery({
+    name: 'period',
+    required: false,
+    enum: RevenuePeriod,
+    description: 'Aggregation period (weekly, monthly, yearly)',
+    example: RevenuePeriod.MONTHLY
+  })
+  @ApiQuery({
+    name: 'currency',
+    required: false,
+    type: String,
+    description: 'Currency code to filter by (e.g., EGP, USD)',
+    example: 'EGP'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Revenue growth statistics retrieved successfully',
+    schema: {
+      example: [
+        {
+          period: '2024-01',
+          revenue: 15000.50,
+          transactions: 45
+        },
+        {
+          period: '2024-02',
+          revenue: 16875.75,
+          transactions: 52
+        }
+      ]
+    }
+  })
+  async getRevenueGrowth(
+    @Req() req,
+    @Query('period') period?: RevenuePeriod,
+    @Query('currency') currency?: string,
+  ) {
+    return this.paymentService.getCreatorRevenueGrowth(
+      req.user.sub,
+      period || RevenuePeriod.MONTHLY,
+      currency
+    );
   }
 
   // ========== ADMIN ENDPOINTS ==========

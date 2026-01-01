@@ -7,6 +7,7 @@ import { Cart, CartStatus } from '../cart/entities/cart.entity';
 import { CartItem } from '../cart/entities/cart-item.entity';
 import { Transaction, TransactionStatus } from './entities/transaction.entity';
 import { User } from 'src/user/entities/user.entity';
+import { RevenuePeriod } from './dto/revenue-growth.dto';
 
 @Injectable()
 export class PaymentService {
@@ -401,15 +402,18 @@ export class PaymentService {
 
   // ========== CREATOR ANALYTICS ==========
 
-  async getCreatorEarnings(creatorId: string): Promise<{
-    totalEarnings: number;
-    pendingEarnings: number;
-    currentBalance: number;
-    monthlyEarnings: number;
-    transactionsCount: number;
-    paidTransactionsCount: number;
-    pendingTransactionsCount: number;
-  }> {
+  async getCreatorEarnings(creatorId: string): Promise<
+    Array<{
+      currency: string;
+      totalEarnings: number;
+      pendingEarnings: number;
+      currentBalance: number;
+      monthlyEarnings: number;
+      transactionsCount: number;
+      paidTransactionsCount: number;
+      pendingTransactionsCount: number;
+    }>
+  > {
     // Verify creator exists
     const creator = await this.userRepository.findOne({
       where: { id: creatorId },
@@ -419,43 +423,46 @@ export class PaymentService {
       throw new NotFoundException('Creator not found');
     }
 
-    // Get paid transactions stats
-    const paidStats = await this.transactionRepository
+    // Get all stats grouped by currency in a single query
+    const statsByCurrency = await this.transactionRepository
       .createQueryBuilder('t')
       .select([
-        'SUM(t.amount) as total_earnings',
-        'COUNT(t.id) as transactions_count',
+        't.currency as currency',
+        `SUM(CASE WHEN t.status = 'PAID' THEN t.amount ELSE 0 END) as total_earnings`,
+        `SUM(CASE WHEN t.status = 'PENDING' THEN t.amount ELSE 0 END) as pending_earnings`,
+        `COUNT(CASE WHEN t.status = 'PAID' THEN 1 END) as paid_transactions_count`,
+        `COUNT(CASE WHEN t.status = 'PENDING' THEN 1 END) as pending_transactions_count`,
         `SUM(CASE 
-          WHEN EXTRACT(MONTH FROM t.updated_at) = EXTRACT(MONTH FROM NOW()) 
-          AND EXTRACT(YEAR FROM t.updated_at) = EXTRACT(YEAR FROM NOW()) 
-          THEN t.amount 
-          ELSE 0 
-        END) as monthly_earnings`,
+        WHEN t.status = 'PAID' 
+        AND EXTRACT(MONTH FROM t.updated_at) = EXTRACT(MONTH FROM NOW()) 
+        AND EXTRACT(YEAR FROM t.updated_at) = EXTRACT(YEAR FROM NOW()) 
+        THEN t.amount 
+        ELSE 0 
+      END) as monthly_earnings`,
+        `COUNT(CASE WHEN t.status IN ('PAID', 'PENDING') THEN 1 END) as transactions_count`,
       ])
       .where('t.creator_id = :creatorId', { creatorId })
-      .andWhere('t.status = :status', { status: TransactionStatus.PAID })
-      .getRawOne();
+      .andWhere('t.status IN (:...statuses)', {
+        statuses: [TransactionStatus.PAID, TransactionStatus.PENDING]
+      })
+      .groupBy('t.currency')
+      .orderBy('t.currency', 'ASC')
+      .getRawMany();
 
-    // Get pending transactions stats
-    const pendingStats = await this.transactionRepository
-      .createQueryBuilder('t')
-      .select([
-        'SUM(t.amount) as pending_earnings',
-        'COUNT(t.id) as pending_transactions_count',
-      ])
-      .where('t.creator_id = :creatorId', { creatorId })
-      .andWhere('t.status = :status', { status: TransactionStatus.PENDING })
-      .getRawOne();
+    // Transform the raw results into the desired format
+    const earningsByCurrency = statsByCurrency.map(stat => ({
+      currency: stat.currency,
+      totalEarnings: parseFloat(stat.total_earnings || '0'),
+      pendingEarnings: parseFloat(stat.pending_earnings || '0'),
+      currentBalance: parseFloat(stat.total_earnings || '0'), // Current balance is total earned (paid)
+      monthlyEarnings: parseFloat(stat.monthly_earnings || '0'),
+      transactionsCount: parseInt(stat.transactions_count || '0'),
+      paidTransactionsCount: parseInt(stat.paid_transactions_count || '0'),
+      pendingTransactionsCount: parseInt(stat.pending_transactions_count || '0')
+    }));
 
-    return {
-      totalEarnings: parseFloat(paidStats?.total_earnings || '0'),
-      pendingEarnings: parseFloat(pendingStats?.pending_earnings || '0'),
-      currentBalance: parseFloat(paidStats?.total_earnings || '0'),
-      monthlyEarnings: parseFloat(paidStats?.monthly_earnings || '0'),
-      transactionsCount: parseInt(paidStats?.transactions_count || '0') + parseInt(pendingStats?.pending_transactions_count || '0'),
-      paidTransactionsCount: parseInt(paidStats?.transactions_count || '0'),
-      pendingTransactionsCount: parseInt(pendingStats?.pending_transactions_count || '0'),
-    };
+    // Return empty array if no transactions found
+    return earningsByCurrency;
   }
 
   async getCreatorTransactions(
@@ -498,35 +505,82 @@ export class PaymentService {
     itemId: string;
     itemTitle: string;
     itemType: string;
-    sales: number;
-    revenue: number;
-    averagePrice: number;
+    statsByCurrency: Array<{
+      currency: string;
+      revenue: number;
+      salesCount: number;
+      averagePrice: number;
+    }>;
   }>> {
-    const topItems = await this.transactionRepository
+    // Get aggregated data grouped by item and currency
+    const itemsByCurrency = await this.transactionRepository
       .createQueryBuilder('t')
       .select([
         't.itemId',
         't.itemTitle',
         't.itemType',
-        'COUNT(t.id) as sales',
+        't.currency',
+        'COUNT(t.id) as sales_count',
         'SUM(t.amount) as revenue',
-        'AVG(t.totalPrice / t.quantity) as averagePrice',
+        'AVG(t.totalPrice / t.quantity) as average_price',
       ])
       .where('t.creatorId = :creatorId', { creatorId })
       .andWhere('t.status = :status', { status: TransactionStatus.PAID })
-      .groupBy('t.itemId, t.itemTitle, t.itemType')
-      .orderBy('sales', 'DESC')
-      .limit(limit)
+      .groupBy('t.itemId, t.itemTitle, t.itemType, t.currency')
+      .orderBy('revenue', 'DESC') // Order by revenue within each currency group
       .getRawMany();
 
-    return topItems.map(item => ({
-      itemId: item.t_itemId,
-      itemTitle: item.t_itemTitle,
-      itemType: item.t_itemType,
-      sales: parseInt(item.sales),
-      revenue: parseFloat(item.revenue),
-      averagePrice: parseFloat(item.averagePrice),
-    }));
+    // Group by item
+    const itemsMap = new Map<string, {
+      itemId: string;
+      itemTitle: string;
+      itemType: string;
+      statsByCurrency: Array<{
+        currency: string;
+        revenue: number;
+        salesCount: number;
+        averagePrice: number;
+      }>;
+    }>();
+
+    itemsByCurrency.forEach(row => {
+      const itemKey = `${row.t_itemId}-${row.t_itemTitle}-${row.t_itemType}`;
+
+      if (!itemsMap.has(itemKey)) {
+        itemsMap.set(itemKey, {
+          itemId: row.t_itemId,
+          itemTitle: row.t_itemTitle,
+          itemType: row.t_itemType,
+          statsByCurrency: [],
+        });
+      }
+
+      const item = itemsMap.get(itemKey)!;
+
+      item.statsByCurrency.push({
+        currency: row.t_currency,
+        revenue: parseFloat(row.revenue || '0'),
+        salesCount: parseInt(row.sales_count || '0'),
+        averagePrice: parseFloat(row.average_price || '0'),
+      });
+    });
+
+    // Convert map to array and sort items by total revenue across all currencies
+    const itemsArray = Array.from(itemsMap.values())
+      .map(item => {
+        // Sort currency stats within each item by revenue (highest first)
+        item.statsByCurrency.sort((a, b) => b.revenue - a.revenue);
+        return item;
+      })
+      .sort((a, b) => {
+        // Sort items by total revenue across all currencies (highest first)
+        const totalRevenueA = a.statsByCurrency.reduce((sum, curr) => sum + curr.revenue, 0);
+        const totalRevenueB = b.statsByCurrency.reduce((sum, curr) => sum + curr.revenue, 0);
+        return totalRevenueB - totalRevenueA;
+      })
+      .slice(0, limit);
+
+    return itemsArray;
   }
 
   // ========== ADMIN ANALYTICS ==========
@@ -661,5 +715,90 @@ export class PaymentService {
       page,
       limit,
     };
+  }
+
+  // In PaymentService
+  async getCreatorRevenueGrowth(
+    creatorId: string,
+    period: RevenuePeriod = RevenuePeriod.MONTHLY,
+    currency?: string
+  ): Promise<Array<{
+    date: string;
+    revenue: number;
+    transactions: number;
+  }>> {
+    const [startDate, endDate] = this.getDateRange(period);
+    const datePart = this.getDatePart(period);
+
+    const query = this.transactionRepository
+      .createQueryBuilder('t')
+      .select([
+        `DATE_TRUNC('${datePart}', t.created_at AT TIME ZONE 'UTC') as date_group`,
+        'SUM(t.amount) as revenue',
+        'COUNT(t.id) as transactions'
+      ])
+      .where('t.creatorId = :creatorId', { creatorId })
+      .andWhere('t.status = :status', { status: TransactionStatus.PAID })
+      .andWhere('t.created_at >= :startDate', { startDate })
+      .andWhere('t.created_at < :endDate', { endDate });
+
+    if (currency) {
+      query.andWhere('t.currency = :currency', { currency });
+    }
+
+    const results = await query
+      .groupBy(`DATE_TRUNC('${datePart}', t.created_at AT TIME ZONE 'UTC')`)
+      .orderBy('date_group', 'ASC')
+      .getRawMany();
+
+    return results.map(row => ({
+      date: this.formatDateForPeriod(row.date_group, period),
+      revenue: parseFloat(row.revenue || '0'),
+      transactions: parseInt(row.transactions || '0'),
+    }));
+  }
+
+  private getDateRange(period: string): [Date, Date] {
+    const endDate = new Date();
+    const startDate = new Date(endDate);
+
+    switch (period) {
+      case 'weekly':
+        startDate.setDate(endDate.getDate() - 7);
+        break;
+      case 'monthly':
+        startDate.setDate(endDate.getDate() - 28); // 4 weeks
+        break;
+      case 'yearly':
+        startDate.setFullYear(endDate.getFullYear() - 1);
+        break;
+      default:
+        startDate.setFullYear(endDate.getFullYear() - 1);
+    }
+    return [startDate, endDate];
+  }
+
+  private getDatePart(period: string): string {
+    switch (period) {
+      case 'weekly':
+        return 'DAY';
+      case 'monthly':
+        return 'WEEK';
+      case 'yearly':
+        return 'MONTH';
+      default:
+        return 'MONTH';
+    }
+  }
+
+  private formatDateForPeriod(dateString: string, period: string): string {
+    const date = new Date(dateString);
+
+    // Always return YYYY-MM-DD format
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
   }
 }
