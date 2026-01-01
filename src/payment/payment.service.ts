@@ -401,15 +401,18 @@ export class PaymentService {
 
   // ========== CREATOR ANALYTICS ==========
 
-  async getCreatorEarnings(creatorId: string): Promise<{
-    totalEarnings: number;
-    pendingEarnings: number;
-    currentBalance: number;
-    monthlyEarnings: number;
-    transactionsCount: number;
-    paidTransactionsCount: number;
-    pendingTransactionsCount: number;
-  }> {
+  async getCreatorEarnings(creatorId: string): Promise<
+    Array<{
+      currency: string;
+      totalEarnings: number;
+      pendingEarnings: number;
+      currentBalance: number;
+      monthlyEarnings: number;
+      transactionsCount: number;
+      paidTransactionsCount: number;
+      pendingTransactionsCount: number;
+    }>
+  > {
     // Verify creator exists
     const creator = await this.userRepository.findOne({
       where: { id: creatorId },
@@ -419,43 +422,46 @@ export class PaymentService {
       throw new NotFoundException('Creator not found');
     }
 
-    // Get paid transactions stats
-    const paidStats = await this.transactionRepository
+    // Get all stats grouped by currency in a single query
+    const statsByCurrency = await this.transactionRepository
       .createQueryBuilder('t')
       .select([
-        'SUM(t.amount) as total_earnings',
-        'COUNT(t.id) as transactions_count',
+        't.currency as currency',
+        `SUM(CASE WHEN t.status = 'PAID' THEN t.amount ELSE 0 END) as total_earnings`,
+        `SUM(CASE WHEN t.status = 'PENDING' THEN t.amount ELSE 0 END) as pending_earnings`,
+        `COUNT(CASE WHEN t.status = 'PAID' THEN 1 END) as paid_transactions_count`,
+        `COUNT(CASE WHEN t.status = 'PENDING' THEN 1 END) as pending_transactions_count`,
         `SUM(CASE 
-          WHEN EXTRACT(MONTH FROM t.updated_at) = EXTRACT(MONTH FROM NOW()) 
-          AND EXTRACT(YEAR FROM t.updated_at) = EXTRACT(YEAR FROM NOW()) 
-          THEN t.amount 
-          ELSE 0 
-        END) as monthly_earnings`,
+        WHEN t.status = 'PAID' 
+        AND EXTRACT(MONTH FROM t.updated_at) = EXTRACT(MONTH FROM NOW()) 
+        AND EXTRACT(YEAR FROM t.updated_at) = EXTRACT(YEAR FROM NOW()) 
+        THEN t.amount 
+        ELSE 0 
+      END) as monthly_earnings`,
+        `COUNT(CASE WHEN t.status IN ('PAID', 'PENDING') THEN 1 END) as transactions_count`,
       ])
       .where('t.creator_id = :creatorId', { creatorId })
-      .andWhere('t.status = :status', { status: TransactionStatus.PAID })
-      .getRawOne();
+      .andWhere('t.status IN (:...statuses)', {
+        statuses: [TransactionStatus.PAID, TransactionStatus.PENDING]
+      })
+      .groupBy('t.currency')
+      .orderBy('t.currency', 'ASC')
+      .getRawMany();
 
-    // Get pending transactions stats
-    const pendingStats = await this.transactionRepository
-      .createQueryBuilder('t')
-      .select([
-        'SUM(t.amount) as pending_earnings',
-        'COUNT(t.id) as pending_transactions_count',
-      ])
-      .where('t.creator_id = :creatorId', { creatorId })
-      .andWhere('t.status = :status', { status: TransactionStatus.PENDING })
-      .getRawOne();
+    // Transform the raw results into the desired format
+    const earningsByCurrency = statsByCurrency.map(stat => ({
+      currency: stat.currency,
+      totalEarnings: parseFloat(stat.total_earnings || '0'),
+      pendingEarnings: parseFloat(stat.pending_earnings || '0'),
+      currentBalance: parseFloat(stat.total_earnings || '0'), // Current balance is total earned (paid)
+      monthlyEarnings: parseFloat(stat.monthly_earnings || '0'),
+      transactionsCount: parseInt(stat.transactions_count || '0'),
+      paidTransactionsCount: parseInt(stat.paid_transactions_count || '0'),
+      pendingTransactionsCount: parseInt(stat.pending_transactions_count || '0')
+    }));
 
-    return {
-      totalEarnings: parseFloat(paidStats?.total_earnings || '0'),
-      pendingEarnings: parseFloat(pendingStats?.pending_earnings || '0'),
-      currentBalance: parseFloat(paidStats?.total_earnings || '0'),
-      monthlyEarnings: parseFloat(paidStats?.monthly_earnings || '0'),
-      transactionsCount: parseInt(paidStats?.transactions_count || '0') + parseInt(pendingStats?.pending_transactions_count || '0'),
-      paidTransactionsCount: parseInt(paidStats?.transactions_count || '0'),
-      pendingTransactionsCount: parseInt(pendingStats?.pending_transactions_count || '0'),
-    };
+    // Return empty array if no transactions found
+    return earningsByCurrency;
   }
 
   async getCreatorTransactions(

@@ -11,7 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { CoursePricingService } from './course-pricing.service';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
 import { CreateCoursePricingDto } from './dto/create-course-pricing.dto';
 import { UpdateCoursePricingDto } from './dto/update-course-pricing.dto';
 import { AuthGuard } from '@nestjs/passport';
@@ -19,6 +19,7 @@ import { PermissionsGuard } from '../../auth/permission.guard';
 import { RequirePermissions } from 'src/auth/decorator/permission.decorator';
 
 @ApiTags('Course Pricing')
+@ApiBearerAuth('access_token')
 @Controller('courses/:courseId/pricing')
 @UseGuards(AuthGuard('jwt'), PermissionsGuard)
 export class CoursePricingController {
