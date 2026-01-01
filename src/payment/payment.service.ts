@@ -7,6 +7,7 @@ import { Cart, CartStatus } from '../cart/entities/cart.entity';
 import { CartItem } from '../cart/entities/cart-item.entity';
 import { Transaction, TransactionStatus } from './entities/transaction.entity';
 import { User } from 'src/user/entities/user.entity';
+import { RevenuePeriod } from './dto/revenue-growth.dto';
 
 @Injectable()
 export class PaymentService {
@@ -714,5 +715,90 @@ export class PaymentService {
       page,
       limit,
     };
+  }
+
+  // In PaymentService
+  async getCreatorRevenueGrowth(
+    creatorId: string,
+    period: RevenuePeriod = RevenuePeriod.MONTHLY,
+    currency?: string
+  ): Promise<Array<{
+    date: string;
+    revenue: number;
+    transactions: number;
+  }>> {
+    const [startDate, endDate] = this.getDateRange(period);
+    const datePart = this.getDatePart(period);
+
+    const query = this.transactionRepository
+      .createQueryBuilder('t')
+      .select([
+        `DATE_TRUNC('${datePart}', t.created_at AT TIME ZONE 'UTC') as date_group`,
+        'SUM(t.amount) as revenue',
+        'COUNT(t.id) as transactions'
+      ])
+      .where('t.creatorId = :creatorId', { creatorId })
+      .andWhere('t.status = :status', { status: TransactionStatus.PAID })
+      .andWhere('t.created_at >= :startDate', { startDate })
+      .andWhere('t.created_at < :endDate', { endDate });
+
+    if (currency) {
+      query.andWhere('t.currency = :currency', { currency });
+    }
+
+    const results = await query
+      .groupBy(`DATE_TRUNC('${datePart}', t.created_at AT TIME ZONE 'UTC')`)
+      .orderBy('date_group', 'ASC')
+      .getRawMany();
+
+    return results.map(row => ({
+      date: this.formatDateForPeriod(row.date_group, period),
+      revenue: parseFloat(row.revenue || '0'),
+      transactions: parseInt(row.transactions || '0'),
+    }));
+  }
+
+  private getDateRange(period: string): [Date, Date] {
+    const endDate = new Date();
+    const startDate = new Date(endDate);
+
+    switch (period) {
+      case 'weekly':
+        startDate.setDate(endDate.getDate() - 7);
+        break;
+      case 'monthly':
+        startDate.setDate(endDate.getDate() - 28); // 4 weeks
+        break;
+      case 'yearly':
+        startDate.setFullYear(endDate.getFullYear() - 1);
+        break;
+      default:
+        startDate.setFullYear(endDate.getFullYear() - 1);
+    }
+    return [startDate, endDate];
+  }
+
+  private getDatePart(period: string): string {
+    switch (period) {
+      case 'weekly':
+        return 'DAY';
+      case 'monthly':
+        return 'WEEK';
+      case 'yearly':
+        return 'MONTH';
+      default:
+        return 'MONTH';
+    }
+  }
+
+  private formatDateForPeriod(dateString: string, period: string): string {
+    const date = new Date(dateString);
+
+    // Always return YYYY-MM-DD format
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
   }
 }
