@@ -47,12 +47,35 @@ export class AuthService {
       where: { id: user.id },
       relations: [
         'role',
-        'role.rolePermissions',
-        'role.rolePermissions.permission',
         'profile',
         'academy',
         'department',
       ],
+      select: {
+        id: true,
+        email: true,
+        role: {
+          id: true,
+          name: true,
+        },
+        profile: {
+          firstName: true,
+          lastName: true,
+          userName: true,
+          photoUrl: true,
+        },
+        academy: {
+          id: true,
+          name: true,
+          slug: true,
+          image: true,
+          description: true,
+        },
+        department: {
+          id: true,
+        },
+        isEmailVerified: true,
+      },
     });
 
     if (!fullUser) {
@@ -66,9 +89,6 @@ export class AuthService {
       academyId: fullUser.academy?.id ?? null,
       departmentId: fullUser.department?.id ?? null,
       isEmailVerified: fullUser.isEmailVerified ?? null,
-      permissions: fullUser.role?.rolePermissions?.map(
-        (rp) => rp.permission.name,
-      ) ?? [],
     };
 
     const accessToken = this.jwtService.sign(payload, {
