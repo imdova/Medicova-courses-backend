@@ -143,3 +143,5 @@ socket.on('new_notification', (notification) => {
 
 **Key Point**: WebSocket events are **real-time** and fire automatically. REST API requires manual HTTP requests.
 
+
+

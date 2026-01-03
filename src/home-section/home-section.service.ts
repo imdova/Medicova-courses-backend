@@ -271,6 +271,10 @@ const SECTION_RULES = {
 
 @Injectable()
 export class HomeSectionService {
+  // Simple in-memory cache for featured courses (TTL: 5 minutes)
+  private featuredCoursesCache: Map<string, { data: any; expiresAt: number }> = new Map();
+  private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
+
   constructor(
     @InjectRepository(HomeSection)
     private readonly homeSectionRepository: Repository<HomeSection>,
@@ -593,23 +597,37 @@ export class HomeSectionService {
   // }
 
   async getPublicFeaturedCourses(userId?: string) {
+    // Check cache first (cache key includes userId to handle favorites correctly)
+    const cacheKey = `featured-courses:${userId || 'anonymous'}`;
+    const cached = this.featuredCoursesCache.get(cacheKey);
+    
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.data;
+    }
+
     // Get the featured courses section from database
     const section = await this.findByType(HomeSectionType.FEATURED_COURSES);
 
     // Return empty array if section is not active
     if (!section.isActive) {
-      return {
-        courses: []
-      };
+      const result = { courses: [] };
+      this.featuredCoursesCache.set(cacheKey, {
+        data: result,
+        expiresAt: Date.now() + this.CACHE_TTL,
+      });
+      return result;
     }
 
     const config = section.config as any;
 
     // Return empty array if no courses configured
     if (!config.courses || !Array.isArray(config.courses) || config.courses.length === 0) {
-      return {
-        courses: []
-      };
+      const result = { courses: [] };
+      this.featuredCoursesCache.set(cacheKey, {
+        data: result,
+        expiresAt: Date.now() + this.CACHE_TTL,
+      });
+      return result;
     }
 
     // Extract course IDs from the configuration
@@ -648,22 +666,25 @@ export class HomeSectionService {
       };
     }).filter(item => item !== null); // Remove courses that weren't found
 
-    return {
+    const result = {
       // isActive: section.isActive,
       courses: courses.sort((a, b) => a.order - b.order) // Ensure proper ordering
     };
+
+    // Cache the result
+    this.featuredCoursesCache.set(cacheKey, {
+      data: result,
+      expiresAt: Date.now() + this.CACHE_TTL,
+    });
+
+    return result;
   }
 
   private async getEnrichedCoursesByIds(courseIds: string[], userId?: string): Promise<any[]> {
     if (courseIds.length === 0) return [];
 
-    // Build the favorite subquery based on whether user is authenticated
-    const favoriteSubquery = userId
-      ? `(SELECT COUNT(cf.id) > 0 FROM course_favorite cf WHERE cf.course_id = course.id AND cf.student_id = '${userId}')`
-      : 'false';
-
-    // First, get the course data with all the existing fields
-    const results = await this.courseRepository
+    // Build query builder
+    const qb = this.courseRepository
       .createQueryBuilder('course')
       .innerJoin('course.instructor', 'instructor')
       .innerJoin('instructor.profile', 'profile')
@@ -690,7 +711,6 @@ export class HomeSectionService {
       .addSelect('profile.photoUrl', 'instructorPhotoUrl')
       .addSelect('COUNT(DISTINCT enrollments.id)', 'enrolledStudents')
       .addSelect(`COUNT(DISTINCT CASE WHEN items.curriculumType = 'lecture' THEN items.id END)`, 'totalLessons')
-      .addSelect(favoriteSubquery, 'isFavorite') // Add favorite status
       .where('course.id IN (:...ids)', { ids: courseIds })
       .andWhere('course.status = :status', { status: 'published' })
       .andWhere('course.isActive = true')
@@ -707,8 +727,20 @@ export class HomeSectionService {
       .addGroupBy('course.isCourseFree')
       .addGroupBy('profile.firstName')
       .addGroupBy('profile.lastName')
-      .addGroupBy('profile.photoUrl')
-      .getRawMany();
+      .addGroupBy('profile.photoUrl');
+
+    // ✅ FIX: Use parameterized EXISTS subquery instead of string interpolation (fixes SQL injection)
+    if (userId) {
+      qb.addSelect(
+        `EXISTS (SELECT 1 FROM course_favorite cf WHERE cf.course_id = course.id AND cf.student_id = :userId)`,
+        'isFavorite'
+      );
+      qb.setParameter('userId', userId);
+    } else {
+      qb.addSelect('false', 'isFavorite');
+    }
+
+    const results = await qb.getRawMany();
 
     // Get pricing data for all courses
     const pricingData = await this.getCoursePricing(courseIds);
