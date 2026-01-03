@@ -9,6 +9,7 @@ import { CreateCertificateTemplateDto } from './dto/create-certificate-template.
 import { UpdateCertificateTemplateDto } from './dto/update-certificate-template.dto';
 import { Course } from 'src/course/entities/course.entity';
 import { User } from 'src/user/entities/user.entity';
+import { FileUploadService } from 'src/file-upload/file-upload.service';
 
 @Injectable()
 export class CertificateService {
@@ -23,6 +24,7 @@ export class CertificateService {
     private readonly courseRepository: Repository<Course>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    private readonly fileUploadService: FileUploadService, // Add this
   ) { }
 
   private checkTemplateOwnership(
@@ -57,16 +59,14 @@ export class CertificateService {
   ): Promise<CertificateTemplate[]> {
     const query = this.templateRepository.createQueryBuilder('template')
       .leftJoinAndSelect('template.createdBy', 'createdBy')
-      .leftJoinAndSelect('createdBy.academy', 'academy');
+      .leftJoinAndSelect('createdBy.academy', 'academy')
+      .leftJoinAndSelect('template.file', 'file'); // Join file entity
 
-    // Apply role-based filtering
     if (role === 'admin') {
-      // Admin sees all templates - no additional filters
+      // Admin sees all templates
     } else if (role === 'academy_admin' && academyId) {
-      // Academy admin sees templates from their academy
       query.where('createdBy.academy = :academyId', { academyId });
     } else {
-      // Regular users only see their own templates
       query.where('template.createdBy = :userId', { userId });
     }
 
@@ -87,14 +87,13 @@ export class CertificateService {
   ): Promise<CertificateTemplate> {
     const template = await this.templateRepository.findOne({
       where: { id },
-      relations: ['createdBy', 'createdBy.academy']
+      relations: ['createdBy', 'createdBy.academy', 'file'] // Include file relation
     });
 
     if (!template) {
       throw new NotFoundException(`Certificate template with ID ${id} not found`);
     }
 
-    // Check ownership/access rights
     this.checkTemplateOwnership(template, userId, academyId, role);
 
     return template;
@@ -113,17 +112,30 @@ export class CertificateService {
       throw new NotFoundException('User not found');
     }
 
-    this.validateFile(file);
+    // Validate certificate template file
+    this.validateTemplateFile(file);
+
+    // Upload file using existing service
+    const uploadResult = await this.fileUploadService.uploadFile(
+      file,
+      userId,
+      'certificate-templates' // Specific folder for certificate templates
+    );
+
+    if (uploadResult.error) {
+      throw new BadRequestException(uploadResult.error);
+    }
+
+    // Get the file entity
+    const fileEntity = await this.fileUploadService.findOne(uploadResult.fileId);
 
     const templateData = {
       name: createDto.name,
       description: createDto.description,
       type: createDto.type as TemplateType,
-      fileName: file.originalname,
-      fileSize: this.formatFileSize(file.size),
-      fileFormat: file.mimetype.split('/')[1],
+      file: fileEntity, // Link to FileUpload entity
       createdBy: user,
-      status: TemplateStatus.DRAFT
+      status: TemplateStatus.DRAFT,
     };
 
     const template = this.templateRepository.create(templateData);
@@ -136,7 +148,8 @@ export class CertificateService {
       createdBy: user,
       metadata: {
         fileName: file.originalname,
-        fileSize: file.size
+        fileSize: file.size,
+        fileUrl: uploadResult.fileUrl
       }
     });
 
@@ -521,12 +534,15 @@ export class CertificateService {
 
     const template = await this.findById(id, userId, role, academyId);
 
-    // Check if template has issued certificates
     if (template.certificatesIssued > 0) {
       throw new BadRequestException('Cannot delete template with issued certificates. Archive it instead.');
     }
 
-    // Use soft delete instead of remove
+    // Delete associated file from S3 and database
+    if (template.file) {
+      await this.fileUploadService.remove(template.file.id, userId);
+    }
+
     await this.templateRepository.softDelete(id);
 
     await this.createAuditTrail({
@@ -599,6 +615,84 @@ export class CertificateService {
   }
 
   private validateFile(file: Express.Multer.File): void {
+    const allowedFormats = ['pdf', 'png', 'jpg', 'jpeg'];
+    const maxSize = 10 * 1024 * 1024; // 10MB
+
+    if (!file) {
+      throw new BadRequestException('File is required');
+    }
+
+    const fileExtension = file.originalname.split('.').pop().toLowerCase();
+
+    if (!allowedFormats.includes(fileExtension)) {
+      throw new BadRequestException('Only PDF, PNG, and JPG files are allowed');
+    }
+
+    if (file.size > maxSize) {
+      throw new BadRequestException('File size must be less than 10MB');
+    }
+  }
+
+  async updateTemplateFile(
+    id: string,
+    file: Express.Multer.File,
+    userId: string,
+    role: string,
+    academyId: string | null
+  ): Promise<CertificateTemplate> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const template = await this.findById(id, userId, role, academyId);
+
+    // Validate new file
+    this.validateTemplateFile(file);
+
+    // Delete old file if exists
+    if (template.file) {
+      await this.fileUploadService.remove(template.file.id, userId);
+    }
+
+    // Upload new file
+    const uploadResult = await this.fileUploadService.uploadFile(
+      file,
+      userId,
+      'certificate-templates'
+    );
+
+    if (uploadResult.error) {
+      throw new BadRequestException(uploadResult.error);
+    }
+
+    // Get the new file entity
+    const fileEntity = await this.fileUploadService.findOne(uploadResult.fileId);
+
+    // Update template with new file
+    const updatedTemplate = await this.templateRepository.save({
+      ...template,
+      file: fileEntity
+    });
+
+    await this.createAuditTrail({
+      action: AuditAction.TEMPLATE_UPDATED,
+      description: `Template "${template.name}" file updated`,
+      template: updatedTemplate,
+      createdBy: user,
+      metadata: {
+        oldFileId: template.file?.id,
+        newFileId: fileEntity.id
+      }
+    });
+
+    return updatedTemplate;
+  }
+
+  private validateTemplateFile(file: Express.Multer.File): void {
     const allowedFormats = ['pdf', 'png', 'jpg', 'jpeg'];
     const maxSize = 10 * 1024 * 1024; // 10MB
 
