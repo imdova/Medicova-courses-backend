@@ -12,6 +12,6 @@ import { AwsS3StorageService } from './aws-s3-storage.service';
   imports: [TypeOrmModule.forFeature([FileUpload])],
   controllers: [FileUploadController],
   providers: [FileUploadService, AwsS3StorageService],
-  exports: [FileUploadService],
+  exports: [FileUploadService, AwsS3StorageService],
 })
 export class FileUploadModule { }
