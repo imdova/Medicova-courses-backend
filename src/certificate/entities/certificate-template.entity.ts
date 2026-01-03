@@ -3,6 +3,7 @@ import { BasicEntity } from '../../common/entities/basic.entity';
 import { User } from '../../user/entities/user.entity';
 import { Course } from '../../course/entities/course.entity';
 import { Certificate } from './certificate.entity';
+import { FileUpload } from '../../file-upload/entities/file-upload.entity'; // Add this
 
 export enum TemplateStatus {
     DRAFT = 'draft',
@@ -38,14 +39,9 @@ export class CertificateTemplate extends BasicEntity {
     })
     type: TemplateType;
 
-    @Column()
-    fileName: string;
-
-    @Column()
-    fileSize: string;
-
-    @Column()
-    fileFormat: string; // 'pdf', 'png', 'jpg'
+    @ManyToOne(() => FileUpload, { eager: true, onDelete: 'SET NULL' }) // Add this
+    @JoinColumn({ name: 'file_id' })
+    file: FileUpload;
 
     @Column({ default: 0 })
     certificatesIssued: number;
@@ -78,7 +74,39 @@ export class CertificateTemplate extends BasicEntity {
     @OneToMany(() => Certificate, certificate => certificate.template)
     certificates: Certificate[];
 
-    // Relationship with courses that use this template
     @OneToMany(() => Course, course => course.certificateTemplate)
     courses: Course[];
+
+    // Virtual properties
+    get downloadUrl(): string {
+        return `${process.env.API_URL}/certificate-templates/${this.id}/download`;
+    }
+
+    get previewUrl(): string {
+        return `${process.env.API_URL}/certificate-templates/${this.id}/preview`;
+    }
+
+    get fileUrl(): string | null {
+        return this.file?.url || null;
+    }
+
+    get fileName(): string | null {
+        return this.file?.originalName || null;
+    }
+
+    get fileSize(): string | null {
+        return this.file ? this.formatFileSize(this.file.size) : null;
+    }
+
+    get fileFormat(): string | null {
+        return this.file?.mimeType?.split('/')[1] || null;
+    }
+
+    private formatFileSize(bytes: number): string {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
 }
