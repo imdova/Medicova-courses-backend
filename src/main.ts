@@ -124,8 +124,8 @@ async function bootstrap(): Promise<NestExpressApplication> {
     const swaggerPath = 'api/docs';
 
     if (process.env.NODE_ENV === 'production') {
-      app.use(`/${swaggerPath}`, swaggerBasicAuth);
-      app.use(`/${swaggerPath}/*`, swaggerBasicAuth);
+      // Use regex pattern to match all sub-paths under /api/docs
+      app.use(/^\/api\/docs/, swaggerBasicAuth);
     }
 
     // Setup Swagger with full path (bypasses global prefix)
